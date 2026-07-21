@@ -166,14 +166,6 @@ public class UserAutoRegistrationHandler : DelegatingHandler
                 return false;
             }
 
-            // Get the template ID from session or fall back to default configuration
-            var templateId = GetTemplateIdFromSessionOrConfig();
-            if (!templateId.HasValue)
-            {
-                _logger.LogWarning("Cannot auto-register user: TemplateId is not available in session or configuration");
-                return false;
-            }
-
             // Get Azure AD token (service-to-service auth, not OBO)
             var azureToken = await _tokenAcquisitionService.GetTokenAsync();
             if (string.IsNullOrEmpty(azureToken))
@@ -182,15 +174,18 @@ public class UserAutoRegistrationHandler : DelegatingHandler
                 return false;
             }
 
-            _logger.LogInformation("Auto-registering user with TemplateId: {TemplateId} (Source: {Source})", 
-                templateId.Value, 
-                _httpContextAccessor.HttpContext?.Session.GetString("TemplateId") != null ? "Session" : "Configuration");
+            // Template access is resolved by the API:
+            // - exactly one live tenant form → auto-grant
+            // - zero or multiple live forms → register with no form access
+            _logger.LogInformation("Auto-registering user; template access will be resolved by the API from live tenant forms");
 
-            // Create the registration request
+            // Create the registration request.
+            // Guid.Empty means "no explicit template" — the API auto-assigns only when
+            // the tenant has exactly one live form; otherwise registers with no form access.
             var registerRequest = new RegisterUserRequest
             {
                 AccessToken = tokenState.ExternalIdpToken.Value,
-                TemplateId = templateId.Value
+                TemplateId = Guid.Empty
             };
 
             var settings = _settingsProvider.GetSettings();
@@ -219,40 +214,6 @@ public class UserAutoRegistrationHandler : DelegatingHandler
         {
             _logger.LogError(ex, "Unexpected error during user auto-registration");
             return false;
-        }
-    }
-
-    private Guid? GetTemplateIdFromSessionOrConfig()
-    {
-        try
-        {
-            // Try to get TemplateId from session first (higher priority)
-            var httpContext = _httpContextAccessor.HttpContext;
-            if (httpContext?.Session != null)
-            {
-                var sessionTemplateId = httpContext.Session.GetString("TemplateId");
-                if (!string.IsNullOrEmpty(sessionTemplateId) && Guid.TryParse(sessionTemplateId, out var parsedGuid))
-                {
-                    _logger.LogDebug("Using TemplateId from session: {TemplateId}", parsedGuid);
-                    return parsedGuid;
-                }
-            }
-
-            var settings = _settingsProvider.GetSettings();
-
-            // Fall back to configuration
-            if (settings.DefaultTemplateId.HasValue)
-            {
-                _logger.LogDebug("Using DefaultTemplateId from configuration: {TemplateId}", settings.DefaultTemplateId.Value);
-                return settings.DefaultTemplateId.Value;
-            }
-
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving TemplateId from session or configuration");
-            return _settingsProvider.GetSettings().DefaultTemplateId;
         }
     }
 

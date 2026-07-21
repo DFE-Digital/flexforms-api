@@ -124,7 +124,7 @@ public class UserFactory : IUserFactory
         RoleId roleId,
         string name,
         string email,
-        TemplateId templateId ,
+        TemplateId? templateId = null,
         DateTime? createdOn = null)
     {
         if (id == null)
@@ -171,13 +171,16 @@ public class UserFactory : IUserFactory
             null, // No application context
             when);
 
-        // Add template permissions if TemplateId is provided
-        AddTemplatePermissionToUser(
-            user,
-            templateId.Value.ToString(),
-            new[] { AccessType.Read, AccessType.Write },
-            id, // User grants permission to themselves
-            when);
+        // Add template permissions only when a template was resolved for this registration
+        if (templateId is not null)
+        {
+            AddTemplatePermissionToUser(
+                user,
+                templateId.Value.ToString(),
+                new[] { AccessType.Read, AccessType.Write },
+                id, // User grants permission to themselves
+                when);
+        }
 
         // Raise domain event for user creation (side effects like email)
         user.AddDomainEvent(new UserCreatedEvent(

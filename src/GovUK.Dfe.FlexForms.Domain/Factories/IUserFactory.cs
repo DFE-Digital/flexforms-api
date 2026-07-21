@@ -23,7 +23,7 @@ public interface IUserFactory
         RoleId roleId,
         string name,
         string email,
-        TemplateId templateId,
+        TemplateId? templateId = null,
         DateTime? createdOn = null);
 
     /// <summary>

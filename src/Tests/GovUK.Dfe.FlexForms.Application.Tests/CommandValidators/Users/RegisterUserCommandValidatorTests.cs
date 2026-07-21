@@ -39,6 +39,19 @@ public class RegisterUserCommandValidatorTests
         result.ShouldNotHaveAnyValidationErrors();
     }
 
+    [Fact]
+    public void Should_Pass_When_TemplateId_Is_Null()
+    {
+        // Arrange
+        var command = new RegisterUserCommand("valid-token-string", null);
+
+        // Act
+        var result = _validator.TestValidate(command);
+
+        // Assert
+        result.ShouldNotHaveAnyValidationErrors();
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData(null)]

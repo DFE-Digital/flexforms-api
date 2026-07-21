@@ -55,7 +55,10 @@ public class UsersController(ISender sender) : ControllerBase
         CancellationToken ct)
     {
         var result = await sender.Send(
-            new RegisterUserCommand(request.AccessToken, request.TemplateId), ct);
+            new RegisterUserCommand(
+                request.AccessToken,
+                request.TemplateId == Guid.Empty ? null : request.TemplateId),
+            ct);
         
         if (!result.IsSuccess)
             return BadRequest(new ExceptionResponse { Message = result.Error });

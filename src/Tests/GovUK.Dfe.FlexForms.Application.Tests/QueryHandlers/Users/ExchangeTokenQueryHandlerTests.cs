@@ -355,7 +355,7 @@ public class ExchangeTokenQueryHandlerTests
 
     [Theory]
     [CustomAutoData(typeof(UserCustomization))]
-    public async Task Handle_UserWithoutAccessibleTemplate_ReturnsNotFound(
+    public async Task Handle_UserWithoutAccessibleTemplate_AllowsLogin(
         string subjectToken,
         string email,
         UserCustomization userCustom,
@@ -367,25 +367,33 @@ public class ExchangeTokenQueryHandlerTests
         [Frozen][FromKeyedServices("internal")] ICustomRequestChecker internalRequestChecker,
         [Frozen] ILogger<ExchangeTokenQueryHandler> logger)
     {
-        tenantContextAccessor.CurrentTenant.Returns(CreateTenant());
+        var tenant = CreateTenant();
+        tenantContextAccessor.CurrentTenant.Returns(tenant);
 
         externalValidator.ValidateIdTokenAsync(subjectToken, false, false, Arg.Any<InternalServiceAuthOptions?>(), Arg.Any<TestAuthenticationOptions?>(), Arg.Any<CancellationToken>())
             .Returns(new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Email, email) })));
 
         userCustom.OverrideEmail = email;
-        userCustom.OverrideTemplatePermissions = new[]
-        {
-            new TemplatePermission(
-                new TemplatePermissionId(Guid.NewGuid()),
-                new UserId(Guid.NewGuid()),
-                new TemplateId(Guid.NewGuid()),
-                AccessType.Read,
-                DateTime.UtcNow,
-                new UserId(Guid.NewGuid()))
-        };
+        userCustom.OverrideTemplatePermissions = Array.Empty<TemplatePermission>();
         var user = new Fixture().Customize(userCustom).Create<User>();
         user.GetType().GetProperty("Role")!.SetValue(user, new Role(user.RoleId, "TestRole"));
         userRepo.Query().Returns(new List<User> { user }.AsQueryable().BuildMock());
+
+        var httpContext = Substitute.For<HttpContext>();
+        httpContext.User.Returns(new ClaimsPrincipal(new ClaimsIdentity()));
+        httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var expectedInternalToken = new Token
+        {
+            AccessToken = "internal-token",
+            TokenType = "Bearer",
+            ExpiresIn = 3600
+        };
+        var tokenService = Substitute.For<IUserTokenService>();
+        tokenServiceFactory.GetService(tenant.Id.ToString()).Returns(tokenService);
+        tokenService
+            .GetUserTokenModelAsync(Arg.Any<ClaimsPrincipal>())
+            .Returns(Task.FromResult(expectedInternalToken));
 
         var handler = CreateHandler(
             externalValidator,
@@ -399,7 +407,7 @@ public class ExchangeTokenQueryHandlerTests
 
         var result = await handler.Handle(new ExchangeTokenQuery(subjectToken), CancellationToken.None);
 
-        Assert.False(result.IsSuccess);
-        Assert.Equal($"User not found for email {email}", result.Error);
+        Assert.True(result.IsSuccess);
+        Assert.Equal("internal-token", result.Value!.AccessToken);
     }
 }

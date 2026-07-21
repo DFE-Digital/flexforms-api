@@ -18,9 +18,9 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Settings
         public bool AutoRegisterUsers { get; set; } = true;
         
         /// <summary>
-        /// Default template ID to use when auto-registering new users.
-        /// This template determines what permissions and access the user will have.
-        /// Required when AutoRegisterUsers is true.
+        /// Default template ID used for explicit registration flows that still pass a template.
+        /// Auto-registration no longer requires this: the API assigns the sole live tenant form
+        /// when exactly one exists, otherwise registers the user with no form access.
         /// </summary>
         public Guid? DefaultTemplateId { get; set; }
         

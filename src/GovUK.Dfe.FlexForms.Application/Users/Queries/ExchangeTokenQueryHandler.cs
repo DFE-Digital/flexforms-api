@@ -81,8 +81,8 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             if (dbUser.Role is null)
                 return Result<ExchangeTokenDto>.Conflict($"User {email} has no role assigned");
 
-            // Multi-template tenants: succeed when the user can access ANY template in the tenant catalogue.
-            // Empty intersection is treated as "not found" so the client can trigger auto-registration.
+            // Multi-template tenants: users may exist with no form access yet (pending admin grant).
+            // Allow token exchange so the web app can show the no-access page.
             var accessibleTemplates = await userAccessibleTemplateService.GetAccessibleTemplateIdsAsync(
                 dbUser.TemplatePermissions,
                 ct);
@@ -90,11 +90,10 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             if (accessibleTemplates.Count == 0)
             {
                 logger.LogInformation(
-                    "ExchangeToken: User {Email} has no accessible templates for tenant {TenantName}. TemplatePermissionCount={PermissionCount}",
+                    "ExchangeToken: User {Email} has no accessible templates for tenant {TenantName}. TemplatePermissionCount={PermissionCount}. Allowing login without form access.",
                     email,
                     tenantContextAccessor.CurrentTenant.Name,
                     dbUser.TemplatePermissions.Count);
-                return Result<ExchangeTokenDto>.NotFound($"User not found for email {email}");
             }
 
             // Caller was already authenticated by the API pipeline (ServiceCallers → CompositeScheme →
