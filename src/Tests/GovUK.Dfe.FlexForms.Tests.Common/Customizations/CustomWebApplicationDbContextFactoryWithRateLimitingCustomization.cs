@@ -22,6 +22,7 @@ using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using Microsoft.Extensions.Caching.Distributed;
 using StackExchange.Redis;
 using GovUK.Dfe.FlexForms.Tests.Common.Helpers;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Api.Client;
 using GovUK.Dfe.FlexForms.Api.Client.Contracts;
 using GovUK.Dfe.CoreLibs.Notifications.Interfaces;
@@ -75,6 +76,9 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                     },
                     ExternalServicesConfiguration = services =>
                     {
+                        // Use tenant config from customization (HostMappings) so template membership checks match seeded data.
+                        services.RemoveAll<ITenantConfigurationProvider>();
+                        services.AddSingleton<ITenantConfigurationProvider>(new TestTenantConfigurationProvider(TestTenantId));
 
                         services.RemoveAll(typeof(IConfigureOptions<AuthenticationOptions>));
                         services.RemoveAll(typeof(IConfigureOptions<JwtBearerOptions>));

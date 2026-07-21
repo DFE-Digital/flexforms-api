@@ -28,6 +28,8 @@ public class RegisterUserCommandHandlerTests
         var resolver = Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ITenantTemplateResolver>();
         resolver.IsTemplateInCurrentTenantAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>())
             .Returns(true);
+        resolver.GetTemplateIdsForCurrentTenantAsync(Arg.Any<CancellationToken>())
+            .Returns(callInfo => Array.Empty<TemplateId>());
         return resolver;
     }
 
@@ -39,9 +41,25 @@ public class RegisterUserCommandHandlerTests
             DateTime.UtcNow,
             new UserId(Guid.NewGuid()),
             isLive: true);
+        var mockDbSet = new List<Template> { template }.AsQueryable().BuildMockDbSet();
         var repo = Substitute.For<IEaRepository<Template>>();
-        repo.Query().Returns(new List<Template> { template }.AsQueryable().BuildMockDbSet());
+        repo.Query().Returns(mockDbSet);
         return repo;
+    }
+
+    private static void StubCreateUser(
+        IUserFactory userFactory,
+        User newUser,
+        string email)
+    {
+        userFactory.CreateUser(
+            Arg.Any<UserId>(),
+            Arg.Any<RoleId>(),
+            Arg.Any<string>(),
+            email,
+            Arg.Any<TemplateId?>(),
+            Arg.Any<DateTime?>())
+            .Returns(newUser);
     }
 
     [Theory]
@@ -90,8 +108,8 @@ public class RegisterUserCommandHandlerTests
             Arg.Any<RoleId>(),
             Arg.Any<string>(),  // Changed from specific 'name' to Any to match handler behavior
             email,
-            Arg.Any<TemplateId>(),
-            Arg.Any<DateTime>())
+            Arg.Any<TemplateId?>(),
+            Arg.Any<DateTime?>())
             .Returns(newUser);
 
                 var templateId = Guid.NewGuid();
@@ -244,8 +262,8 @@ public class RegisterUserCommandHandlerTests
             Arg.Any<RoleId>(),
             Arg.Any<string>(),  // Changed from specific email to Any to match handler behavior
             email,
-            Arg.Any<TemplateId>(),
-            Arg.Any<DateTime>())
+            Arg.Any<TemplateId?>(),
+            Arg.Any<DateTime?>())
             .Returns(newUser);
 
         var templateId = Guid.NewGuid();
@@ -274,8 +292,8 @@ public class RegisterUserCommandHandlerTests
             Arg.Any<RoleId>(),
             email, // Name should be email
             email,
-            Arg.Any<TemplateId>(),
-            Arg.Any<DateTime>());
+            Arg.Any<TemplateId?>(),
+            Arg.Any<DateTime?>());
     }
 
     [Theory]
@@ -324,8 +342,8 @@ public class RegisterUserCommandHandlerTests
             Arg.Any<RoleId>(),
             Arg.Any<string>(),  // Changed from specific 'name' to Any to match handler behavior
             email,
-            Arg.Any<TemplateId>(),
-            Arg.Any<DateTime>())
+            Arg.Any<TemplateId?>(),
+            Arg.Any<DateTime?>())
             .Returns(newUser);
 
         var templateId = Guid.NewGuid();
@@ -546,8 +564,8 @@ public class RegisterUserCommandHandlerTests
             Arg.Any<RoleId>(),
             Arg.Any<string>(),  // Changed from specific 'name' to Any to match handler behavior
             email,
-            Arg.Any<TemplateId>(),
-            Arg.Any<DateTime>())
+            Arg.Any<TemplateId?>(),
+            Arg.Any<DateTime?>())
             .Returns(newUser);
 
         var templateId = Guid.NewGuid();

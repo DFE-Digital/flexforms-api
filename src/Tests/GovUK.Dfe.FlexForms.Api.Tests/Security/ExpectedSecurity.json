@@ -16,6 +16,21 @@
       "ExpectedSecurity": "Authorize: Roles=Admin"
     },
     {
+      "Controller": "UsersController",
+      "Action": "GetTenantUsersAsync",
+      "ExpectedSecurity": "Authorize: Roles=Admin"
+    },
+    {
+      "Controller": "UsersController",
+      "Action": "UpdateUserTemplateAccessAsync",
+      "ExpectedSecurity": "Authorize: Roles=Admin"
+    },
+    {
+      "Controller": "UsersController",
+      "Action": "RemoveUserFromTenantAsync",
+      "ExpectedSecurity": "Authorize: Roles=Admin"
+    },
+    {
       "Controller": "TemplatesController",
       "Action": "GetAccessibleTemplatesAsync",
       "ExpectedSecurity": "Authorize: Policy=CanListTemplates"
@@ -23,6 +38,11 @@
     {
       "Controller": "TemplatesController",
       "Action": "CreateTemplateAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanCreateTemplate"
+    },
+    {
+      "Controller": "TemplatesController",
+      "Action": "SetTemplateLiveAsync",
       "ExpectedSecurity": "Authorize: Policy=CanCreateTemplate"
     },
     {

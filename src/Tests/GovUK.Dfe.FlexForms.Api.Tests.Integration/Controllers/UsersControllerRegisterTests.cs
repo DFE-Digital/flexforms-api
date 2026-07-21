@@ -34,7 +34,8 @@ public class UsersControllerRegisterTests
             new Claim("iss", "windows.net"),
             new Claim("appid", Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "API.Read"),
-            new Claim(ClaimTypes.Role, "API.Write")
+            new Claim(ClaimTypes.Role, "API.Write"),
+            new Claim(GovUK.Dfe.FlexForms.Domain.Tenancy.TenantAuthClaimTypes.IsService, "true")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =
@@ -96,7 +97,8 @@ public class UsersControllerRegisterTests
             new Claim("iss", "windows.net"),
             new Claim("appid", Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "API.Read"),
-            new Claim(ClaimTypes.Role, "API.Write")
+            new Claim(ClaimTypes.Role, "API.Write"),
+            new Claim(GovUK.Dfe.FlexForms.Domain.Tenancy.TenantAuthClaimTypes.IsService, "true")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =
@@ -147,7 +149,8 @@ public class UsersControllerRegisterTests
             new Claim("iss", "windows.net"),
             new Claim("appid", Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "API.Read"),
-            new Claim(ClaimTypes.Role, "API.Write")
+            new Claim(ClaimTypes.Role, "API.Write"),
+            new Claim(GovUK.Dfe.FlexForms.Domain.Tenancy.TenantAuthClaimTypes.IsService, "true")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =
@@ -205,7 +208,8 @@ public class UsersControllerRegisterTests
             new Claim("iss", "windows.net"),
             new Claim("appid", Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "API.Read"),
-            new Claim(ClaimTypes.Role, "API.Write")
+            new Claim(ClaimTypes.Role, "API.Write"),
+            new Claim(GovUK.Dfe.FlexForms.Domain.Tenancy.TenantAuthClaimTypes.IsService, "true")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =
@@ -253,7 +257,8 @@ public class UsersControllerRegisterTests
             new Claim("iss", "windows.net"),
             new Claim("appid", Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "API.Read"),
-            new Claim(ClaimTypes.Role, "API.Write")
+            new Claim(ClaimTypes.Role, "API.Write"),
+            new Claim(GovUK.Dfe.FlexForms.Domain.Tenancy.TenantAuthClaimTypes.IsService, "true")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =
@@ -296,7 +301,8 @@ public class UsersControllerRegisterTests
             new Claim("iss", "windows.net"),
             new Claim("appid", Guid.NewGuid().ToString()),
             new Claim(ClaimTypes.Role, "API.Read"),
-            new Claim(ClaimTypes.Role, "API.Write")
+            new Claim(ClaimTypes.Role, "API.Write"),
+            new Claim(GovUK.Dfe.FlexForms.Domain.Tenancy.TenantAuthClaimTypes.IsService, "true")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =

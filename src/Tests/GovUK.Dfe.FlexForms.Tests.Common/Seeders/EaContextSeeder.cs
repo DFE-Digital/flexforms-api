@@ -79,7 +79,8 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Seeders
                 templateId,
                 name: "Employee Onboarding",
                 createdOn: now,
-                createdBy: aliceId
+                createdBy: aliceId,
+                isLive: true
             );
             ctx.Templates.Add(template);
 

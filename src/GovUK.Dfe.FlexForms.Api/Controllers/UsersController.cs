@@ -94,4 +94,92 @@ public class UsersController(ISender sender) : ControllerBase
 
         return Ok(result.Value);
     }
+
+    /// <summary>
+    /// Lists users who have form access within the current tenant.
+    /// </summary>
+    [HttpGet("tenant")]
+    [SwaggerResponse(200, "Tenant users.", typeof(IReadOnlyCollection<TenantUserDto>))]
+    [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Forbidden - only administrators can list tenant users", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<IReadOnlyCollection<TenantUserDto>>> GetTenantUsersAsync(
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetTenantUsersQuery(), cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            if (result.ErrorCode == DomainErrorCode.Forbidden)
+                return StatusCode(StatusCodes.Status403Forbidden, new ExceptionResponse { Message = result.Error });
+
+            return BadRequest(new ExceptionResponse { Message = result.Error });
+        }
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
+    /// Replaces a user's form (template) access within the current tenant.
+    /// </summary>
+    [HttpPut("{userId:guid}/templates")]
+    [SwaggerResponse(200, "User template access updated.", typeof(TenantUserDto))]
+    [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
+    [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Forbidden - only administrators can update template access", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "User not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<TenantUserDto>> UpdateUserTemplateAccessAsync(
+        Guid userId,
+        [FromBody] UpdateUserTemplateAccessRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new UpdateUserTemplateAccessCommand(userId, request.TemplateIds ?? Array.Empty<Guid>()),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            if (result.ErrorCode == DomainErrorCode.Forbidden)
+                return StatusCode(StatusCodes.Status403Forbidden, new ExceptionResponse { Message = result.Error });
+            if (result.ErrorCode == DomainErrorCode.NotFound)
+                return NotFound(new ExceptionResponse { Message = result.Error });
+
+            return BadRequest(new ExceptionResponse { Message = result.Error });
+        }
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
+    /// Removes a user from the current tenant by clearing their permissions on tenant templates.
+    /// </summary>
+    [HttpDelete("{userId:guid}/tenant")]
+    [SwaggerResponse(204, "User removed from tenant.")]
+    [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
+    [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Forbidden - only administrators can remove users from the tenant", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "User not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> RemoveUserFromTenantAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new RemoveUserFromTenantCommand(userId), cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            if (result.ErrorCode == DomainErrorCode.Forbidden)
+                return StatusCode(StatusCodes.Status403Forbidden, new ExceptionResponse { Message = result.Error });
+            if (result.ErrorCode == DomainErrorCode.NotFound)
+                return NotFound(new ExceptionResponse { Message = result.Error });
+
+            return BadRequest(new ExceptionResponse { Message = result.Error });
+        }
+
+        return NoContent();
+    }
 }

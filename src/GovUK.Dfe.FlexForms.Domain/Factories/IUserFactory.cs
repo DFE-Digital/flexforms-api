@@ -113,4 +113,11 @@ public interface IUserFactory
     bool RemovePermissionFromUser(
         User user,
         Permission permission);
+
+    /// <summary>
+    /// Removes template permissions for the given template IDs from the user (idempotent).
+    /// </summary>
+    int RemoveTemplatePermissionsFromUser(
+        User user,
+        IEnumerable<TemplateId> templateIds);
 } 

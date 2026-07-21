@@ -154,4 +154,16 @@ public sealed class User : BaseAggregateRoot, IEntity<UserId>
         _templatePermissions.Add(templatePermission);
         return templatePermission;
     }
+
+    /// <summary>
+    /// Internal method to remove a TemplatePermission from this User.
+    /// This should only be called by the UserFactory.
+    /// </summary>
+    internal bool RemoveTemplatePermission(TemplatePermission templatePermission)
+    {
+        if (templatePermission == null)
+            throw new ArgumentNullException(nameof(templatePermission));
+
+        return _templatePermissions.Remove(templatePermission);
+    }
 }

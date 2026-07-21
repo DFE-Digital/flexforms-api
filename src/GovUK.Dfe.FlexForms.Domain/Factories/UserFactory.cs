@@ -574,4 +574,32 @@ public class UserFactory : IUserFactory
 
         return user.RemovePermission(permission);
     }
+
+    /// <inheritdoc />
+    public int RemoveTemplatePermissionsFromUser(
+        User user,
+        IEnumerable<TemplateId> templateIds)
+    {
+        if (user == null)
+            throw new ArgumentException("User cannot be null", nameof(user));
+        if (templateIds == null)
+            throw new ArgumentNullException(nameof(templateIds));
+
+        var ids = templateIds.Select(t => t.Value).ToHashSet();
+        if (ids.Count == 0)
+            return 0;
+
+        var toRemove = user.TemplatePermissions
+            .Where(tp => ids.Contains(tp.TemplateId.Value))
+            .ToList();
+
+        var removed = 0;
+        foreach (var permission in toRemove)
+        {
+            if (user.RemoveTemplatePermission(permission))
+                removed++;
+        }
+
+        return removed;
+    }
 }
