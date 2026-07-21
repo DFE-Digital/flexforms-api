@@ -43,7 +43,7 @@
 		</PackageReference>
 		<PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
 		<PackageReference Include="Serilog.Sinks.ApplicationInsights" Version="5.0.0" />
-		<PackageReference Include="Microsoft.OpenApi" Version="2.4.1" ExcludeFromPruning="true" />
+		<PackageReference Include="Microsoft.OpenApi" Version="2.7.5" ExcludeFromPruning="true" />
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.4" />
 		<PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="10.1.4" />
 		<PackageReference Include="TimeZoneConverter" Version="6.1.0" />
