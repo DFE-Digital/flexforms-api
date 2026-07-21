@@ -15,7 +15,7 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.inputs.environment }}-${{ github.run_number }}
 
 env:
-  IMAGE_NAME: extapp-api
+  IMAGE_NAME: flexformsapi
 
 permissions:
   contents: read
