@@ -64,9 +64,8 @@ public static class TenantSettingsDataProtectionExtensions
         IHostEnvironment environment,
         DataProtectionSettings settings)
     {
-        // launchSettings Local/Development profiles must keep working without Azure resources.
-        if (environment.IsDevelopment() || environment.IsEnvironment("Local"))
-            return true;
+        // launchSettings Local profiles must keep working without Azure resources.
+        if (environment.IsEnvironment("Local")) return true;
 
         return !settings.UseAzure;
     }
