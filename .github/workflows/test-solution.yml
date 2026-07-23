@@ -70,7 +70,7 @@ jobs:
         env:
           CI: true
         run: |
-          dotnet-sonarscanner begin /k:"DFE-Digital_external-applications-api" /o:"dfe-digital" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.coverageReportPaths=CoverageReport/SonarQube.xml
+          dotnet-sonarscanner begin /k:"DFE-Digital_flexforms-api" /o:"dfe-digital" /d:sonar.token="${{ secrets.SONAR_TOKEN }}" /d:sonar.host.url="https://sonarcloud.io" /d:sonar.coverageReportPaths=CoverageReport/SonarQube.xml
           dotnet build GovUK.Dfe.FlexForms.Api.sln --no-restore -p:CI=${CI}
 
       - name: Run Tests
