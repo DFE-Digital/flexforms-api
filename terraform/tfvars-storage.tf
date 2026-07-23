@@ -1,5 +1,5 @@
 resource "azurerm_storage_account" "tfvars" {
-  name                          = "${replace(local.existing_resource_group, "-", "")}tfvars"
+  name                          = "${replace("${local.environment}${local.project_name}", "-", "")}tfvar"
   resource_group_name           = local.existing_resource_group
   location                      = local.azure_location
   account_tier                  = "Standard"
@@ -12,7 +12,7 @@ resource "azurerm_storage_account" "tfvars" {
 }
 
 resource "azurerm_storage_container" "tfvars" {
-  name                  = "${local.existing_resource_group}-tfvars"
+  name                  = "${local.environment}${local.project_name}-tfvar"
   storage_account_name  = azurerm_storage_account.tfvars.name
   container_access_type = "private"
 }
