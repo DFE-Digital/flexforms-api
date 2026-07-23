@@ -10,10 +10,9 @@ public class OpenApiDocumentTests
 #pragma warning disable xUnit1026
 
     [Theory]
-    [CustomAutoData(typeof(CustomWebApplicationFactoryCustomization<Program>))]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
     public async Task SwaggerEndpoint_ReturnsSuccessAndCorrectContentType(
-        CustomWebApplicationFactory<Program> factory,
-
+        CustomWebApplicationDbContextFactory<Program> factory,
         HttpClient client)
     {
         var response = await client.GetAsync("/swagger/v1/swagger.json");

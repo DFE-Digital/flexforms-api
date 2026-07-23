@@ -1,3 +1,4 @@
+using GovUK.Dfe.FlexForms.Utils.Configuration;
 using GovUK.Dfe.FlexForms.Application.Common.Behaviours;
 using GovUK.Dfe.FlexForms.Application.Common.Pipeline;
 using GovUK.Dfe.FlexForms.Application.Consumers;
@@ -39,7 +40,7 @@ namespace Microsoft.Extensions.DependencyInjection
             // still tenant-aware via TenantAwareFileStorageService and related wrappers.
             var firstTenant = tenantConfigurationProvider.GetAllTenants().FirstOrDefault()
                 ?? throw new InvalidOperationException("At least one tenant must be configured.");
-            var tenantConfig = ResolveCoreLibsHostConfiguration(config, firstTenant.Settings);
+            var tenantConfig = CoreLibsHostConfiguration.Resolve(config, firstTenant.Settings);
             
             // Performance logging is enabled if any tenant has it enabled
             var performanceLoggingEnabled = tenantConfigurationProvider
@@ -87,7 +88,7 @@ namespace Microsoft.Extensions.DependencyInjection
 
             services.AddBackgroundService();
             
-            // Host-shaped config for CoreLibs DI registration (see ResolveCoreLibsHostConfiguration).
+            // Host-shaped config for CoreLibs DI registration (see CoreLibsHostConfiguration.Resolve).
             services.AddNotificationServicesWithRedis(tenantConfig);
 
             services.AddFileStorage(tenantConfig);
@@ -160,24 +161,6 @@ namespace Microsoft.Extensions.DependencyInjection
             }
 
             return services;
-        }
-
-        /// <summary>
-        /// Resolves the IConfiguration used to register CoreLibs host services.
-        /// Prefers <c>GlobalConfiguration</c> when it already contains FileStorage (Path 3 host shape);
-        /// otherwise falls back to the first tenant's settings for DI registration only.
-        /// </summary>
-        private static IConfiguration ResolveCoreLibsHostConfiguration(
-            IConfiguration root,
-            IConfiguration firstTenantSettings)
-        {
-            var global = root.GetSection("GlobalConfiguration");
-            if (global.Exists() && global.GetSection("FileStorage").GetChildren().Any())
-            {
-                return global;
-            }
-
-            return firstTenantSettings;
         }
     }
 }

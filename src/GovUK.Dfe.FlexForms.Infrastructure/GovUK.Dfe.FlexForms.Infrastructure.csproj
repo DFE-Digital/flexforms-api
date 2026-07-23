@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\GovUK.Dfe.FlexForms.Domain\GovUK.Dfe.FlexForms.Domain.csproj" />
+    <ProjectReference Include="..\GovUK.Dfe.FlexForms.Utils\GovUK.Dfe.FlexForms.Utils.csproj" />
   </ItemGroup>
 
 </Project>

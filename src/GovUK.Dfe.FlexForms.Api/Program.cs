@@ -110,8 +110,8 @@ namespace GovUK.Dfe.FlexForms.Api
             builder.Services.AddDbContext<TenantConfigDbContext>(options =>
                 options.UseSqlServer(builder.Configuration.GetConnectionString("TenantConfigDatabase")));
 
-            // Shared Data Protection key ring for secret TenantSettings (local keys in Local/Development;
-            // Azure Blob + Key Vault when DataProtection:UseAzure is true in deployed environments).
+            // Shared Data Protection key ring for secret TenantSettings (local keys in Local/Test;
+            // Azure Blob + Key Vault when DataProtection:UseAzure is true outside those environments).
             builder.Services.AddTenantSettingsDataProtection(builder.Configuration, builder.Environment);
             var encryptor = BuildTenantSettingsEncryptor(builder.Configuration, builder.Environment);
             builder.Services.AddSingleton<ITenantSettingsEncryptor>(encryptor);

@@ -10,13 +10,14 @@ public static class TenantSettingsDataProtectionExtensions
 {
     /// <summary>
     /// Configures Data Protection for TenantSettings encryption.
-    /// Local and Development environments always use the default local key ring.
-    /// Azure Blob + Key Vault are used only when <see cref="DataProtectionSettings.UseAzure"/>
-    /// is true outside those environments.
+    /// The Local environment always uses the default local key ring. All other environments
+    /// (including the deployed Azure "Test" environment) follow <see cref="DataProtectionSettings.UseAzure"/>.
+    /// Integration test hosts force local keys by setting DataProtection:UseAzure=false rather than
+    /// relying on an environment name.
     /// </summary>
     /// <param name="services">The service collection to configure.</param>
     /// <param name="configuration">Application configuration.</param>
-    /// <param name="environment">Hosting environment (Local/Development force local keys).</param>
+    /// <param name="environment">Hosting environment (only "Local" forces local keys).</param>
     /// <returns>The Data Protection builder for further chaining if needed.</returns>
     public static IDataProtectionBuilder AddTenantSettingsDataProtection(
         this IServiceCollection services,
@@ -64,8 +65,13 @@ public static class TenantSettingsDataProtectionExtensions
         IHostEnvironment environment,
         DataProtectionSettings settings)
     {
-        // launchSettings Local profiles must keep working without Azure resources.
-        if (environment.IsEnvironment("Local")) return true;
+        // Local (launch profiles) never require Azure.
+        // NOTE: do NOT special-case "Test" by environment name - there is a deployed Azure
+        // environment named "Test" that must use Azure DP. Integration test hosts (which run as
+        // ASPNETCORE_ENVIRONMENT/UseEnvironment "Test") instead set DataProtection:UseAzure=false,
+        // so they fall through to the local key ring via the UseAzure flag below.
+        if (environment.IsEnvironment("Local"))
+            return true;
 
         return !settings.UseAzure;
     }

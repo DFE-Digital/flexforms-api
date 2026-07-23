@@ -37,6 +37,8 @@ public sealed class TestTenantConfigurationProvider : ITenantConfigurationProvid
                 { "Authorization:TokenSettings:Issuer", "21f3ed37-8443-4755-9ed2-c68ca86b4398" },
                 { "Authorization:TokenSettings:Audience", "20dafd6d-79e5-4caf-8b72-d070dcc9716f" },
                 { "Authorization:TokenSettings:TokenLifetimeMinutes", "60" },
+                { "ConnectionStrings:Redis", "localhost:6379" },
+                { "NotificationService:RedisConnectionString", "localhost:6379" },
             })
             .Build();
         var tenant = new TenantConfiguration(

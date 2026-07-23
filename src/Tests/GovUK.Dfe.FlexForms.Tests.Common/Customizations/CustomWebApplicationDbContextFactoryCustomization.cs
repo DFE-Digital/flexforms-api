@@ -45,6 +45,11 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                 // Set environment to "Local" to bypass Azure-specific operations in tests
                 Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Local");
                 
+                // Host Redis for CoreLibs DI (tenant DB settings may omit it; overlay from root).
+                Environment.SetEnvironmentVariable("ConnectionStrings__Redis", "localhost:6379");
+                Environment.SetEnvironmentVariable("NotificationService__RedisConnectionString", "localhost:6379");
+                Environment.SetEnvironmentVariable("DataProtection__UseAzure", "false");
+                
                 // Set environment variables for MassTransit configuration
                 // These will be picked up by ConfigurationBuilder in Program.cs
                 // For tests, provide a dummy connection string to satisfy validation

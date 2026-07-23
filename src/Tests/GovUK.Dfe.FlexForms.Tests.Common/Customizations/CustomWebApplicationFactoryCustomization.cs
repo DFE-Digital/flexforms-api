@@ -14,6 +14,12 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
 
         public void Customize(IFixture fixture)
         {
+            // Shared host-level Redis for CoreLibs registration before ExternalServicesConfiguration runs.
+            Environment.SetEnvironmentVariable("ConnectionStrings__Redis", "localhost:6379");
+            Environment.SetEnvironmentVariable("NotificationService__RedisConnectionString", "localhost:6379");
+            // Development WebApplicationFactory must not attempt Azure Data Protection.
+            Environment.SetEnvironmentVariable("DataProtection__UseAzure", "false");
+
             fixture.Customize<CustomWebApplicationFactory<TProgram>>(composer => composer.FromFactory(() =>
             {
 

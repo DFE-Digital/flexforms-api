@@ -6,6 +6,7 @@ using GovUK.Dfe.FlexForms.Infrastructure;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
 using GovUK.Dfe.FlexForms.Infrastructure.Repositories;
 using GovUK.Dfe.FlexForms.Infrastructure.Services;
+using GovUK.Dfe.FlexForms.Utils.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,12 +24,14 @@ namespace Microsoft.Extensions.DependencyInjection
             // Get the first tenant's configuration for services that need root-level config
             var firstTenant = tenantConfigurationProvider.GetAllTenants().FirstOrDefault()
                 ?? throw new InvalidOperationException("At least one tenant must be configured.");
-            var tenantConfig = firstTenant.Settings;
+            var tenantConfig = CoreLibsHostConfiguration.Resolve(config, firstTenant.Settings);
             
             // Store the first tenant's connection string for fallback in message consumers
             // Message consumers may not have HTTP context to resolve tenant
             var fallbackConnectionString = firstTenant.GetConnectionString("DefaultConnection")
-                ?? throw new InvalidOperationException("First tenant must have a DefaultConnection connection string.");
+                ?? config.GetConnectionString("DefaultConnection")
+                ?? throw new InvalidOperationException(
+                    "First tenant must have a DefaultConnection connection string (or set ConnectionStrings:DefaultConnection on the host).");
 
             //Repos
             services.AddScoped(typeof(IEaRepository<>), typeof(EaRepository<>));

@@ -1,5 +1,5 @@
 {
-  "x-generator": "NSwag v14.6.3.0 (NJsonSchema v11.5.2.0 (Newtonsoft.Json v13.0.0.0))",
+  "x-generator": "NSwag v14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))",
   "openapi": "3.0.0",
   "info": {
     "title": "Api",
@@ -4403,6 +4403,10 @@
       "UserAuthorizationDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "permissions",
+          "roles"
+        ],
         "properties": {
           "permissions": {
             "type": "array",
@@ -4421,6 +4425,10 @@
       "UserPermissionDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "resourceType",
+          "accessType"
+        ],
         "properties": {
           "applicationId": {
             "type": "string",
@@ -4514,6 +4522,12 @@
       "TemplateSchemaDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "templateId",
+          "templateVersionId",
+          "versionNumber",
+          "jsonSchema"
+        ],
         "properties": {
           "templateId": {
             "type": "string",
@@ -4570,6 +4584,10 @@
       "CreateApplicationRequest": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "templateId",
+          "initialResponseBody"
+        ],
         "properties": {
           "templateId": {
             "type": "string",
@@ -4611,6 +4629,9 @@
       "AddApplicationResponseRequest": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "responseBody"
+        ],
         "properties": {
           "responseBody": {
             "type": "string"
@@ -4876,6 +4897,11 @@
       "TemplateDto": {
         "type": "object",
         "additionalProperties": false,
+        "required": [
+          "templateId",
+          "name",
+          "createdOn"
+        ],
         "properties": {
           "templateId": {
             "type": "string",
