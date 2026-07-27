@@ -15,7 +15,7 @@ namespace GovUK.Dfe.FlexForms.Application.Templates.Queries;
 
 /// <summary>
 /// Returns templates in the current tenant that the caller is allowed to access.
-/// Admins receive the full tenant catalogue (including non-live templates for preview).
+/// Template managers and admins receive the full tenant catalogue (including non-live templates for preview).
 /// Other users receive catalogue ∩ permissions ∩ live templates.
 /// </summary>
 public sealed record GetAccessibleTemplatesQuery
@@ -40,9 +40,9 @@ public sealed class GetAccessibleTemplatesQueryHandler(
         try
         {
             IReadOnlyList<TemplateId> accessibleIds;
-            var isAdmin = permissionCheckerService.IsAdmin();
+            var canManageTemplates = permissionCheckerService.CanManageTemplates();
 
-            if (isAdmin)
+            if (canManageTemplates)
             {
                 accessibleIds = await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken);
             }
@@ -95,8 +95,8 @@ public sealed class GetAccessibleTemplatesQueryHandler(
             var templatesQuery = new GetTemplatesByIdsQueryObject(accessibleIds)
                 .Apply(templateRepository.Query().AsNoTracking());
 
-            // End users only see live templates; admins see all for preview/publish.
-            if (!isAdmin)
+            // End users only see live templates; template managers/admins see all for preview/publish.
+            if (!canManageTemplates)
             {
                 templatesQuery = templatesQuery.Where(t => t.IsLive);
             }

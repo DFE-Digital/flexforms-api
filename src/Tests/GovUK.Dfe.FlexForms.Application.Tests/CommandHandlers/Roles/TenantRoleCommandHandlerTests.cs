@@ -2,8 +2,10 @@ using FluentValidation;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.FlexForms.Application.Roles.Commands;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
@@ -98,6 +100,9 @@ public class TenantRoleCommandHandlerTests
             accessor,
             roleService,
             rolePermissionService,
+            Substitute.For<IApplicationRepository>(),
+            Substitute.For<ITenantTemplateCatalogue>(),
+            Substitute.For<IEaRepository<User>>(),
             Substitute.For<IUnitOfWork>());
 
         var result = await handler.Handle(
@@ -105,9 +110,9 @@ public class TenantRoleCommandHandlerTests
                 systemRole.Id!.Value,
                 [new RolePermissionGrantDto
                 {
-                    ResourceType = ResourceType.Application,
+                    ResourceType = ResourceType.Template,
                     ResourceKey = "Any",
-                    AccessType = AccessType.Read
+                    AccessType = AccessType.Write
                 }]),
             CancellationToken.None);
 

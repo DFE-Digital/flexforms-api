@@ -54,6 +54,14 @@ public static class PermissionClaimEvaluator
         || HasPermissionClaim(user, ResourceType.Application, PermissionConstants.AnyResourceKey, AccessType.Read);
 
     /// <summary>
+    /// Returns true when the user can administer templates in the current tenant
+    /// (create, edit versions, publish). SuperAdmin/Admin, or <c>Template:Manage:Write</c>.
+    /// </summary>
+    public static bool CanManageTemplates(ClaimsPrincipal user) =>
+        HasFullAdminAccess(user)
+        || HasPermissionClaim(user, ResourceType.Template, PermissionConstants.ManageResourceKey, AccessType.Write);
+
+    /// <summary>
     /// Returns true when the user can write any application in the tenant (Admin only).
     /// </summary>
     public static bool CanWriteAnyApplication(ClaimsPrincipal user) =>

@@ -2,7 +2,6 @@ using Asp.Versioning;
 using GovUK.Dfe.FlexForms.Application.Common.Exceptions;
 using GovUK.Dfe.FlexForms.Application.Templates.Commands;
 using GovUK.Dfe.FlexForms.Application.Templates.Queries;
-using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Http.Models;
@@ -39,9 +38,9 @@ public class TemplatesController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-    /// Creates a new template in the current tenant. Admin only.
-    /// The creating admin is granted Read/Write template permission.
-    /// </summary>
+/// Creates a new template in the current tenant. Admin or Template:Manage:Write.
+/// The creating user is granted Read/Write template permission.
+/// </summary>
     [HttpPost]
     [Authorize(Policy = "CanCreateTemplate")]
     [SwaggerResponse(201, "Template created successfully.", typeof(TemplateDto))]
@@ -118,8 +117,7 @@ public class TemplatesController(ISender sender) : ControllerBase
     [HttpPost("{templateId}/custom-statuses")]
     [SwaggerResponse(201, "Custom status created/updated.", typeof(CustomApplicationStatusDto))]
     [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
-    [Authorize(Policy = "CanWriteTemplate")]
-    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
+    [Authorize(Policy = "CanCreateTemplate")]
     public async Task<IActionResult> CreateCustomApplicationStatusAsync([FromRoute] Guid templateId, [FromBody] CustomApplicationStatusRequest request, CancellationToken cancellationToken)
     {
         if (request is null)
@@ -135,8 +133,8 @@ public class TemplatesController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-    /// Sets whether a template is live for end users. Admin only.
-    /// </summary>
+/// Sets whether a template is live for end users. Admin or Template:Manage:Write.
+/// </summary>
     [HttpPut("{templateId}/live")]
     [Authorize(Policy = "CanCreateTemplate")]
     [SwaggerResponse(200, "Template live status updated.", typeof(TemplateDto))]
@@ -172,8 +170,7 @@ public class TemplatesController(ISender sender) : ControllerBase
     [SwaggerResponse(404, "Template not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
     [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
-    [Authorize(Policy = "CanWriteTemplate")]
-    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
+    [Authorize(Policy = "CanCreateTemplate")]
     public async Task<IActionResult> CreateTemplateVersionAsync(
         [FromRoute] Guid templateId,
         [FromBody] CreateTemplateVersionRequest request,

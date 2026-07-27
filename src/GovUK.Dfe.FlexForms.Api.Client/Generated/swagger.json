@@ -2896,7 +2896,7 @@
         "tags": [
           "Templates"
         ],
-        "summary": "Creates a new template in the current tenant. Admin only.\nThe creating admin is granted Read/Write template permission.",
+        "summary": "Creates a new template in the current tenant. Admin or Template:Manage:Write.\nThe creating user is granted Read/Write template permission.",
         "operationId": "Templates_CreateTemplate",
         "requestBody": {
           "x-name": "request",
@@ -3151,7 +3151,7 @@
         "tags": [
           "Templates"
         ],
-        "summary": "Sets whether a template is live for end users. Admin only.",
+        "summary": "Sets whether a template is live for end users. Admin or Template:Manage:Write.",
         "operationId": "Templates_SetTemplateLive",
         "parameters": [
           {

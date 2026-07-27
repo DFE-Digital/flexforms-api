@@ -1,5 +1,6 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Domain.Common;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 
 namespace GovUK.Dfe.FlexForms.Domain.Entities;
@@ -163,8 +164,7 @@ public sealed class Role : BaseAggregateRoot, IEntity<RoleId>
         if (Id is null)
             throw new InvalidOperationException("Role must have an Id before permissions can be added.");
 
-        if (string.IsNullOrWhiteSpace(resourceKey))
-            throw new ArgumentException("ResourceKey is required for each permission grant.", nameof(resourceKey));
+        RolePermissionGrantRules.EnsureValid(resourceType, resourceKey, accessType);
 
         var permission = new RolePermission(
             new RolePermissionId(Guid.NewGuid()),

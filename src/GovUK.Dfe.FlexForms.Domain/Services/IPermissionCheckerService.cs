@@ -82,4 +82,10 @@ public interface IPermissionCheckerService
     /// </summary>
     /// <returns>True if the user can read all applications, false otherwise</returns>
     bool CanReadAllApplications();
+
+    /// <summary>
+    /// Checks if the current user can administer templates in the current tenant
+    /// (create, edit schema versions, publish).
+    /// </summary>
+    bool CanManageTemplates();
 }

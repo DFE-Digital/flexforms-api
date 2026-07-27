@@ -253,7 +253,7 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                 {
                     pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
-                    pb.RequireRole(RoleNames.SuperAdmin, RoleNames.Admin);
+                    pb.AddRequirements(new Handlers.TemplateManagePermissionRequirement());
                 },
                 ["CanReadApplicationFiles"] = pb =>
                 {
@@ -343,6 +343,7 @@ namespace GovUK.Dfe.FlexForms.Api.Security
             services.AddSingleton<IAuthorizationHandler, ApplicationPermissionHandler>();
             services.AddSingleton<IAuthorizationHandler, ApplicationListPermissionHandler>();
             services.AddSingleton<IAuthorizationHandler, AnyTemplatePermissionHandler>();
+            services.AddSingleton<IAuthorizationHandler, TemplateManagePermissionHandler>();
             services.AddSingleton<IAuthorizationHandler, ApplicationFilesPermissionHandler>();
             services.AddSingleton<IAuthorizationHandler, NotificationsPermissionHandler>();
             services.AddSingleton<IAuthorizationHandler, ServicePrincipalHandler>();
