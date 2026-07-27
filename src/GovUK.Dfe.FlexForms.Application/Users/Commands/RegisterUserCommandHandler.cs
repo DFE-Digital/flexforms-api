@@ -1,3 +1,4 @@
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using GovUK.Dfe.FlexForms.Application.Common.Attributes;
 using GovUK.Dfe.FlexForms.Application.Common.Behaviours;
@@ -9,6 +10,7 @@ using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
@@ -34,7 +36,9 @@ public sealed class RegisterUserCommandHandler(
     IUserFactory userFactory,
     IUnitOfWork unitOfWork,
     ITenantContextAccessor tenantContextAccessor,
-    ITenantTemplateResolver tenantTemplateResolver) : IRequestHandler<RegisterUserCommand, Result<UserDto>>
+    ITenantTemplateResolver tenantTemplateResolver,
+    ITenantMembershipService tenantMembershipService,
+    ITenantOidcAudienceBinder tenantOidcAudienceBinder) : IRequestHandler<RegisterUserCommand, Result<UserDto>>
 {
     private sealed record TemplateResolution(
         bool IsSuccess,
@@ -72,6 +76,18 @@ public sealed class RegisterUserCommandHandler(
             var email = externalUser.FindFirst(ClaimTypes.Email)?.Value
                         ?? throw new SecurityTokenException("RegisterUserCommandHandler > Missing email");
 
+            var currentTenant = tenantContextAccessor.CurrentTenant
+                ?? throw new SecurityTokenException("RegisterUserCommandHandler > Tenant could not be resolved");
+
+            var useTestAuth = tenantTestAuthOptions?.Enabled == true;
+            if (!useTestAuth
+                && !tenantOidcAudienceBinder.TokenMatchesTenant(currentTenant, ReadTokenAudiences(request.SubjectToken)))
+            {
+                return Result<UserDto>.Forbid(
+                    "The identity token was not issued for this tenant. " +
+                    "Check X-Tenant-ID matches the application you signed in to.");
+            }
+
             var fullName = $"{externalUser.FindFirst(ClaimTypes.GivenName)?.Value} {externalUser.FindFirst(ClaimTypes.Surname)?.Value}";
 
             var name = externalUser.FindFirst("name")?.Value
@@ -84,10 +100,8 @@ public sealed class RegisterUserCommandHandler(
             var now = DateTime.UtcNow;
 
             // Load user by email with template permissions to check access
-            var dbUser = await (new GetUserWithAllTemplatePermissionsQueryObject(email))
+            var dbUser = await new GetUserWithAllPermissionsByEmailQueryObject(email)
                 .Apply(userRepo.Query().AsNoTracking())
-                .Include(u => u.Role)
-                .Include(u => u.Permissions)
                 .FirstOrDefaultAsync(cancellationToken: cancellationToken);
 
             if (dbUser is not null)
@@ -111,10 +125,8 @@ public sealed class RegisterUserCommandHandler(
 
                         if (!hasTemplatePermission)
                         {
-                            var userToUpdate = await (new GetUserWithAllTemplatePermissionsQueryObject(email))
+                            var userToUpdate = await new GetUserWithAllPermissionsByEmailQueryObject(email)
                                 .Apply(userRepo.Query())
-                                .Include(u => u.Role)
-                                .Include(u => u.Permissions)
                                 .FirstOrDefaultAsync(cancellationToken: cancellationToken);
 
                             if (userToUpdate is null)
@@ -126,6 +138,11 @@ public sealed class RegisterUserCommandHandler(
                                 userToUpdate.Id!,
                                 now);
 
+                            await EnsureMembershipForCurrentTenantAsync(
+                                currentTenant.Id,
+                                userToUpdate,
+                                cancellationToken);
+
                             await unitOfWork.CommitAsync(cancellationToken);
 
                             return Result<UserDto>.Success(MapUser(userToUpdate));
@@ -133,6 +150,8 @@ public sealed class RegisterUserCommandHandler(
                     }
                 }
 
+                // Do not auto-create membership for an existing user on another tenant via register.
+                // Membership is granted by an admin (AssignUserRole) or when the user is newly created.
                 return Result<UserDto>.Success(MapUser(dbUser));
             }
 
@@ -151,6 +170,11 @@ public sealed class RegisterUserCommandHandler(
                 now);
 
             await userRepo.AddAsync(newUser, cancellationToken);
+            await tenantMembershipService.UpsertMembershipAsync(
+                currentTenant.Id,
+                userId,
+                RoleNames.User,
+                cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
 
             return Result<UserDto>.Success(MapUser(newUser));
@@ -225,11 +249,8 @@ public sealed class RegisterUserCommandHandler(
             return Array.Empty<Template>();
         }
 
-        var tenantGuids = tenantTemplateIds.Select(id => id.Value).ToHashSet();
-
-        return await templateRepo.Query()
-            .AsNoTracking()
-            .Where(t => t.IsLive && tenantGuids.Contains(t.Id!.Value))
+        return await new GetLiveTemplatesByIdsQueryObject(tenantTemplateIds)
+            .Apply(templateRepo.Query().AsNoTracking())
             .ToListAsync(cancellationToken);
     }
 
@@ -271,5 +292,44 @@ public sealed class RegisterUserCommandHandler(
                 .ToArray(),
             Roles = new List<string> { user.Role?.Name ?? "User" }
         };
+    }
+
+    private async Task EnsureMembershipForCurrentTenantAsync(
+        Guid tenantId,
+        User user,
+        CancellationToken cancellationToken)
+    {
+        if (user.Id is null)
+            return;
+
+        var existing = await tenantMembershipService.GetActiveMembershipAsync(
+            tenantId,
+            user.Id,
+            cancellationToken);
+        if (existing is not null)
+            return;
+
+        var roleName = user.Role?.Name
+            ?? RoleNames.FromRoleId(user.RoleId.Value)
+            ?? RoleNames.User;
+
+        await tenantMembershipService.UpsertMembershipAsync(
+            tenantId,
+            user.Id,
+            roleName,
+            cancellationToken);
+    }
+
+    private static IEnumerable<string> ReadTokenAudiences(string subjectToken)
+    {
+        try
+        {
+            var jwt = new JwtSecurityTokenHandler().ReadJwtToken(subjectToken);
+            return jwt.Audiences ?? Enumerable.Empty<string>();
+        }
+        catch
+        {
+            return Enumerable.Empty<string>();
+        }
     }
 }

@@ -253,7 +253,7 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                 {
                     pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
-                    pb.RequireRole(RoleNames.Admin);
+                    pb.RequireRole(RoleNames.SuperAdmin, RoleNames.Admin);
                 },
                 ["CanReadApplicationFiles"] = pb =>
                 {

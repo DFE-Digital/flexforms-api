@@ -20,19 +20,19 @@ public class UsersControllerAssignRoleTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task AssignUserRoleAsync_ShouldCreateCaseworker_WhenAdminAndUserDoesNotExist(
+    public async Task AssignUserRoleAsync_ShouldCreateUser_WhenAdminAndUserDoesNotExist(
         CustomWebApplicationDbContextFactory<Program> factory,
         IUsersClient usersClient,
         HttpClient httpClient)
     {
         ConfigureAdminCaller(factory, httpClient);
 
-        var email = $"caseworker-{Guid.NewGuid()}@example.com";
+        var email = $"user-{Guid.NewGuid()}@example.com";
         var request = new AssignUserRoleRequest
         {
             Email = email,
-            Name = "New Caseworker",
-            Role = RoleNames.Caseworker,
+            Name = "New User",
+            Role = RoleNames.User,
             TemplateIds = [Guid.Parse(EaContextSeeder.TemplateId)]
         };
 
@@ -40,9 +40,9 @@ public class UsersControllerAssignRoleTests
 
         Assert.NotNull(result);
         Assert.Equal(email, result.Email);
-        Assert.Equal("New Caseworker", result.Name);
+        Assert.Equal("New User", result.Name);
         Assert.NotNull(result.Authorization);
-        Assert.Contains(RoleNames.Caseworker, result.Authorization!.Roles!);
+        Assert.Contains(RoleNames.User, result.Authorization!.Roles!);
 
         var dbContext = factory.GetDbContext<ExternalApplicationsContext>();
         var createdUser = await dbContext.Users
@@ -51,56 +51,32 @@ public class UsersControllerAssignRoleTests
             .Include(u => u.TemplatePermissions)
             .SingleAsync(u => u.Email == email);
 
-        Assert.Equal(RoleNames.Caseworker, createdUser.Role!.Name);
+        Assert.Equal(RoleNames.User, createdUser.Role!.Name);
         Assert.Contains(
             createdUser.TemplatePermissions,
             tp => tp.TemplateId.Value == Guid.Parse(EaContextSeeder.TemplateId)
                   && tp.AccessType == AccessType.Read);
-        Assert.Contains(
-            createdUser.Permissions,
-            p => p.ResourceType == ResourceType.Application && p.AccessType == AccessType.Read);
     }
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task AssignUserRoleAsync_ShouldAssignCaseworkerToExistingUser_WhenAdmin(
+    public async Task AssignUserRoleAsync_ShouldReturnBadRequest_WhenRoleIsCaseworker(
         CustomWebApplicationDbContextFactory<Program> factory,
         IUsersClient usersClient,
         HttpClient httpClient)
     {
         ConfigureAdminCaller(factory, httpClient);
 
-        var email = $"existing-user-{Guid.NewGuid()}@example.com";
-        await usersClient.AssignUserRoleAsync(new AssignUserRoleRequest
-        {
-            Email = email,
-            Name = "Existing User",
-            Role = RoleNames.User,
-            TemplateIds = [Guid.Parse(EaContextSeeder.TemplateId)]
-        });
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => usersClient.AssignUserRoleAsync(new AssignUserRoleRequest
+            {
+                Email = $"caseworker-{Guid.NewGuid()}@example.com",
+                Name = "Legacy Caseworker",
+                Role = RoleNames.Caseworker,
+                TemplateIds = [Guid.Parse(EaContextSeeder.TemplateId)]
+            }));
 
-        var result = await usersClient.AssignUserRoleAsync(new AssignUserRoleRequest
-        {
-            Email = email,
-            Name = "Existing User",
-            Role = RoleNames.Caseworker,
-            TemplateIds = [Guid.Parse(EaContextSeeder.TemplateId)]
-        });
-
-        Assert.NotNull(result);
-        Assert.Equal(email, result.Email);
-        Assert.Contains(RoleNames.Caseworker, result.Authorization!.Roles!);
-
-        var dbContext = factory.GetDbContext<ExternalApplicationsContext>();
-        var updatedUser = await dbContext.Users
-            .Include(u => u.Role)
-            .Include(u => u.TemplatePermissions)
-            .SingleAsync(u => u.Email == email);
-
-        Assert.Equal(RoleNames.Caseworker, updatedUser.Role!.Name);
-        Assert.Contains(
-            updatedUser.TemplatePermissions,
-            tp => tp.TemplateId.Value == Guid.Parse(EaContextSeeder.TemplateId));
+        Assert.Equal(400, ex.StatusCode);
     }
 
     [Theory]
@@ -124,7 +100,7 @@ public class UsersControllerAssignRoleTests
             {
                 Email = $"forbidden-{Guid.NewGuid()}@example.com",
                 Name = "Test User",
-                Role = RoleNames.Caseworker,
+                Role = RoleNames.User,
                 TemplateIds = [Guid.Parse(EaContextSeeder.TemplateId)]
             }));
 
@@ -142,7 +118,7 @@ public class UsersControllerAssignRoleTests
             {
                 Email = $"missing-token-{Guid.NewGuid()}@example.com",
                 Name = "Test User",
-                Role = RoleNames.Caseworker,
+                Role = RoleNames.User,
                 TemplateIds = [Guid.Parse(EaContextSeeder.TemplateId)]
             }));
 
@@ -173,7 +149,7 @@ public class UsersControllerAssignRoleTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task AssignUserRoleAsync_ShouldReturnBadRequest_WhenTemplateIdsMissingForCaseworker(
+    public async Task AssignUserRoleAsync_ShouldReturnBadRequest_WhenTemplateIdsMissingForUser(
         CustomWebApplicationDbContextFactory<Program> factory,
         IUsersClient usersClient,
         HttpClient httpClient)
@@ -185,43 +161,12 @@ public class UsersControllerAssignRoleTests
             {
                 Email = $"missing-template-{Guid.NewGuid()}@example.com",
                 Name = "Test User",
-                Role = RoleNames.Caseworker,
+                Role = RoleNames.User,
                 TemplateIds = null
             }));
 
         Assert.Equal(400, ex.StatusCode);
         Assert.Contains("template ID", ex.Result?.Message ?? "", StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Theory]
-    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task AssignUserRoleAsync_ShouldReturnForbidden_WhenDowngradingCaseworkerToUser(
-        CustomWebApplicationDbContextFactory<Program> factory,
-        IUsersClient usersClient,
-        HttpClient httpClient)
-    {
-        ConfigureAdminCaller(factory, httpClient);
-
-        var email = $"downgrade-{Guid.NewGuid()}@example.com";
-        await usersClient.AssignUserRoleAsync(new AssignUserRoleRequest
-        {
-            Email = email,
-            Name = "Caseworker User",
-            Role = RoleNames.Caseworker,
-            TemplateIds = [Guid.Parse(EaContextSeeder.TemplateId)]
-        });
-
-        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
-            () => usersClient.AssignUserRoleAsync(new AssignUserRoleRequest
-            {
-                Email = email,
-                Name = "Caseworker User",
-                Role = RoleNames.User,
-                TemplateIds = [Guid.Parse(EaContextSeeder.TemplateId)]
-            }));
-
-        Assert.Equal(403, ex.StatusCode);
-        Assert.Contains("Cannot downgrade", ex.Result?.Message ?? "", StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ConfigureAdminCaller(

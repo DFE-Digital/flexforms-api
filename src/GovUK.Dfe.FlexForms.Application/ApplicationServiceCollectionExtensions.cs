@@ -68,9 +68,12 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<IUserCacheInvalidator, UserCacheInvalidator>();
             services.AddScoped<IAuthenticatedUserService, AuthenticatedUserService>();
             services.AddScoped<IApplicationCreationService, ApplicationCreationService>();
+            services.AddScoped<ITenantRoleService, TenantRoleService>();
+            services.AddScoped<ITenantMembershipService, TenantMembershipService>();
+            services.AddScoped<IRolePermissionService, RolePermissionService>();
+            services.AddSingleton<ITenantOidcAudienceBinder, TenantOidcAudienceBinder>();
 
             services.AddSingleton<IUserRoleProvisionerRegistry, UserRoleProvisionerRegistry>();
-            services.AddTransient<IUserRoleProvisioner, CaseworkerRoleProvisioner>();
             services.AddTransient<IUserRoleProvisioner, StandardUserRoleProvisioner>();
             services.AddTransient<IUserRoleProvisioner, AdminRoleProvisioner>();
 

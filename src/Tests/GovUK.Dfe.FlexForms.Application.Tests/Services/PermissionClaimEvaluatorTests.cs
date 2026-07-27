@@ -12,30 +12,30 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.Services;
 public class PermissionClaimEvaluatorTests
 {
     [Fact]
-    public void CanReadAllApplications_ReturnsTrue_ForCaseworkerRole()
+    public void CanReadAllApplications_ReturnsTrue_ForTenantWideApplicationReadClaim()
     {
-        var user = CreateUserWithRole(RoleNames.Caseworker);
+        var user = CreateUserWithPermissionClaims("Application:Any:Read");
         Assert.True(PermissionClaimEvaluator.CanReadAllApplications(user));
     }
 
     [Fact]
-    public void CanWriteApplication_ReturnsFalse_ForCaseworkerWithoutWriteClaim()
+    public void CanWriteApplication_ReturnsFalse_WithoutWriteClaim()
     {
-        var user = CreateUserWithRole(RoleNames.Caseworker);
+        var user = CreateUserWithPermissionClaims("Application:Any:Read");
         Assert.False(PermissionClaimEvaluator.CanWriteApplication(user, Guid.NewGuid().ToString()));
     }
 
     [Fact]
-    public void CanReadApplication_ReturnsTrue_ForCaseworkerWithoutExplicitApplicationClaim()
+    public void CanReadApplication_ReturnsTrue_ForTenantWideApplicationReadClaim()
     {
-        var user = CreateUserWithRole(RoleNames.Caseworker);
+        var user = CreateUserWithPermissionClaims("Application:Any:Read");
         Assert.True(PermissionClaimEvaluator.CanReadApplication(user, Guid.NewGuid().ToString()));
     }
 
     [Fact]
-    public void CanReadApplication_ReturnsFalse_ForStandardUserWithOnlyAnyReadWildcard()
+    public void CanReadApplication_ReturnsFalse_ForUserWithoutMatchingClaim()
     {
-        var user = CreateUserWithPermissionClaims("Application:Any:Read");
+        var user = CreateUserWithPermissionClaims("ApplicationFiles:Any:Read");
         Assert.False(PermissionClaimEvaluator.CanReadApplication(user, Guid.NewGuid().ToString()));
     }
 
@@ -48,9 +48,10 @@ public class PermissionClaimEvaluatorTests
     }
 
     [Fact]
-    public void CanReadAllApplications_ReturnsFalse_ForStandardUserWithAnyReadWildcard()
+    public void CanReadAllApplications_ReturnsFalse_WithoutTenantWideOrAdminAccess()
     {
-        var user = CreateUserWithPermissionClaims("Application:Any:Read");
+        var applicationId = Guid.NewGuid().ToString();
+        var user = CreateUserWithPermissionClaims($"Application:{applicationId}:Read");
         Assert.False(PermissionClaimEvaluator.CanReadAllApplications(user));
     }
 
@@ -71,66 +72,24 @@ public class PermissionClaimEvaluatorTests
     [Fact]
     public void ApplicationAccessResolver_ReturnsAllApplications_ForAdminRole()
     {
-        var user = new User(
-            new UserId(Guid.NewGuid()),
-            new RoleId(RoleConstants.AdminRoleId),
-            "Admin User",
-            "admin@example.com",
-            DateTime.UtcNow,
-            null,
-            null,
-            null);
-
-        user.GetType().GetProperty(nameof(User.Role))!.SetValue(user,
-            new Role(new RoleId(RoleConstants.AdminRoleId), RoleNames.Admin));
-
+        var user = CreateAdminUser();
         var scope = ApplicationAccessResolver.Resolve(user);
         Assert.Equal(ApplicationAccessResolver.AccessMode.AllApplicationsInTenant, scope.Mode);
     }
 
     [Fact]
-    public void ApplicationAccessResolver_ReturnsTemplateScoped_ForCaseworkerWithTemplateRead()
+    public void ApplicationAccessResolver_ReturnsAllApplications_ForTenantWideApplicationReadGrant()
     {
-        var userId = new UserId(Guid.NewGuid());
-        var templateId = new TemplateId(Guid.NewGuid());
-        var user = new User(
-            userId,
-            new RoleId(RoleConstants.CaseworkerRoleId),
-            "Case Worker",
-            "case@example.com",
-            DateTime.UtcNow,
-            null,
-            null,
-            null);
-
-        user.GetType().GetProperty(nameof(User.Role))!.SetValue(user,
-            new Role(new RoleId(RoleConstants.CaseworkerRoleId), RoleNames.Caseworker));
-
-        var templatePermissions = user.GetType()
-            .GetField("_templatePermissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        templatePermissions.SetValue(user, new List<TemplatePermission>
-        {
-            new(
-                new TemplatePermissionId(Guid.NewGuid()),
-                userId,
-                templateId,
-                AccessType.Read,
-                DateTime.UtcNow,
-                userId)
-        });
-
+        var user = CreateUserWithTenantWideApplicationRead();
         var scope = ApplicationAccessResolver.Resolve(user);
-        Assert.Equal(ApplicationAccessResolver.AccessMode.TemplateScoped, scope.Mode);
-        Assert.Single(scope.TemplateIds);
-        Assert.Equal(templateId, scope.TemplateIds.First());
+        Assert.Equal(ApplicationAccessResolver.AccessMode.AllApplicationsInTenant, scope.Mode);
     }
 
     [Fact]
-    public void ApplicationAccessResolver_ReturnsSpecificApplications_ForStandardUserWithTenantWideReadGrant()
+    public void ApplicationAccessResolver_ReturnsSpecificApplications_ForStandardUserWithExplicitAppGrant()
     {
         var userId = new UserId(Guid.NewGuid());
         var ownedApplicationId = new ApplicationId(Guid.NewGuid());
-        var templateId = new TemplateId(Guid.NewGuid());
         var user = new User(
             userId,
             new RoleId(RoleConstants.UserRoleId),
@@ -156,28 +115,6 @@ public class PermissionClaimEvaluatorTests
                 ResourceType.Application,
                 AccessType.Read,
                 DateTime.UtcNow,
-                userId),
-            new(
-                new PermissionId(Guid.NewGuid()),
-                userId,
-                null,
-                PermissionConstants.AnyResourceKey,
-                ResourceType.Application,
-                AccessType.Read,
-                DateTime.UtcNow,
-                userId)
-        });
-
-        var templatePermissions = user.GetType()
-            .GetField("_templatePermissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        templatePermissions.SetValue(user, new List<TemplatePermission>
-        {
-            new(
-                new TemplatePermissionId(Guid.NewGuid()),
-                userId,
-                templateId,
-                AccessType.Read,
-                DateTime.UtcNow,
                 userId)
         });
 
@@ -190,20 +127,20 @@ public class PermissionClaimEvaluatorTests
     }
 
     [Fact]
-    public void ApplicationAccessResolver_ReturnsEmpty_ForCaseworkerWithoutTemplateRead()
+    public void ApplicationAccessResolver_ReturnsEmpty_ForUserWithoutApplicationGrants()
     {
         var user = new User(
             new UserId(Guid.NewGuid()),
-            new RoleId(RoleConstants.CaseworkerRoleId),
-            "Case Worker",
-            "case@example.com",
+            new RoleId(RoleConstants.UserRoleId),
+            "Applicant",
+            "user@example.com",
             DateTime.UtcNow,
             null,
             null,
             null);
 
         user.GetType().GetProperty(nameof(User.Role))!.SetValue(user,
-            new Role(new RoleId(RoleConstants.CaseworkerRoleId), RoleNames.Caseworker));
+            new Role(new RoleId(RoleConstants.UserRoleId), RoleNames.User));
 
         var scope = ApplicationAccessResolver.Resolve(user);
 
@@ -221,20 +158,11 @@ public class PermissionClaimEvaluatorTests
     }
 
     [Fact]
-    public void CanListAllApplicationsForTemplate_ReturnsTrue_WhenTemplateIsInScopedAccess()
+    public void CanListAllApplicationsForTemplate_ReturnsTrue_WhenUserHasTenantWideApplicationRead()
     {
         var templateId = new TemplateId(Guid.NewGuid());
-        var user = CreateCaseworkerWithTemplateRead(templateId);
+        var user = CreateUserWithTenantWideApplicationRead();
         Assert.True(ApplicationAccessResolver.CanListAllApplicationsForTemplate(user, templateId));
-    }
-
-    [Fact]
-    public void CanListAllApplicationsForTemplate_ReturnsFalse_ForCaseworkerWithoutTemplateAccess()
-    {
-        var allowedTemplateId = new TemplateId(Guid.NewGuid());
-        var requestedTemplateId = new TemplateId(Guid.NewGuid());
-        var user = CreateCaseworkerWithTemplateRead(allowedTemplateId);
-        Assert.False(ApplicationAccessResolver.CanListAllApplicationsForTemplate(user, requestedTemplateId));
     }
 
     [Fact]
@@ -273,56 +201,6 @@ public class PermissionClaimEvaluatorTests
         Assert.False(ApplicationAccessResolver.CanListAllApplicationsForTemplate(user, new TemplateId(Guid.NewGuid())));
     }
 
-    private static User CreateAdminUser()
-    {
-        var user = new User(
-            new UserId(Guid.NewGuid()),
-            new RoleId(RoleConstants.AdminRoleId),
-            "Admin User",
-            "admin@example.com",
-            DateTime.UtcNow,
-            null,
-            null,
-            null);
-
-        user.GetType().GetProperty(nameof(User.Role))!.SetValue(user,
-            new Role(new RoleId(RoleConstants.AdminRoleId), RoleNames.Admin));
-
-        return user;
-    }
-
-    private static User CreateCaseworkerWithTemplateRead(TemplateId templateId)
-    {
-        var userId = new UserId(Guid.NewGuid());
-        var user = new User(
-            userId,
-            new RoleId(RoleConstants.CaseworkerRoleId),
-            "Case Worker",
-            "case@example.com",
-            DateTime.UtcNow,
-            null,
-            null,
-            null);
-
-        user.GetType().GetProperty(nameof(User.Role))!.SetValue(user,
-            new Role(new RoleId(RoleConstants.CaseworkerRoleId), RoleNames.Caseworker));
-
-        var templatePermissions = user.GetType()
-            .GetField("_templatePermissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        templatePermissions.SetValue(user, new List<TemplatePermission>
-        {
-            new(
-                new TemplatePermissionId(Guid.NewGuid()),
-                userId,
-                templateId,
-                AccessType.Read,
-                DateTime.UtcNow,
-                userId)
-        });
-
-        return user;
-    }
-
     [Fact]
     public void IsInteractiveTenantAdmin_ReturnsTrue_ForAdminUserWithEmail()
     {
@@ -348,8 +226,57 @@ public class PermissionClaimEvaluatorTests
         Assert.False(PermissionClaimEvaluator.IsInteractiveTenantAdmin(user));
     }
 
-    private static ClaimsPrincipal CreateUserWithRole(string role) =>
-        new(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Role, role) }, "Test"));
+    private static User CreateAdminUser()
+    {
+        var user = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.AdminRoleId),
+            "Admin User",
+            "admin@example.com",
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        user.GetType().GetProperty(nameof(User.Role))!.SetValue(user,
+            new Role(new RoleId(RoleConstants.AdminRoleId), RoleNames.Admin));
+
+        return user;
+    }
+
+    private static User CreateUserWithTenantWideApplicationRead()
+    {
+        var userId = new UserId(Guid.NewGuid());
+        var user = new User(
+            userId,
+            new RoleId(RoleConstants.UserRoleId),
+            "Reviewer",
+            "reviewer@example.com",
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        user.GetType().GetProperty(nameof(User.Role))!.SetValue(user,
+            new Role(new RoleId(RoleConstants.UserRoleId), RoleNames.User));
+
+        var permissions = user.GetType()
+            .GetField("_permissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        permissions.SetValue(user, new List<Permission>
+        {
+            new(
+                new PermissionId(Guid.NewGuid()),
+                userId,
+                null,
+                PermissionConstants.AnyResourceKey,
+                ResourceType.Application,
+                AccessType.Read,
+                DateTime.UtcNow,
+                userId)
+        });
+
+        return user;
+    }
 
     private static ClaimsPrincipal CreateUserWithPermissionClaims(params string[] permissionValues)
     {

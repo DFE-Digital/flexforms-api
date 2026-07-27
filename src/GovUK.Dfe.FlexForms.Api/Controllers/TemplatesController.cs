@@ -2,6 +2,7 @@ using Asp.Versioning;
 using GovUK.Dfe.FlexForms.Application.Common.Exceptions;
 using GovUK.Dfe.FlexForms.Application.Templates.Commands;
 using GovUK.Dfe.FlexForms.Application.Templates.Queries;
+using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Http.Models;
@@ -118,7 +119,7 @@ public class TemplatesController(ISender sender) : ControllerBase
     [SwaggerResponse(201, "Custom status created/updated.", typeof(CustomApplicationStatusDto))]
     [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
     [Authorize(Policy = "CanWriteTemplate")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
     public async Task<IActionResult> CreateCustomApplicationStatusAsync([FromRoute] Guid templateId, [FromBody] CustomApplicationStatusRequest request, CancellationToken cancellationToken)
     {
         if (request is null)
@@ -172,7 +173,7 @@ public class TemplatesController(ISender sender) : ControllerBase
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
     [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
     [Authorize(Policy = "CanWriteTemplate")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
     public async Task<IActionResult> CreateTemplateVersionAsync(
         [FromRoute] Guid templateId,
         [FromBody] CreateTemplateVersionRequest request,

@@ -15,9 +15,11 @@ public static class PermissionClaimEvaluator
 
     /// <summary>
     /// Returns true when the user has full administrative access (all resources, all actions).
+    /// SuperAdmin is special-cased; legacy Admin role claims are accepted during transition.
     /// </summary>
     public static bool HasFullAdminAccess(ClaimsPrincipal user) =>
-        user.IsInRole(RoleNames.Admin);
+        user.IsInRole(RoleNames.SuperAdmin)
+        || user.IsInRole(RoleNames.Admin);
 
     /// <summary>
     /// Returns true when the principal is an interactive Admin user (user JWT), not a machine/
@@ -44,12 +46,12 @@ public static class PermissionClaimEvaluator
     }
 
     /// <summary>
-    /// Returns true when the user can read all applications in the current tenant (Admin or Caseworker only).
-    /// Standard users must have explicit application permission rows even if legacy wildcard grants exist in the database.
+    /// Returns true when the user can read all applications in the current tenant
+    /// (SuperAdmin, or an Application:Any:Read permission claim from a role/user grant).
     /// </summary>
     public static bool CanReadAllApplications(ClaimsPrincipal user) =>
         HasFullAdminAccess(user)
-        || user.IsInRole(RoleNames.Caseworker);
+        || HasPermissionClaim(user, ResourceType.Application, PermissionConstants.AnyResourceKey, AccessType.Read);
 
     /// <summary>
     /// Returns true when the user can write any application in the tenant (Admin only).
@@ -62,8 +64,7 @@ public static class PermissionClaimEvaluator
     /// </summary>
     public static bool CanReadApplication(ClaimsPrincipal user, string applicationId) =>
         HasFullAdminAccess(user)
-        || user.IsInRole(RoleNames.Caseworker)
-        || HasPermissionClaim(user, ResourceType.Application, applicationId, AccessType.Read);
+        || HasPermissionClaimOrTenantWide(user, ResourceType.Application, applicationId, AccessType.Read);
 
     /// <summary>
     /// Returns true when the user can write the specified application (exact permission or Admin only).
@@ -78,8 +79,7 @@ public static class PermissionClaimEvaluator
     /// </summary>
     public static bool CanReadApplicationFiles(ClaimsPrincipal user, string applicationId) =>
         HasFullAdminAccess(user)
-        || user.IsInRole(RoleNames.Caseworker)
-        || HasPermissionClaim(user, ResourceType.ApplicationFiles, applicationId, AccessType.Read);
+        || HasPermissionClaimOrTenantWide(user, ResourceType.ApplicationFiles, applicationId, AccessType.Read);
 
     /// <summary>
     /// Returns true when the user can write files for the specified application (exact permission or Admin only).
@@ -96,7 +96,19 @@ public static class PermissionClaimEvaluator
         || HasPermissionClaim(user, ResourceType.ApplicationFiles, applicationId, AccessType.Delete);
 
     /// <summary>
-    /// Returns true when the user has an exact or wildcard permission claim for the resource.
+    /// Returns true when the user has an exact or tenant-wide (<see cref="PermissionConstants.AnyResourceKey"/>)
+    /// permission claim for the resource.
+    /// </summary>
+    public static bool HasPermissionClaimOrTenantWide(
+        ClaimsPrincipal user,
+        ResourceType resourceType,
+        string resourceId,
+        AccessType accessType) =>
+        HasPermissionClaim(user, resourceType, resourceId, accessType)
+        || HasPermissionClaim(user, resourceType, PermissionConstants.AnyResourceKey, accessType);
+
+    /// <summary>
+    /// Returns true when the user has an exact permission claim for the resource.
     /// </summary>
     public static bool HasPermissionClaim(
         ClaimsPrincipal user,

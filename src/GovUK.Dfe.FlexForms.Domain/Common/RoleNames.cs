@@ -2,55 +2,107 @@ namespace GovUK.Dfe.FlexForms.Domain.Common;
 
 /// <summary>
 /// Well-known role names stored in the Roles table and issued as role claims.
+/// Only <see cref="SuperAdmin"/> (platform) and <see cref="User"/> are system roles.
+/// Tenant-specific capabilities use custom roles + <c>RolePermissions</c>.
 /// </summary>
 public static class RoleNames
 {
+    /// <summary>
+    /// Platform administrator. Privileged via <c>IsInRole</c>, not tenant-assignable,
+    /// and the name is reserved (cannot be used for custom tenant roles).
+    /// </summary>
+    public const string SuperAdmin = "SuperAdmin";
+
+    /// <summary>
+    /// Legacy privileged name kept for JWT / authorization grace. Prefer <see cref="SuperAdmin"/>.
+    /// Reserved — cannot be assigned or used as a custom tenant role name.
+    /// </summary>
     public const string Admin = "Admin";
+
     public const string User = "User";
+
+    /// <summary>
+    /// Legacy role name retained for existing DB rows and JWT claims.
+    /// Not assignable and not privileged — replace with custom roles + RolePermissions.
+    /// </summary>
     public const string Caseworker = "Caseworker";
 
     /// <summary>
-    /// Roles that can be assigned through the administrative role assignment API.
+    /// Roles that can be assigned through the tenant administrative role assignment API.
     /// </summary>
     public static readonly IReadOnlyCollection<string> Assignable =
     [
-        User,
-        Caseworker,
-        Admin
+        User
     ];
 
     /// <summary>
-    /// Returns true when the role can be assigned through the administrative role assignment API.
+    /// Role names reserved for the platform. Tenants must not create custom roles with these names
+    /// or assign them through tenant APIs.
     /// </summary>
-    public static bool IsAssignable(string roleName) =>
-        Assignable.Any(r => string.Equals(r, roleName, StringComparison.OrdinalIgnoreCase));
+    public static readonly IReadOnlyCollection<string> Reserved =
+    [
+        SuperAdmin,
+        Admin,
+        "Administrator"
+    ];
 
     /// <summary>
-    /// Resolves a role name to its canonical form, or null when not assignable.
+    /// Returns true when the role is the privileged platform admin (current or legacy name).
+    /// </summary>
+    public static bool IsSuperAdmin(string? roleName) =>
+        string.Equals(roleName, SuperAdmin, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(roleName, Admin, StringComparison.OrdinalIgnoreCase)
+        || string.Equals(roleName, "Administrator", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Returns true when the name is reserved for platform use and must not be used
+    /// as a tenant-assignable or custom role name.
+    /// </summary>
+    public static bool IsReservedRoleName(string? roleName)
+    {
+        if (string.IsNullOrWhiteSpace(roleName))
+            return false;
+
+        foreach (var reserved in Reserved)
+        {
+            if (string.Equals(roleName.Trim(), reserved, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Returns true when the role can be assigned through the tenant administrative role assignment API.
+    /// </summary>
+    public static bool IsAssignable(string roleName) =>
+        ResolveAssignable(roleName) is not null;
+
+    /// <summary>
+    /// Resolves a role name to its canonical tenant-assignable form, or null when not assignable.
     /// </summary>
     public static string? ResolveAssignable(string roleName)
     {
         if (string.IsNullOrWhiteSpace(roleName))
             return null;
 
-        return Assignable.FirstOrDefault(r => string.Equals(r, roleName, StringComparison.OrdinalIgnoreCase));
+        if (string.Equals(roleName, User, StringComparison.OrdinalIgnoreCase))
+            return User;
+
+        return null;
     }
 
     /// <summary>
-    /// Returns true when assigning <paramref name="targetRole"/> would downgrade an existing
-    /// <paramref name="currentRole"/> to User. User is the lowest role; Admin and Caseworker
-    /// cannot be reassigned to User.
+    /// Returns true when assigning <paramref name="targetRole"/> would downgrade a platform
+    /// SuperAdmin membership to User. Other roles (including legacy Caseworker) may be
+    /// reassigned to User via the tenant API.
     /// </summary>
     public static bool IsDowngradeToUser(string? currentRole, string targetRole)
     {
-        if (!string.Equals(targetRole, User, StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(ResolveAssignable(targetRole) ?? targetRole, User, StringComparison.OrdinalIgnoreCase))
             return false;
 
-        var current = ResolveAssignable(currentRole ?? string.Empty);
-        if (current is null || string.Equals(current, User, StringComparison.OrdinalIgnoreCase))
-            return false;
-
-        return true;
+        return IsSuperAdmin(currentRole) || IsReservedRoleName(currentRole);
     }
 
     /// <summary>
@@ -59,7 +111,7 @@ public static class RoleNames
     public static string? FromRoleId(Guid roleId)
     {
         if (roleId == RoleConstants.AdminRoleId)
-            return Admin;
+            return SuperAdmin;
 
         if (roleId == RoleConstants.CaseworkerRoleId)
             return Caseworker;

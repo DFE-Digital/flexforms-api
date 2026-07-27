@@ -6,12 +6,13 @@ using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 namespace GovUK.Dfe.FlexForms.Domain.Services.RoleProvisioners;
 
 /// <summary>
-/// Provisions users with the Admin role for full tenant administration.
+/// Provisions users with the platform SuperAdmin role.
+/// Not used by tenant role assignment; reserved for platform/ops provisioning paths.
 /// </summary>
 public sealed class AdminRoleProvisioner(IUserFactory userFactory) : IUserRoleProvisioner
 {
     /// <inheritdoc />
-    public string RoleName => RoleNames.Admin;
+    public string RoleName => RoleNames.SuperAdmin;
 
     /// <inheritdoc />
     public bool RequiresTemplateIds => false;

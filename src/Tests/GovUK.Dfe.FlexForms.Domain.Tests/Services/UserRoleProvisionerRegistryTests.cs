@@ -9,20 +9,18 @@ namespace GovUK.Dfe.FlexForms.Domain.Tests.Services;
 public class UserRoleProvisionerRegistryTests
 {
     [Fact]
-    public void GetProvisioner_ShouldResolveCaseworkerProvisioner()
+    public void GetProvisioner_ShouldResolveUserProvisioner()
     {
         var userFactory = new UserFactory();
         var registry = new UserRoleProvisionerRegistry([
-            new CaseworkerRoleProvisioner(userFactory),
             new StandardUserRoleProvisioner(userFactory),
             new AdminRoleProvisioner(userFactory)
         ]);
 
-        var provisioner = registry.GetProvisioner("caseworker");
+        var provisioner = registry.GetProvisioner("user");
 
         Assert.NotNull(provisioner);
-        Assert.Equal(RoleNames.Caseworker, provisioner!.RoleName);
-        Assert.True(provisioner.RequiresTemplateIds);
+        Assert.Equal(RoleNames.User, provisioner!.RoleName);
     }
 
     [Fact]
@@ -34,5 +32,19 @@ public class UserRoleProvisionerRegistryTests
         ]);
 
         Assert.Null(registry.GetProvisioner("Unknown"));
+    }
+
+    [Fact]
+    public void GetProvisioner_ShouldReturnNull_ForCaseworkerAndSuperAdmin()
+    {
+        var userFactory = new UserFactory();
+        var registry = new UserRoleProvisionerRegistry([
+            new StandardUserRoleProvisioner(userFactory),
+            new AdminRoleProvisioner(userFactory)
+        ]);
+
+        Assert.Null(registry.GetProvisioner(RoleNames.Caseworker));
+        Assert.Null(registry.GetProvisioner(RoleNames.SuperAdmin));
+        Assert.Null(registry.GetProvisioner(RoleNames.Admin));
     }
 }

@@ -13,4 +13,6 @@ namespace GovUK.Dfe.FlexForms.Domain.ValueObjects
     public record TemplatePermissionId(Guid Value) : IStronglyTypedId;
     public record FileId(Guid Value) : IStronglyTypedId;
     public record CustomApplicationStatusId(Guid Value) : IStronglyTypedId;
+    public record TenantMembershipId(Guid Value) : IStronglyTypedId;
+    public record RolePermissionId(Guid Value) : IStronglyTypedId;
 }

@@ -4,6 +4,7 @@ using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using MediatR;
@@ -31,6 +32,8 @@ public sealed class AssignUserRoleCommandHandler(
     IUnitOfWork unitOfWork,
     IPermissionCheckerService permissionCheckerService,
     IUserRoleProvisionerRegistry roleProvisionerRegistry,
+    ITenantContextAccessor tenantContextAccessor,
+    ITenantMembershipService tenantMembershipService,
     IHttpContextAccessor httpContextAccessor)
     : IRequestHandler<AssignUserRoleCommand, Result<UserDto>>
 {
@@ -41,6 +44,10 @@ public sealed class AssignUserRoleCommandHandler(
         if (!permissionCheckerService.IsAdmin())
             return Result<UserDto>.Forbid("Only administrators can assign roles");
 
+        var currentTenant = tenantContextAccessor.CurrentTenant;
+        if (currentTenant is null)
+            return Result<UserDto>.Forbid("Tenant context is required to assign roles");
+
         if (string.IsNullOrWhiteSpace(command.Email))
             return Result<UserDto>.Failure("Email is required");
 
@@ -49,6 +56,12 @@ public sealed class AssignUserRoleCommandHandler(
 
         if (string.IsNullOrWhiteSpace(command.Role))
             return Result<UserDto>.Failure("Role is required");
+
+        if (RoleNames.IsReservedRoleName(command.Role))
+        {
+            return Result<UserDto>.Failure(
+                $"Role '{command.Role}' is reserved for platform administrators and cannot be assigned to tenant users.");
+        }
 
         var canonicalRole = RoleNames.ResolveAssignable(command.Role);
         if (canonicalRole is null)
@@ -82,16 +95,31 @@ public sealed class AssignUserRoleCommandHandler(
             grantedById,
             now);
 
-        var existingUser = await (new GetUserWithAllTemplatePermissionsQueryObject(email))
+        var existingUser = await new GetUserWithAllPermissionsByEmailQueryObject(email)
             .Apply(userRepo.Query())
-            .Include(u => u.Role)
-            .Include(u => u.Permissions)
             .FirstOrDefaultAsync(cancellationToken);
 
         if (existingUser is not null)
         {
-            var currentRoleName = existingUser.Role?.Name
+            // Downgrade guard uses THIS tenant's membership role when present.
+            string? currentRoleName = null;
+            if (existingUser.Id is not null)
+            {
+                var membership = await tenantMembershipService.GetActiveMembershipAsync(
+                    currentTenant.Id,
+                    existingUser.Id,
+                    cancellationToken);
+                currentRoleName = membership?.Role?.Name;
+            }
+
+            currentRoleName ??= existingUser.Role?.Name
                 ?? RoleNames.FromRoleId(existingUser.RoleId.Value);
+
+            if (RoleNames.IsSuperAdmin(currentRoleName) || RoleNames.IsReservedRoleName(currentRoleName))
+            {
+                return Result<UserDto>.Forbid(
+                    "Cannot change a platform SuperAdmin membership through tenant role assignment");
+            }
 
             if (RoleNames.IsDowngradeToUser(currentRoleName, canonicalRole))
             {
@@ -120,9 +148,18 @@ public sealed class AssignUserRoleCommandHandler(
             return Result<UserDto>.Failure(ex.Message);
         }
 
+        if (user.Id is null)
+            return Result<UserDto>.Failure("User was created without an identifier");
+
+        await tenantMembershipService.UpsertMembershipAsync(
+            currentTenant.Id,
+            user.Id,
+            canonicalRole,
+            cancellationToken);
+
         await unitOfWork.CommitAsync(cancellationToken);
 
-        var assignedRoleName = RoleNames.ResolveAssignable(user.Role?.Name ?? canonicalRole) ?? canonicalRole;
+        var assignedRoleName = canonicalRole;
 
         return Result<UserDto>.Success(new UserDto
         {

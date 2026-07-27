@@ -1,6 +1,7 @@
 using Asp.Versioning;
 using GovUK.Dfe.FlexForms.Application.Users.Commands;
 using GovUK.Dfe.FlexForms.Application.Users.Queries;
+using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Infrastructure.Security;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
@@ -75,7 +76,7 @@ public class UsersController(ISender sender) : ControllerBase
     [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
     [SwaggerResponse(403, "Forbidden - only administrators can assign roles", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
     public async Task<ActionResult<UserDto>> AssignUserRoleAsync(
         [FromBody] AssignUserRoleRequest request,
         CancellationToken cancellationToken)
@@ -103,7 +104,7 @@ public class UsersController(ISender sender) : ControllerBase
     [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
     [SwaggerResponse(403, "Forbidden - only administrators can list tenant users", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
     public async Task<ActionResult<IReadOnlyCollection<TenantUserDto>>> GetTenantUsersAsync(
         CancellationToken cancellationToken)
     {
@@ -130,7 +131,7 @@ public class UsersController(ISender sender) : ControllerBase
     [SwaggerResponse(403, "Forbidden - only administrators can update template access", typeof(ExceptionResponse))]
     [SwaggerResponse(404, "User not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
     public async Task<ActionResult<TenantUserDto>> UpdateUserTemplateAccessAsync(
         Guid userId,
         [FromBody] UpdateUserTemplateAccessRequest request,
@@ -163,7 +164,7 @@ public class UsersController(ISender sender) : ControllerBase
     [SwaggerResponse(403, "Forbidden - only administrators can remove users from the tenant", typeof(ExceptionResponse))]
     [SwaggerResponse(404, "User not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
     public async Task<IActionResult> RemoveUserFromTenantAsync(
         Guid userId,
         CancellationToken cancellationToken)

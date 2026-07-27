@@ -26,7 +26,7 @@ public class TenantAdminUserAuthorizationHandlerTests
     public async Task Handle_ShouldSucceed_ForInteractiveAdminUserJwt()
     {
         var user = CreatePrincipal(
-            roles: [RoleNames.Admin],
+            roles: [RoleNames.SuperAdmin],
             email: "admin@example.com",
             isService: false);
 
@@ -40,7 +40,7 @@ public class TenantAdminUserAuthorizationHandlerTests
     public async Task Handle_ShouldFail_ForClientCredentialsWithAdminRole()
     {
         var user = CreatePrincipal(
-            roles: [RoleNames.Admin, "ServiceCaller"],
+            roles: [RoleNames.SuperAdmin, "ServiceCaller"],
             email: null,
             isService: true);
 
@@ -54,7 +54,7 @@ public class TenantAdminUserAuthorizationHandlerTests
     public async Task Handle_ShouldFail_ForAdminRoleWithoutEmail()
     {
         var user = CreatePrincipal(
-            roles: [RoleNames.Admin],
+            roles: [RoleNames.SuperAdmin],
             email: null,
             isService: false);
 
@@ -73,11 +73,11 @@ public class TenantAdminUserAuthorizationHandlerTests
             Name: "azure-ad-svc",
             Kind: TenantAuthProviderKind.EntraOidc,
             IsServicePrincipal: true,
-            Roles: [RoleNames.Admin]);
+            Roles: [RoleNames.SuperAdmin]);
         _httpContextAccessor.HttpContext.Returns(http);
 
         var user = CreatePrincipal(
-            roles: [RoleNames.Admin],
+            roles: [RoleNames.SuperAdmin],
             email: "sp@apps.local",
             isService: false); // claim missing; provider stash still rejects
 

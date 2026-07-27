@@ -27,6 +27,7 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Seeders
         public const string TemplatePermissionId1 = "08a25ca0-5890-4bd5-a441-552ec9c13ee1";
         public const string TemplatePermissionId2 = "08a25ca0-5890-4bd5-a441-552ec9c13ee2";
         public const string SubmitterRoleId = "a5d3d871-ce57-47b9-807d-de5c1551f9f2";
+        public const string TestTenantId = "11111111-1111-4111-8111-111111111111";
 
         /// <summary>
         /// File ID used when seeding "existing file" for UploadFileAsync_ShouldReturnBadRequest_WhenFileAlreadyExists.
@@ -36,13 +37,24 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Seeders
 
         public static void SeedTestData(ExternalApplicationsContext ctx)
         {
-            var roleAdmin = new Role(new RoleId(RoleConstants.AdminRoleId), "Administrator");
+            var tenantId = Guid.Parse(TestTenantId);
+            var roleAdmin = new Role(new RoleId(RoleConstants.AdminRoleId), RoleNames.SuperAdmin);
             var roleSubmitter = new Role(new RoleId(new Guid(SubmitterRoleId)), "Submitter");
-            var roleUser = new Role(new RoleId(RoleConstants.UserRoleId), "User");
+            var roleUser = new Role(new RoleId(RoleConstants.UserRoleId), RoleNames.User);
             var roleCaseworker = new Role(new RoleId(RoleConstants.CaseworkerRoleId), RoleNames.Caseworker);
+            var tenantAdmin = new Role(new RoleId(Guid.NewGuid()), RoleNames.SuperAdmin, tenantId, isSystem: true);
+            var tenantUser = new Role(new RoleId(Guid.NewGuid()), RoleNames.User, tenantId, isSystem: true);
+            var tenantCaseworker = new Role(new RoleId(Guid.NewGuid()), RoleNames.Caseworker, tenantId, isSystem: true);
             var now = DateTime.UtcNow;
 
-            ctx.Roles.AddRange(roleAdmin, roleSubmitter, roleUser, roleCaseworker);
+            ctx.Roles.AddRange(
+                roleAdmin,
+                roleSubmitter,
+                roleUser,
+                roleCaseworker,
+                tenantAdmin,
+                tenantUser,
+                tenantCaseworker);
 
             var aliceId = new UserId(new Guid(AliceId));
             var alice = new User(
@@ -72,6 +84,37 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Seeders
             );
 
             ctx.Users.AddRange(alice, bob);
+            ctx.TenantMemberships.AddRange(
+                new TenantMembership(
+                    new TenantMembershipId(Guid.NewGuid()),
+                    tenantId,
+                    aliceId,
+                    tenantAdmin.Id!,
+                    now),
+                new TenantMembership(
+                    new TenantMembershipId(Guid.NewGuid()),
+                    tenantId,
+                    bobId,
+                    tenantUser.Id!,
+                    now));
+
+            // Caseworker role defaults (also seeded by migration / RolePermissionService)
+            ctx.RolePermissions.AddRange(
+                new RolePermission(
+                    new RolePermissionId(Guid.NewGuid()),
+                    tenantCaseworker.Id!,
+                    PermissionConstants.AnyResourceKey,
+                    ResourceType.Application,
+                    AccessType.Read,
+                    now),
+                new RolePermission(
+                    new RolePermissionId(Guid.NewGuid()),
+                    tenantCaseworker.Id!,
+                    PermissionConstants.AnyResourceKey,
+                    ResourceType.ApplicationFiles,
+                    AccessType.Read,
+                    now));
+
             ctx.SaveChanges();
 
             var templateId = new TemplateId(new Guid(TemplateId));
@@ -80,7 +123,8 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Seeders
                 name: "Employee Onboarding",
                 createdOn: now,
                 createdBy: aliceId,
-                isLive: true
+                isLive: true,
+                tenantId: tenantId
             );
             ctx.Templates.Add(template);
 

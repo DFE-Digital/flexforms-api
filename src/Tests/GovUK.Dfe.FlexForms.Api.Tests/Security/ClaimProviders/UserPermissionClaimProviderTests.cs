@@ -5,9 +5,10 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Api.Security;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
-using MediatR;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.JsonWebTokens;
 using NSubstitute;
@@ -18,21 +19,34 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Security.ClaimProviders;
 
 public class UserPermissionClaimProviderTests
 {
-    private readonly ISender _sender;
     private readonly ILogger<UserPermissionClaimProvider> _logger;
     private readonly IEaRepository<User> _userRepo;
     private readonly ICacheService<IRedisCacheType> _cacheService;
     private readonly ITenantContextAccessor _tenantContextAccessor;
+    private readonly ITenantMembershipService _membershipService;
+    private readonly IRolePermissionService _rolePermissionService;
     private readonly UserPermissionClaimProvider _provider;
 
     public UserPermissionClaimProviderTests()
     {
-        _sender = Substitute.For<ISender>();
         _logger = Substitute.For<ILogger<UserPermissionClaimProvider>>();
         _userRepo = Substitute.For<IEaRepository<User>>();
         _cacheService = Substitute.For<ICacheService<IRedisCacheType>>();
         _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
-        _provider = new UserPermissionClaimProvider(_sender, _logger, _userRepo, _cacheService, _tenantContextAccessor);
+        _membershipService = Substitute.For<ITenantMembershipService>();
+        _rolePermissionService = Substitute.For<IRolePermissionService>();
+
+        var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
+        _tenantContextAccessor.CurrentTenant.Returns(
+            new TenantConfiguration(Guid.NewGuid(), "Test", config, Array.Empty<string>()));
+
+        _provider = new UserPermissionClaimProvider(
+            _logger,
+            _userRepo,
+            _cacheService,
+            _tenantContextAccessor,
+            _membershipService,
+            _rolePermissionService);
     }
 
     [Fact]
@@ -105,7 +119,7 @@ public class UserPermissionClaimProviderTests
 
         // Assert
         Assert.Empty(result);
-        _logger.Received(1).LogWarning("UserPermissionsClaimProvider() > User Email Address not found.");
+        _logger.Received(1).LogWarning("UserPermissionClaimProvider > User email not found.");
         await _cacheService.DidNotReceive().GetOrAddAsync<List<string>>(
             Arg.Any<string>(), Arg.Any<Func<Task<List<string>>>>(), Arg.Any<string>());
     }
@@ -125,7 +139,7 @@ public class UserPermissionClaimProviderTests
 
         // Assert
         Assert.Empty(result);
-        _logger.Received(1).LogWarning("UserPermissionsClaimProvider() > User Email Address not found.");
+        _logger.Received(1).LogWarning("UserPermissionClaimProvider > User email not found.");
         await _cacheService.DidNotReceive().GetOrAddAsync<List<string>>(
             Arg.Any<string>(), Arg.Any<Func<Task<List<string>>>>(), Arg.Any<string>());
     }
@@ -157,7 +171,7 @@ public class UserPermissionClaimProviderTests
         Assert.Contains(result, c => c.Type == "permission" && c.Value == "Application:123:Read");
         Assert.Contains(result, c => c.Type == "permission" && c.Value == "Template:456:Write");
         await _cacheService.Received(1).GetOrAddAsync<List<string>>(
-            Arg.Is<string>(key => key.StartsWith("UserClaims_")),
+            Arg.Is<string>(key => key.Contains("UserClaims_", StringComparison.Ordinal)),
             Arg.Any<Func<Task<List<string>>>>(),
             nameof(UserPermissionClaimProvider));
     }
@@ -528,7 +542,7 @@ public class UserPermissionClaimProviderTests
 
         // Assert
         await _cacheService.Received(1).GetOrAddAsync<List<string>>(
-            Arg.Is<string>(key => key.StartsWith("UserClaims_") && key.Length > "UserClaims_".Length),
+            Arg.Is<string>(key => key.Contains("UserClaims_", StringComparison.Ordinal) && key.Length > "UserClaims_".Length),
             Arg.Any<Func<Task<List<string>>>>(),
             nameof(UserPermissionClaimProvider));
     }
