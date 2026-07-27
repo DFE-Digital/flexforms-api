@@ -20,7 +20,8 @@ public sealed class AssignUserRoleCommandValidator : AbstractValidator<AssignUse
 
         RuleFor(x => x.Role)
             .NotEmpty()
-            .Must(RoleNames.IsAssignable)
-            .WithMessage($"Role must be one of: {string.Join(", ", RoleNames.Assignable)}");
+            .MaximumLength(128)
+            .Must(role => !RoleNames.IsReservedRoleName(role))
+            .WithMessage("Role name is reserved for platform use and cannot be assigned.");
     }
 }

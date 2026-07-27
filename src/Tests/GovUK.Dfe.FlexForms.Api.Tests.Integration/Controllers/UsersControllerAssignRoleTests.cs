@@ -127,7 +127,7 @@ public class UsersControllerAssignRoleTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task AssignUserRoleAsync_ShouldReturnBadRequest_WhenRoleIsNotAssignable(
+    public async Task AssignUserRoleAsync_ShouldReturnBadRequest_WhenCustomRoleDoesNotExist(
         CustomWebApplicationDbContextFactory<Program> factory,
         IUsersClient usersClient,
         HttpClient httpClient)
@@ -144,7 +144,7 @@ public class UsersControllerAssignRoleTests
             }));
 
         Assert.Equal(400, ex.StatusCode);
-        Assert.Contains("Role must be one of", ex.Result?.Details ?? "", StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("not found", ex.Result?.Message ?? "", StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]

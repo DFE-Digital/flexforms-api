@@ -304,7 +304,7 @@ public class ExternalApplicationsContext : DbContext
             .IsRequired();
 
         b.HasOne(e => e.Role)
-            .WithMany()
+            .WithMany(r => r.Permissions)
             .HasForeignKey(e => e.RoleId)
             .OnDelete(DeleteBehavior.Cascade);
 

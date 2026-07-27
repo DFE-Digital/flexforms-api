@@ -1,11 +1,13 @@
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -15,7 +17,7 @@ using System.Security.Claims;
 namespace GovUK.Dfe.FlexForms.Application.Users.Commands;
 
 /// <summary>
-/// Assigns an assignable role to a user, creating the user when they do not already exist.
+/// Assigns a tenant role (system User or custom) to a user, creating the user when needed.
 /// </summary>
 public sealed record AssignUserRoleCommand(
     string Email,
@@ -25,7 +27,7 @@ public sealed record AssignUserRoleCommand(
     : IRequest<Result<UserDto>>;
 
 /// <summary>
-/// Handles administrative assignment of predefined roles to users.
+/// Handles administrative assignment of roles to users.
 /// </summary>
 public sealed class AssignUserRoleCommandHandler(
     IEaRepository<User> userRepo,
@@ -34,6 +36,8 @@ public sealed class AssignUserRoleCommandHandler(
     IUserRoleProvisionerRegistry roleProvisionerRegistry,
     ITenantContextAccessor tenantContextAccessor,
     ITenantMembershipService tenantMembershipService,
+    ITenantRoleService tenantRoleService,
+    IUserFactory userFactory,
     IHttpContextAccessor httpContextAccessor)
     : IRequestHandler<AssignUserRoleCommand, Result<UserDto>>
 {
@@ -63,37 +67,45 @@ public sealed class AssignUserRoleCommandHandler(
                 $"Role '{command.Role}' is reserved for platform administrators and cannot be assigned to tenant users.");
         }
 
-        var canonicalRole = RoleNames.ResolveAssignable(command.Role);
-        if (canonicalRole is null)
-        {
-            var allowed = string.Join(", ", RoleNames.Assignable);
-            return Result<UserDto>.Failure($"Role '{command.Role}' is not assignable. Allowed roles: {allowed}");
-        }
+        var roleName = command.Role.Trim();
+        var systemRole = RoleNames.ResolveAssignable(roleName);
+        var isSystemAssignable = systemRole is not null;
+        var membershipRoleName = systemRole ?? roleName;
 
-        var provisioner = roleProvisionerRegistry.GetProvisioner(canonicalRole);
-        if (provisioner is null)
-            return Result<UserDto>.Failure($"No provisioner is registered for role '{canonicalRole}'");
+        if (!isSystemAssignable)
+        {
+            var customRole = await tenantRoleService.GetByNameAsync(
+                currentTenant.Id,
+                membershipRoleName,
+                cancellationToken);
+
+            if (customRole is null)
+            {
+                return Result<UserDto>.Failure(
+                    $"Role '{membershipRoleName}' was not found for this tenant. Create the custom role first.");
+            }
+
+            try
+            {
+                customRole.EnsureAssignableAsCustomRole();
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Result<UserDto>.Failure(ex.Message);
+            }
+        }
 
         var templateIds = (command.TemplateIds ?? Array.Empty<Guid>())
             .Select(id => new TemplateId(id))
             .ToList();
 
-        if (provisioner.RequiresTemplateIds && templateIds.Count == 0)
-            return Result<UserDto>.Failure($"At least one template ID is required for the {canonicalRole} role");
-
-        var email = command.Email.Trim();
-        var now = DateTime.UtcNow;
-
         var grantedById = await ResolveGrantedByUserIdAsync(cancellationToken);
         if (grantedById is null)
             return Result<UserDto>.Failure("Could not resolve the acting administrator");
 
-        var assignmentRequest = new RoleAssignmentRequest(
-            command.Name.Trim(),
-            email,
-            templateIds,
-            grantedById,
-            now);
+        var email = command.Email.Trim();
+        var now = DateTime.UtcNow;
+        var name = command.Name.Trim();
 
         var existingUser = await new GetUserWithAllPermissionsByEmailQueryObject(email)
             .Apply(userRepo.Query())
@@ -101,7 +113,6 @@ public sealed class AssignUserRoleCommandHandler(
 
         if (existingUser is not null)
         {
-            // Downgrade guard uses THIS tenant's membership role when present.
             string? currentRoleName = null;
             if (existingUser.Id is not null)
             {
@@ -121,26 +132,88 @@ public sealed class AssignUserRoleCommandHandler(
                     "Cannot change a platform SuperAdmin membership through tenant role assignment");
             }
 
-            if (RoleNames.IsDowngradeToUser(currentRoleName, canonicalRole))
+            if (RoleNames.IsDowngradeToUser(currentRoleName, membershipRoleName))
             {
-                var currentRole = RoleNames.ResolveAssignable(currentRoleName ?? string.Empty)
-                    ?? currentRoleName;
-                return Result<UserDto>.Forbid($"Cannot downgrade a {currentRole} to the User role");
+                return Result<UserDto>.Forbid($"Cannot downgrade a {currentRoleName} to the User role");
             }
         }
 
         User user;
         try
         {
-            if (existingUser is null)
+            if (isSystemAssignable)
             {
-                user = provisioner.CreateUser(assignmentRequest);
-                await userRepo.AddAsync(user, cancellationToken);
+                var provisioner = roleProvisionerRegistry.GetProvisioner(membershipRoleName);
+                if (provisioner is null)
+                    return Result<UserDto>.Failure($"No provisioner is registered for role '{membershipRoleName}'");
+
+                if (provisioner.RequiresTemplateIds && templateIds.Count == 0)
+                    return Result<UserDto>.Failure($"At least one template ID is required for the {membershipRoleName} role");
+
+                var assignmentRequest = new RoleAssignmentRequest(
+                    name,
+                    email,
+                    templateIds,
+                    grantedById,
+                    now);
+
+                if (existingUser is null)
+                {
+                    user = provisioner.CreateUser(assignmentRequest);
+                    await userRepo.AddAsync(user, cancellationToken);
+                }
+                else
+                {
+                    provisioner.AssignToExistingUser(existingUser, assignmentRequest);
+                    user = existingUser;
+                }
             }
             else
             {
-                provisioner.AssignToExistingUser(existingUser, assignmentRequest);
-                user = existingUser;
+                // Custom role: keep global User shell; capabilities come from RolePermissions + overrides.
+                if (existingUser is null)
+                {
+                    if (templateIds.Count > 0)
+                    {
+                        user = userFactory.CreateStandardUser(
+                            new UserId(Guid.NewGuid()),
+                            name,
+                            email,
+                            templateIds,
+                            grantedById,
+                            now);
+                    }
+                    else
+                    {
+                        user = userFactory.CreateUser(
+                            new UserId(Guid.NewGuid()),
+                            new RoleId(RoleConstants.UserRoleId),
+                            name,
+                            email,
+                            null,
+                            now);
+                        userFactory.AddPermissionToUser(
+                            user,
+                            email,
+                            ResourceType.User,
+                            [AccessType.Read],
+                            grantedById,
+                            null,
+                            now);
+                    }
+
+                    await userRepo.AddAsync(user, cancellationToken);
+                }
+                else
+                {
+                    existingUser.AssignRole(new RoleId(RoleConstants.UserRoleId));
+                    if (templateIds.Count > 0)
+                    {
+                        userFactory.GrantStandardUserAccess(existingUser, templateIds, grantedById, now);
+                    }
+
+                    user = existingUser;
+                }
             }
         }
         catch (ArgumentException ex)
@@ -154,12 +227,10 @@ public sealed class AssignUserRoleCommandHandler(
         await tenantMembershipService.UpsertMembershipAsync(
             currentTenant.Id,
             user.Id,
-            canonicalRole,
+            membershipRoleName,
             cancellationToken);
 
         await unitOfWork.CommitAsync(cancellationToken);
-
-        var assignedRoleName = canonicalRole;
 
         return Result<UserDto>.Success(new UserDto
         {
@@ -176,7 +247,7 @@ public sealed class AssignUserRoleCommandHandler(
                     ResourceKey = p.ResourceKey,
                     AccessType = p.AccessType
                 }).ToArray(),
-                Roles = new[] { assignedRoleName }
+                Roles = new[] { membershipRoleName }
             }
         });
     }

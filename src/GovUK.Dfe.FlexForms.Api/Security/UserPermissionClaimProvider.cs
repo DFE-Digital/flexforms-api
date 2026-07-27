@@ -16,8 +16,9 @@ namespace GovUK.Dfe.FlexForms.Api.Security;
 
 /// <summary>
 /// Enriches the principal with <c>permission</c> claims on every request:
-/// role defaults (<see cref="RolePermission"/>) plus optional user overrides
+/// role defaults (<see cref="RolePermission"/>) plus user overrides
 /// (<see cref="Permission"/> / <see cref="TemplatePermission"/>).
+/// When a user has any grant for a resource type+key, role grants for that key are omitted.
 /// </summary>
 public class UserPermissionClaimProvider(
     ILogger<UserPermissionClaimProvider> logger,
@@ -65,9 +66,8 @@ public class UserPermissionClaimProvider(
                 if (dbUser?.Id is null)
                     return new List<string>();
 
-                var claimValues = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var roleGrants = new List<PermissionClaimMerger.Grant>();
 
-                // Role defaults from TenantMembership → RolePermissions
                 var membership = await tenantMembershipService.GetActiveMembershipAsync(
                     currentTenant.Id,
                     dbUser.Id,
@@ -79,28 +79,23 @@ public class UserPermissionClaimProvider(
                         membership.RoleId,
                         CancellationToken.None);
 
-                    foreach (var rp in rolePerms)
-                    {
-                        claimValues.Add($"{rp.ResourceType}:{rp.ResourceKey}:{rp.AccessType}");
-                    }
+                    roleGrants.AddRange(rolePerms.Select(rp =>
+                        new PermissionClaimMerger.Grant(rp.ResourceType, rp.ResourceKey, rp.AccessType)));
                 }
 
-                // User overrides (and legacy user-scoped grants)
                 var userWithPerms = await new GetUserWithAllPermissionsByUserIdQueryObject(dbUser.Id)
                     .Apply(userRepo.Query().AsNoTracking())
                     .FirstOrDefaultAsync();
 
-                foreach (var p in userWithPerms?.Permissions ?? [])
-                {
-                    claimValues.Add($"{p.ResourceType}:{p.ResourceKey}:{p.AccessType}");
-                }
+                var userGrants = (userWithPerms?.Permissions ?? [])
+                    .Select(p => new PermissionClaimMerger.Grant(p.ResourceType, p.ResourceKey, p.AccessType))
+                    .ToList();
 
-                foreach (var tp in userWithPerms?.TemplatePermissions ?? [])
-                {
-                    claimValues.Add($"Template:{tp.TemplateId.Value}:{tp.AccessType}");
-                }
+                var templateGrants = (userWithPerms?.TemplatePermissions ?? [])
+                    .Select(tp => (tp.TemplateId.Value, tp.AccessType))
+                    .ToList();
 
-                return claimValues.ToList();
+                return PermissionClaimMerger.Merge(roleGrants, userGrants, templateGrants).ToList();
             },
             methodName);
 

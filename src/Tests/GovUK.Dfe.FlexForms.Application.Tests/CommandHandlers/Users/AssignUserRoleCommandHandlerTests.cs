@@ -1,6 +1,7 @@
 using GovUK.Dfe.FlexForms.Application.Users.Commands;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
@@ -49,6 +50,35 @@ public class AssignUserRoleCommandHandlerTests
         return service;
     }
 
+    private static ITenantRoleService CreateTenantRoleService(Role? customRole = null)
+    {
+        var service = Substitute.For<ITenantRoleService>();
+        service.GetByNameAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(customRole);
+        return service;
+    }
+
+    private static AssignUserRoleCommandHandler CreateHandler(
+        IEaRepository<User> userRepo,
+        IUnitOfWork unitOfWork,
+        IPermissionCheckerService permissionCheckerService,
+        IUserRoleProvisionerRegistry roleProvisionerRegistry,
+        IHttpContextAccessor httpContextAccessor,
+        ITenantRoleService? tenantRoleService = null,
+        IUserFactory? userFactory = null)
+    {
+        return new AssignUserRoleCommandHandler(
+            userRepo,
+            unitOfWork,
+            permissionCheckerService,
+            roleProvisionerRegistry,
+            CreateTenantContext(),
+            CreateMembershipService(),
+            tenantRoleService ?? CreateTenantRoleService(),
+            userFactory ?? Substitute.For<IUserFactory>(),
+            httpContextAccessor);
+    }
+
     [Theory]
     [CustomAutoData(typeof(UserCustomization))]
     public async Task Handle_ShouldForbid_WhenCallerIsNotAdmin(
@@ -62,13 +92,11 @@ public class AssignUserRoleCommandHandlerTests
     {
         permissionCheckerService.IsAdmin().Returns(false);
 
-        var handler = new AssignUserRoleCommandHandler(
+        var handler = CreateHandler(
             userRepo,
             unitOfWork,
             permissionCheckerService,
             roleProvisionerRegistry,
-            CreateTenantContext(),
-            CreateMembershipService(),
             httpContextAccessor);
 
         var result = await handler.Handle(
@@ -81,7 +109,7 @@ public class AssignUserRoleCommandHandlerTests
 
     [Theory]
     [CustomAutoData(typeof(UserCustomization))]
-    public async Task Handle_ShouldFail_WhenRoleIsNotAssignable(
+    public async Task Handle_ShouldFail_WhenCustomRoleDoesNotExist(
         string email,
         string name,
         IEaRepository<User> userRepo,
@@ -92,21 +120,20 @@ public class AssignUserRoleCommandHandlerTests
     {
         permissionCheckerService.IsAdmin().Returns(true);
 
-        var handler = new AssignUserRoleCommandHandler(
+        var handler = CreateHandler(
             userRepo,
             unitOfWork,
             permissionCheckerService,
             roleProvisionerRegistry,
-            CreateTenantContext(),
-            CreateMembershipService(),
-            httpContextAccessor);
+            httpContextAccessor,
+            CreateTenantRoleService(customRole: null));
 
         var result = await handler.Handle(
-            new AssignUserRoleCommand(email, name, "SuperUser", [Guid.NewGuid()]),
+            new AssignUserRoleCommand(email, name, "CaseReviewer", [Guid.NewGuid()]),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Contains("not assignable", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("was not found", result.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     [Theory]
@@ -122,13 +149,11 @@ public class AssignUserRoleCommandHandlerTests
     {
         permissionCheckerService.IsAdmin().Returns(true);
 
-        var handler = new AssignUserRoleCommandHandler(
+        var handler = CreateHandler(
             userRepo,
             unitOfWork,
             permissionCheckerService,
             roleProvisionerRegistry,
-            CreateTenantContext(),
-            CreateMembershipService(),
             httpContextAccessor);
 
         var result = await handler.Handle(
@@ -152,13 +177,11 @@ public class AssignUserRoleCommandHandlerTests
     {
         permissionCheckerService.IsAdmin().Returns(true);
 
-        var handler = new AssignUserRoleCommandHandler(
+        var handler = CreateHandler(
             userRepo,
             unitOfWork,
             permissionCheckerService,
             roleProvisionerRegistry,
-            CreateTenantContext(),
-            CreateMembershipService(),
             httpContextAccessor);
 
         var result = await handler.Handle(
@@ -219,13 +242,11 @@ public class AssignUserRoleCommandHandlerTests
 
         roleProvisionerRegistry.GetProvisioner(RoleNames.User).Returns(provisioner);
 
-        var handler = new AssignUserRoleCommandHandler(
+        var handler = CreateHandler(
             userRepo,
             unitOfWork,
             permissionCheckerService,
             roleProvisionerRegistry,
-            CreateTenantContext(),
-            CreateMembershipService(),
             httpContextAccessor);
 
         var result = await handler.Handle(
@@ -239,6 +260,80 @@ public class AssignUserRoleCommandHandlerTests
         await userRepo.Received(1).AddAsync(createdUser, Arg.Any<CancellationToken>());
         await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
         provisioner.Received(1).CreateUser(Arg.Any<RoleAssignmentRequest>());
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(UserCustomization))]
+    public async Task Handle_ShouldAssignCustomRole_WhenRoleExists(
+        string adminEmail,
+        string email,
+        string name,
+        UserId adminUserId,
+        IEaRepository<User> userRepo,
+        IUnitOfWork unitOfWork,
+        IPermissionCheckerService permissionCheckerService,
+        IUserRoleProvisionerRegistry roleProvisionerRegistry,
+        IUserFactory userFactory,
+        IHttpContextAccessor httpContextAccessor)
+    {
+        permissionCheckerService.IsAdmin().Returns(true);
+
+        var grantedOn = DateTime.UtcNow;
+        var customRoleName = "CaseReviewer";
+        var tenantId = Guid.NewGuid();
+        var customRole = Role.CreateForTenant(tenantId, customRoleName, isSystem: false);
+
+        var adminUser = new User(
+            adminUserId,
+            new RoleId(RoleConstants.AdminRoleId),
+            "Admin",
+            adminEmail,
+            grantedOn,
+            null,
+            null,
+            null);
+
+        var createdUser = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.UserRoleId),
+            name,
+            email,
+            grantedOn,
+            adminUserId,
+            null,
+            null);
+
+        var users = new List<User> { adminUser }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        SetupHttpContext(httpContextAccessor, adminEmail);
+
+        userFactory.CreateUser(
+                Arg.Any<UserId>(),
+                Arg.Any<RoleId>(),
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<TemplateId?>(),
+                Arg.Any<DateTime?>())
+            .Returns(createdUser);
+
+        var tenantRoleService = CreateTenantRoleService(customRole);
+        var handler = CreateHandler(
+            userRepo,
+            unitOfWork,
+            permissionCheckerService,
+            roleProvisionerRegistry,
+            httpContextAccessor,
+            tenantRoleService,
+            userFactory);
+
+        var result = await handler.Handle(
+            new AssignUserRoleCommand(email, name, customRoleName, null),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(customRoleName, result.Value!.Authorization!.Roles!);
+        await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+        roleProvisionerRegistry.DidNotReceive().GetProvisioner(Arg.Any<string>());
     }
 
     [Theory]
@@ -291,13 +386,11 @@ public class AssignUserRoleCommandHandlerTests
 
         roleProvisionerRegistry.GetProvisioner(RoleNames.User).Returns(provisioner);
 
-        var handler = new AssignUserRoleCommandHandler(
+        var handler = CreateHandler(
             userRepo,
             unitOfWork,
             permissionCheckerService,
             roleProvisionerRegistry,
-            CreateTenantContext(),
-            CreateMembershipService(),
             httpContextAccessor);
 
         var result = await handler.Handle(
@@ -326,16 +419,32 @@ public class AssignUserRoleCommandHandlerTests
     {
         permissionCheckerService.IsAdmin().Returns(true);
 
+        var adminEmail = $"admin-{Guid.NewGuid()}@example.com";
+        var grantedOn = DateTime.UtcNow;
+        var adminUser = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.AdminRoleId),
+            "Admin",
+            adminEmail,
+            grantedOn,
+            null,
+            null,
+            null);
+
+        // Acting administrator must exist so the handler can resolve GrantedById.
+        var userRepoSub = Substitute.For<IEaRepository<User>>();
+        var adminUsers = new List<User> { adminUser }.AsQueryable().BuildMockDbSet();
+        userRepoSub.Query().Returns(adminUsers);
+        SetupHttpContext(httpContextAccessor, adminEmail);
+
         provisioner.RequiresTemplateIds.Returns(true);
         roleProvisionerRegistry.GetProvisioner(RoleNames.User).Returns(provisioner);
 
-        var handler = new AssignUserRoleCommandHandler(
-            userRepo,
+        var handler = CreateHandler(
+            userRepoSub,
             unitOfWork,
             permissionCheckerService,
             roleProvisionerRegistry,
-            CreateTenantContext(),
-            CreateMembershipService(),
             httpContextAccessor);
 
         var result = await handler.Handle(
@@ -394,13 +503,11 @@ public class AssignUserRoleCommandHandlerTests
         provisioner.RequiresTemplateIds.Returns(true);
         roleProvisionerRegistry.GetProvisioner(RoleNames.User).Returns(provisioner);
 
-        var handler = new AssignUserRoleCommandHandler(
+        var handler = CreateHandler(
             userRepo,
             unitOfWork,
             permissionCheckerService,
             roleProvisionerRegistry,
-            CreateTenantContext(),
-            CreateMembershipService(),
             httpContextAccessor);
 
         var result = await handler.Handle(
@@ -416,7 +523,7 @@ public class AssignUserRoleCommandHandlerTests
 
     [Theory]
     [CustomAutoData(typeof(UserCustomization))]
-    public async Task Handle_ShouldFail_WhenRoleIsCaseworker(
+    public async Task Handle_ShouldFail_WhenRoleIsCaseworkerAndNotCreatedAsCustom(
         string email,
         string name,
         IEaRepository<User> userRepo,
@@ -427,21 +534,20 @@ public class AssignUserRoleCommandHandlerTests
     {
         permissionCheckerService.IsAdmin().Returns(true);
 
-        var handler = new AssignUserRoleCommandHandler(
+        var handler = CreateHandler(
             userRepo,
             unitOfWork,
             permissionCheckerService,
             roleProvisionerRegistry,
-            CreateTenantContext(),
-            CreateMembershipService(),
-            httpContextAccessor);
+            httpContextAccessor,
+            CreateTenantRoleService(customRole: null));
 
         var result = await handler.Handle(
             new AssignUserRoleCommand(email, name, RoleNames.Caseworker, [Guid.NewGuid()]),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
-        Assert.Contains("not assignable", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("was not found", result.Error, StringComparison.OrdinalIgnoreCase);
     }
 
     private static void SetupHttpContext(IHttpContextAccessor httpContextAccessor, string adminEmail)

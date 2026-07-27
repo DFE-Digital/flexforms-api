@@ -1,17 +1,21 @@
 using GovUK.Dfe.FlexForms.Application.Roles.QueryObjects;
+using GovUK.Dfe.FlexForms.Application.TenantMemberships.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 
 namespace GovUK.Dfe.FlexForms.Application.Services;
 
 /// <summary>
-/// Application service that ensures tenant-scoped roles exist and seeds their default permissions.
+/// Application service for tenant role lifecycle.
+/// Reads use Query Objects; domain mutations stay on <see cref="Role"/>.
 /// </summary>
 public sealed class TenantRoleService(
     IEaRepository<Role> roleRepository,
+    IEaRepository<TenantMembership> membershipRepository,
     IRolePermissionService rolePermissionService) : ITenantRoleService
 {
     public async Task EnsureSystemRolesAsync(Guid tenantId, CancellationToken cancellationToken = default)
@@ -33,18 +37,8 @@ public sealed class TenantRoleService(
         if (string.IsNullOrWhiteSpace(roleName))
             throw new ArgumentException("Role name is required.", nameof(roleName));
 
-        if (RoleNames.IsReservedRoleName(roleName))
-        {
-            throw new InvalidOperationException(
-                $"Role name '{roleName.Trim()}' is reserved for platform use and cannot be used as a tenant role.");
-        }
-
-        var canonical = RoleNames.ResolveAssignable(roleName) ?? roleName.Trim();
-
-        var existing = await new GetTenantRoleByNameQueryObject(tenantId, canonical)
-            .Apply(roleRepository.Query())
-            .FirstOrDefaultAsync(cancellationToken);
-
+        var lookupName = RoleNames.ResolveAssignable(roleName) ?? roleName.Trim();
+        var existing = await GetByNameAsync(tenantId, lookupName, cancellationToken);
         if (existing is not null)
         {
             if (existing.IsSystem)
@@ -52,12 +46,93 @@ public sealed class TenantRoleService(
             return existing;
         }
 
-        var role = Role.CreateForTenant(tenantId, canonical, isSystem: RoleNames.IsAssignable(canonical));
+        var role = Role.CreateProvisionedForTenant(tenantId, roleName);
         await roleRepository.AddAsync(role, cancellationToken);
 
         if (role.IsSystem)
             await rolePermissionService.EnsureDefaultsForRoleAsync(role, cancellationToken);
 
         return role;
+    }
+
+    public async Task<IReadOnlyList<Role>> ListAsync(Guid tenantId, CancellationToken cancellationToken = default)
+    {
+        return await new GetTenantRolesQueryObject(tenantId)
+            .Apply(roleRepository.Query().AsNoTracking())
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<Role?> GetByIdAsync(Guid tenantId, RoleId roleId, CancellationToken cancellationToken = default)
+    {
+        return await new GetTenantRoleByIdQueryObject(tenantId, roleId)
+            .Apply(roleRepository.Query())
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<Role?> GetByNameAsync(Guid tenantId, string roleName, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(roleName))
+            return null;
+
+        return await new GetTenantRoleByNameQueryObject(tenantId, roleName.Trim())
+            .Apply(roleRepository.Query())
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<Role> CreateCustomRoleAsync(
+        Guid tenantId,
+        string roleName,
+        CancellationToken cancellationToken = default)
+    {
+        if (tenantId == Guid.Empty)
+            throw new ArgumentException("TenantId is required.", nameof(tenantId));
+
+        var role = Role.CreateCustomForTenant(tenantId, roleName);
+
+        var existing = await GetByNameAsync(tenantId, role.Name, cancellationToken);
+        if (existing is not null)
+            throw new InvalidOperationException($"A role named '{role.Name}' already exists for this tenant.");
+
+        await roleRepository.AddAsync(role, cancellationToken);
+        return role;
+    }
+
+    public async Task RenameAsync(Role role, string newName, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(role);
+
+        // Domain owns rename + name policy; uniqueness needs the database.
+        var pendingName = newName?.Trim() ?? throw new ArgumentNullException(nameof(newName));
+        if (role.TenantId is Guid tenantId)
+        {
+            var clash = await GetByNameAsync(tenantId, pendingName, cancellationToken);
+            if (clash is not null && clash.Id != role.Id)
+                throw new InvalidOperationException($"A role named '{pendingName}' already exists for this tenant.");
+        }
+
+        role.Rename(newName);
+        await Task.CompletedTask;
+    }
+
+    public async Task DeleteAsync(Role role, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(role);
+        role.EnsureCanBeDeleted();
+
+        if (role.Id is null)
+            throw new ArgumentException("Role must have an Id.", nameof(role));
+
+        var hasMembers = await new GetActiveMembershipsByRoleIdQueryObject(role.Id)
+            .Apply(membershipRepository.Query().AsNoTracking())
+            .AnyAsync(cancellationToken);
+
+        if (hasMembers)
+        {
+            throw new InvalidOperationException(
+                $"Role '{role.Name}' cannot be deleted while users are assigned to it.");
+        }
+
+        // RolePermissions cascade-delete with the Role (EF relationship).
+        await roleRepository.RemoveAsync(role, cancellationToken);
     }
 }

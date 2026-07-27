@@ -5,10 +5,10 @@ using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 namespace GovUK.Dfe.FlexForms.Domain.Entities;
 
 /// <summary>
-/// Permission grant attached to a tenant-scoped <see cref="Role"/>.
-/// Phase-2 surface: tenants will edit these rows to reshape what each role can do.
+/// Child entity of <see cref="Role"/> — a single permission grant on that role.
+/// Not an aggregate root; create/replace/remove through <see cref="Role"/>.
 /// </summary>
-public sealed class RolePermission : BaseAggregateRoot, IEntity<RolePermissionId>
+public sealed class RolePermission : IEntity<RolePermissionId>
 {
     public RolePermissionId? Id { get; private set; }
     public RoleId RoleId { get; private set; }
@@ -22,6 +22,9 @@ public sealed class RolePermission : BaseAggregateRoot, IEntity<RolePermissionId
     {
     }
 
+    /// <summary>
+    /// Prefer <see cref="Role.CreatePermission"/>; this constructor exists for EF and test seeding.
+    /// </summary>
     public RolePermission(
         RolePermissionId id,
         RoleId roleId,
