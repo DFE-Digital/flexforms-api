@@ -23,7 +23,7 @@ public class CachedInternalUserTokenStore(
     : IInternalUserTokenStore
 {
     private const string TokenKey = "__InternalUserToken";
-    private const string CacheKeyPrefix = "InternalToken:";
+    private const string CacheKeyPrefix = "FlexForms:InternalToken:";
     
     /// <summary>
     /// Gets a tenant-prefixed cache key if TenantId is configured.

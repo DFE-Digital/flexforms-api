@@ -6,6 +6,7 @@ using GovUK.Dfe.FlexForms.Infrastructure;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
 using GovUK.Dfe.FlexForms.Infrastructure.Repositories;
 using GovUK.Dfe.FlexForms.Infrastructure.Services;
+using GovUK.Dfe.FlexForms.Utils.Caching;
 using GovUK.Dfe.FlexForms.Utils.Configuration;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -39,7 +40,13 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<IUnitOfWork, UnitOfWork>();
 
             //Cache service - use tenant config (Redis for everything + IDistributedCache)
+            // tenantConfig is CoreLibsHostConfiguration.Resolve(...) which forces FlexForms:Cache:
             services.AddHybridCaching(tenantConfig);
+            services.PostConfigure<GovUK.Dfe.CoreLibs.Caching.Settings.CacheSettings>(settings =>
+            {
+                settings.Redis ??= new GovUK.Dfe.CoreLibs.Caching.Settings.RedisCacheSettings();
+                settings.Redis.KeyPrefix = FlexFormsCacheKeys.RedisKeyPrefix;
+            });
 
             services.AddTransient<IApplicationReferenceProvider, DefaultApplicationReferenceProvider>();
             services.AddTransient<IApplicationResponseAppender, ApplicationResponseAppender>();

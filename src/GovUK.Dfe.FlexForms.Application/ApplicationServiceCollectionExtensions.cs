@@ -1,3 +1,4 @@
+using GovUK.Dfe.FlexForms.Utils.Caching;
 using GovUK.Dfe.FlexForms.Utils.Configuration;
 using GovUK.Dfe.FlexForms.Application.Common.Behaviours;
 using GovUK.Dfe.FlexForms.Application.Common.Pipeline;
@@ -92,7 +93,12 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddBackgroundService();
             
             // Host-shaped config for CoreLibs DI registration (see CoreLibsHostConfiguration.Resolve).
+            // Resolve forces FlexForms Redis key prefixes (not DfE:Cache:) for shared Redis with EAT.
             services.AddNotificationServicesWithRedis(tenantConfig);
+            services.PostConfigure<GovUK.Dfe.CoreLibs.Notifications.Options.NotificationServiceOptions>(options =>
+            {
+                options.RedisKeyPrefix = FlexFormsCacheKeys.NotificationsKeyPrefix;
+            });
 
             services.AddFileStorage(tenantConfig);
             

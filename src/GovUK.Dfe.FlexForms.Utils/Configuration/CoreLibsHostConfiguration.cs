@@ -1,3 +1,4 @@
+using GovUK.Dfe.FlexForms.Utils.Caching;
 using Microsoft.Extensions.Configuration;
 
 namespace GovUK.Dfe.FlexForms.Utils.Configuration;
@@ -10,8 +11,8 @@ public static class CoreLibsHostConfiguration
 {
     /// <summary>
     /// Prefers <c>GlobalConfiguration</c> when it already contains FileStorage (host shape);
-    /// otherwise uses the first tenant's settings. Overlays Redis from root config when the
-    /// primary source does not define a Redis connection string (tests and shared host Redis).
+    /// otherwise uses the first tenant's settings. Overlays Redis connection from root when needed,
+    /// and always forces FlexForms Redis key prefixes so shared Redis with legacy EAT does not collide.
     /// </summary>
     public static IConfiguration Resolve(IConfiguration root, IConfiguration firstTenantSettings)
     {
@@ -20,28 +21,43 @@ public static class CoreLibsHostConfiguration
             ? (IConfiguration)global
             : firstTenantSettings;
 
-        return OverlayRedisFromRoot(primary, root);
+        return OverlayFlexFormsCacheAndRedis(primary, root);
     }
 
-    private static IConfiguration OverlayRedisFromRoot(IConfiguration primary, IConfiguration root)
+    private static IConfiguration OverlayFlexFormsCacheAndRedis(IConfiguration primary, IConfiguration root)
     {
-        if (HasRedisConnection(primary))
-            return primary;
+        var overlay = new Dictionary<string, string?>
+        {
+            // Always win over legacy EAT / tenant values of DfE:Cache:
+            ["CacheSettings:Redis:KeyPrefix"] = FlexFormsCacheKeys.RedisKeyPrefix,
+            ["NotificationService:RedisKeyPrefix"] = FlexFormsCacheKeys.NotificationsKeyPrefix,
+        };
 
-        var redis = root.GetConnectionString("Redis")
-            ?? root["Redis:ConnectionString"]
-            ?? root["NotificationService:RedisConnectionString"];
+        if (!HasRedisConnection(primary))
+        {
+            var redis = root.GetConnectionString("Redis")
+                ?? root["Redis:ConnectionString"]
+                ?? root["NotificationService:RedisConnectionString"];
 
-        if (string.IsNullOrWhiteSpace(redis))
-            return primary;
+            if (!string.IsNullOrWhiteSpace(redis))
+            {
+                overlay["ConnectionStrings:Redis"] = redis;
+                overlay["NotificationService:RedisConnectionString"] = redis;
+            }
+        }
+
+        // Host appsettings CacheSettings (except KeyPrefix already forced above)
+        var hostRedisDuration = root["CacheSettings:Redis:DefaultDurationInSeconds"];
+        if (!string.IsNullOrWhiteSpace(hostRedisDuration))
+            overlay["CacheSettings:Redis:DefaultDurationInSeconds"] = hostRedisDuration;
+
+        var hostDb = root["CacheSettings:Redis:Database"];
+        if (!string.IsNullOrWhiteSpace(hostDb))
+            overlay["CacheSettings:Redis:Database"] = hostDb;
 
         return new ConfigurationBuilder()
             .AddConfiguration(primary)
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["ConnectionStrings:Redis"] = redis,
-                ["NotificationService:RedisConnectionString"] = redis,
-            })
+            .AddInMemoryCollection(overlay)
             .Build();
     }
 
