@@ -2,6 +2,7 @@ using AutoFixture;
 using AutoFixture.Xunit2;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.Queries;
+using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
@@ -235,6 +236,69 @@ public class ExchangeTokenQueryHandlerTests
         var result = await handler.Handle(new ExchangeTokenQuery(subjectToken), CancellationToken.None);
 
         Assert.True(result.IsSuccess);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(UserCustomization))]
+    public async Task Handle_NoTenantMembership_PlatformSuperAdmin_ShouldSucceed(
+        string subjectToken,
+        string email,
+        [Frozen] IExternalIdentityValidator externalValidator,
+        [Frozen] IEaRepository<User> userRepo,
+        [Frozen] IUserTokenServiceFactory tokenServiceFactory,
+        [Frozen] IHttpContextAccessor httpContextAccessor,
+        [Frozen] ITenantContextAccessor tenantContextAccessor,
+        [Frozen][FromKeyedServices("internal")] ICustomRequestChecker internalRequestChecker,
+        [Frozen] ILogger<ExchangeTokenQueryHandler> logger)
+    {
+        var tenant = CreateTenant();
+        tenantContextAccessor.CurrentTenant.Returns(tenant);
+
+        externalValidator.ValidateIdTokenAsync(subjectToken, false, false, Arg.Any<InternalServiceAuthOptions?>(), Arg.Any<TestAuthenticationOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Email, email) })));
+
+        var user = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.AdminRoleId),
+            "platform admin",
+            email,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+        user.GetType().GetProperty("Role")!.SetValue(
+            user,
+            new Role(new RoleId(RoleConstants.AdminRoleId), RoleNames.SuperAdmin));
+        userRepo.Query().Returns(new List<User> { user }.AsQueryable().BuildMock());
+
+        var membershipService = Substitute.For<ITenantMembershipService>();
+        membershipService.GetActiveMembershipAsync(Arg.Any<Guid>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns((TenantMembership?)null);
+
+        var httpContext = Substitute.For<HttpContext>();
+        httpContext.User.Returns(new ClaimsPrincipal(new ClaimsIdentity(authenticationType: "Bearer")));
+        httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var tokenService = Substitute.For<IUserTokenService>();
+        tokenServiceFactory.GetService(tenant.Id.ToString()).Returns(tokenService);
+        tokenService.GetUserTokenModelAsync(Arg.Any<ClaimsPrincipal>())
+            .Returns(Task.FromResult(new Token { AccessToken = "sa-token", ExpiresIn = 60 }));
+
+        var handler = CreateHandler(
+            externalValidator,
+            userRepo,
+            tokenServiceFactory,
+            httpContextAccessor,
+            tenantContextAccessor,
+            internalRequestChecker,
+            logger,
+            membershipService: membershipService);
+
+        var result = await handler.Handle(new ExchangeTokenQuery(subjectToken), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        await tokenService.Received(1).GetUserTokenModelAsync(Arg.Is<ClaimsPrincipal>(p =>
+            p.HasClaim(ClaimTypes.Role, RoleNames.SuperAdmin)));
     }
 
     [Theory]

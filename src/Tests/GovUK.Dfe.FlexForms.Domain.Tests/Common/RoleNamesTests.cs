@@ -54,6 +54,23 @@ public class RoleNamesTests
     }
 
     [Fact]
+    public void IsPlatformSuperAdminUser_ShouldMatchWellKnownAdminRoleId()
+    {
+        Assert.True(RoleNames.IsPlatformSuperAdminRoleId(RoleConstants.AdminRoleId));
+        Assert.True(RoleNames.IsPlatformSuperAdminUser(RoleNames.Admin, RoleConstants.AdminRoleId));
+        Assert.True(RoleNames.IsPlatformSuperAdminUser(RoleNames.SuperAdmin, RoleConstants.AdminRoleId));
+        Assert.True(RoleNames.IsPlatformSuperAdminUser(null, RoleConstants.AdminRoleId));
+        Assert.False(RoleNames.IsPlatformSuperAdminUser(RoleNames.User, RoleConstants.UserRoleId));
+        Assert.False(RoleNames.IsPlatformSuperAdminUser(RoleNames.Admin, Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void FromRoleId_AdminRoleId_ShouldMapToSuperAdmin()
+    {
+        Assert.Equal(RoleNames.SuperAdmin, RoleNames.FromRoleId(RoleConstants.AdminRoleId));
+    }
+
+    [Fact]
     public void IsDowngradeToUser_ShouldProtectOnlyPlatformSuperAdmin()
     {
         Assert.True(RoleNames.IsDowngradeToUser(RoleNames.SuperAdmin, RoleNames.User));

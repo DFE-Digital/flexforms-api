@@ -103,25 +103,49 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                 return Result<ExchangeTokenDto>.Failure($"User {email} has no identifier");
 
             // Shared EA DB: role for THIS tenant comes from TenantMembership, not global User.RoleId.
+            // Exception: platform SuperAdmin (well-known global AdminRoleId / SuperAdmin name) may
+            // exchange without a membership so operators are not locked out of FlexForms tenants.
             var membership = await tenantMembershipService.GetActiveMembershipAsync(
                 currentTenant.Id,
                 dbUser.Id,
                 ct);
 
+            string? membershipRoleName;
             if (membership is null)
             {
-                logger.LogWarning(
-                    "ExchangeToken: User {Email} has no active membership for tenant {TenantName} ({TenantId}).",
-                    email,
-                    currentTenant.Name,
-                    currentTenant.Id);
-                return Result<ExchangeTokenDto>.Forbid(
-                    $"User is not a member of tenant '{currentTenant.Name}'.");
-            }
+                var globalRoleName = dbUser.Role?.Name
+                    ?? RoleNames.FromRoleId(dbUser.RoleId.Value);
 
-            var membershipRoleName = membership.Role?.Name
-                ?? RoleNames.FromRoleId(membership.RoleId.Value)
-                ?? dbUser.Role?.Name;
+                if (RoleNames.IsPlatformSuperAdminUser(globalRoleName, dbUser.RoleId.Value))
+                {
+                    membershipRoleName = RoleNames.SuperAdmin;
+                    logger.LogInformation(
+                        "ExchangeToken: Platform SuperAdmin {Email} allowed without TenantMembership for tenant {TenantName} ({TenantId}).",
+                        email,
+                        currentTenant.Name,
+                        currentTenant.Id);
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "ExchangeToken: User {Email} has no active membership for tenant {TenantName} ({TenantId}).",
+                        email,
+                        currentTenant.Name,
+                        currentTenant.Id);
+                    return Result<ExchangeTokenDto>.Forbid(
+                        $"User is not a member of tenant '{currentTenant.Name}'.");
+                }
+            }
+            else
+            {
+                membershipRoleName = membership.Role?.Name
+                    ?? RoleNames.FromRoleId(membership.RoleId.Value)
+                    ?? dbUser.Role?.Name;
+
+                // Membership pointing at the well-known global admin RoleId is platform SuperAdmin.
+                if (RoleNames.IsPlatformSuperAdminRoleId(membership.RoleId.Value))
+                    membershipRoleName = RoleNames.SuperAdmin;
+            }
 
             if (string.IsNullOrWhiteSpace(membershipRoleName))
                 return Result<ExchangeTokenDto>.Conflict($"User {email} has no role assigned for this tenant");

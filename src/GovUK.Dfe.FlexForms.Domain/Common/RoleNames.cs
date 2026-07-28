@@ -54,6 +54,22 @@ public static class RoleNames
         string.Equals(roleName, SuperAdmin, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
+    /// True when <paramref name="roleId"/> is the well-known global platform admin role
+    /// (<see cref="RoleConstants.AdminRoleId"/>), historically named Admin and later SuperAdmin.
+    /// </summary>
+    public static bool IsPlatformSuperAdminRoleId(Guid roleId) =>
+        roleId == RoleConstants.AdminRoleId;
+
+    /// <summary>
+    /// True when the user's global <c>Users.RoleId</c> / role name is the platform SuperAdmin.
+    /// Used when tenant membership is missing (shared EA DB / legacy operators).
+    /// </summary>
+    public static bool IsPlatformSuperAdminUser(string? roleName, Guid roleId) =>
+        IsPlatformSuperAdminRoleId(roleId)
+        || IsSuperAdmin(roleName)
+        || IsSuperAdmin(FromRoleId(roleId));
+
+    /// <summary>
     /// Returns true when the name is reserved for platform use and must not be used
     /// as a tenant-assignable or custom role name.
     /// </summary>

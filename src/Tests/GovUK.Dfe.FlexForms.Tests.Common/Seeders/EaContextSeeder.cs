@@ -38,7 +38,7 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Seeders
         public static void SeedTestData(ExternalApplicationsContext ctx)
         {
             var tenantId = Guid.Parse(TestTenantId);
-            var roleAdmin = new Role(new RoleId(RoleConstants.AdminRoleId), RoleNames.SuperAdmin);
+            var roleAdmin = new Role(new RoleId(RoleConstants.AdminRoleId), RoleNames.Admin);
             var roleSubmitter = new Role(new RoleId(new Guid(SubmitterRoleId)), "Submitter");
             var roleUser = new Role(new RoleId(RoleConstants.UserRoleId), RoleNames.User);
             var roleCaseworker = new Role(new RoleId(RoleConstants.CaseworkerRoleId), RoleNames.Caseworker);
