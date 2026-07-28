@@ -5,13 +5,13 @@ namespace GovUK.Dfe.FlexForms.Domain.Services;
 
 /// <summary>
 /// Rules for role permission grants: when <see cref="PermissionConstants.AnyResourceKey"/>
-/// / <see cref="PermissionConstants.ManageResourceKey"/> are allowed, and what a concrete
+/// is allowed, when <see cref="AccessType.Manage"/> is allowed, and what a concrete
 /// resource key should look like.
 /// </summary>
 /// <remarks>
 /// Claim format is <c>{ResourceType}:{ResourceKey}:{AccessType}</c>. Matching is exact
 /// (case-insensitive). Tenant-wide <c>Any</c> is only honoured where evaluators explicitly
-/// call OrTenantWide helpers. <c>Template:Manage:Write</c> unlocks template administration
+/// call OrTenantWide helpers. <c>Template:Any:Manage</c> unlocks template administration
 /// (create/edit/publish) and is separate from <c>Template:Any:Write</c> (create applications).
 /// </remarks>
 public static class RolePermissionGrantRules
@@ -29,15 +29,15 @@ public static class RolePermissionGrantRules
         if (key.Length > 256)
             throw new ArgumentException("Resource key must be 256 characters or fewer.", nameof(resourceKey));
 
-        if (string.Equals(key, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase))
+        if (accessType == AccessType.Manage)
+        {
+            EnsureManageAllowed(resourceType, key);
+            if (string.Equals(key, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase))
+                return;
+        }
+        else if (string.Equals(key, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase))
         {
             EnsureAnyAllowed(resourceType, accessType);
-            return;
-        }
-
-        if (string.Equals(key, PermissionConstants.ManageResourceKey, StringComparison.OrdinalIgnoreCase))
-        {
-            EnsureManageAllowed(resourceType, accessType);
             return;
         }
 
@@ -50,18 +50,22 @@ public static class RolePermissionGrantRules
     /// <item><description>Template — Write: create applications on any template</description></item>
     /// <item><description>Application — Read: CaseReader-style list/read all apps</description></item>
     /// <item><description>ApplicationFiles — Read: read files on all apps</description></item>
+    /// <item><description>Template — Manage: tenant-wide template administration</description></item>
+    /// <item><description>User — Manage: tenant-wide user administration</description></item>
     /// </list>
     /// </summary>
     public static bool IsTenantWideAnyAllowed(ResourceType resourceType, AccessType accessType) =>
         (resourceType == ResourceType.Template && accessType == AccessType.Write)
         || (resourceType == ResourceType.Application && accessType == AccessType.Read)
-        || (resourceType == ResourceType.ApplicationFiles && accessType == AccessType.Read);
+        || (resourceType == ResourceType.ApplicationFiles && accessType == AccessType.Read)
+        || (resourceType == ResourceType.Template && accessType == AccessType.Manage)
+        || (resourceType == ResourceType.User && accessType == AccessType.Manage);
 
     /// <summary>
-    /// <c>Manage</c> is only for Template — Write (TemplateManager role).
+    /// <c>Manage</c> is allowed for template and user administration.
     /// </summary>
-    public static bool IsManageKeyAllowed(ResourceType resourceType, AccessType accessType) =>
-        resourceType == ResourceType.Template && accessType == AccessType.Write;
+    public static bool IsManageAllowed(ResourceType resourceType) =>
+        resourceType == ResourceType.Template || resourceType == ResourceType.User;
 
     public static void EnsureAnyAllowed(ResourceType resourceType, AccessType accessType)
     {
@@ -72,20 +76,24 @@ public static class RolePermissionGrantRules
             $"Resource key '{PermissionConstants.AnyResourceKey}' is only allowed for: " +
             "Template — Write (create applications on any template), " +
             "Application — Read (read all applications in the tenant), or " +
-            "ApplicationFiles — Read (read files on all applications). " +
+            "ApplicationFiles — Read (read files on all applications), " +
+            "Template — Manage (administer templates in the tenant), or " +
+            "User — Manage (administer users in the tenant). " +
             "For other combinations, use a specific resource id or email.",
             nameof(resourceType));
     }
 
-    public static void EnsureManageAllowed(ResourceType resourceType, AccessType accessType)
+    public static void EnsureManageAllowed(ResourceType resourceType, string resourceKey)
     {
-        if (IsManageKeyAllowed(resourceType, accessType))
-            return;
+        if (!IsManageAllowed(resourceType))
+        {
+            throw new ArgumentException(
+                "Access type 'Manage' is only allowed for Template or User permissions.",
+                nameof(resourceType));
+        }
 
-        throw new ArgumentException(
-            $"Resource key '{PermissionConstants.ManageResourceKey}' is only allowed for Template — Write " +
-            "(lets the role create, edit, and publish templates in the tenant).",
-            nameof(resourceType));
+        if (string.Equals(resourceKey, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase))
+            return;
     }
 
     public static void EnsureConcreteKeyShape(ResourceType resourceType, string resourceKey)
@@ -104,8 +112,7 @@ public static class RolePermissionGrantRules
                 {
                     throw new ArgumentException(
                         $"{resourceType} resource key must be a valid non-empty GUID (the resource id), " +
-                        $"'{PermissionConstants.AnyResourceKey}' (where allowed), or " +
-                        $"'{PermissionConstants.ManageResourceKey}' for Template administration.",
+                        $"or '{PermissionConstants.AnyResourceKey}' (where allowed).",
                         nameof(resourceKey));
                 }
 

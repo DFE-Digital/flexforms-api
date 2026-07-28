@@ -34,12 +34,21 @@ public class RolePermissionGrantRulesTests
     }
 
     [Fact]
-    public void EnsureValid_AllowsTemplateManageWrite()
+    public void EnsureValid_AllowsTemplateAnyManage()
     {
         RolePermissionGrantRules.EnsureValid(
             ResourceType.Template,
-            PermissionConstants.ManageResourceKey,
-            AccessType.Write);
+            PermissionConstants.AnyResourceKey,
+            AccessType.Manage);
+    }
+
+    [Fact]
+    public void EnsureValid_AllowsSpecificUserManage()
+    {
+        RolePermissionGrantRules.EnsureValid(
+            ResourceType.User,
+            "user@example.com",
+            AccessType.Manage);
     }
 
     [Theory]
@@ -59,13 +68,13 @@ public class RolePermissionGrantRulesTests
     }
 
     [Fact]
-    public void EnsureValid_RejectsManage_ForNonTemplateWrite()
+    public void EnsureValid_RejectsManage_ForUnsupportedResourceType()
     {
         var ex = Assert.Throws<ArgumentException>(() =>
             RolePermissionGrantRules.EnsureValid(
                 ResourceType.Application,
-                PermissionConstants.ManageResourceKey,
-                AccessType.Write));
+                PermissionConstants.AnyResourceKey,
+                AccessType.Manage));
 
         Assert.Contains("Manage", ex.Message, StringComparison.OrdinalIgnoreCase);
     }

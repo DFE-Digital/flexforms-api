@@ -2896,7 +2896,7 @@
         "tags": [
           "Templates"
         ],
-        "summary": "Creates a new template in the current tenant. Admin or Template:Manage:Write.\nThe creating user is granted Read/Write template permission.",
+        "summary": "Creates a new template in the current tenant. Admin or Template:Any:Manage.\nThe creating user is granted Read/Write template permission.",
         "operationId": "Templates_CreateTemplate",
         "requestBody": {
           "x-name": "request",
@@ -3151,7 +3151,7 @@
         "tags": [
           "Templates"
         ],
-        "summary": "Sets whether a template is live for end users. Admin or Template:Manage:Write.",
+        "summary": "Sets whether a template is live for end users. Admin or Template:Any:Manage\n(or Template:{id}:Manage for that template).",
         "operationId": "Templates_SetTemplateLive",
         "parameters": [
           {
@@ -4730,12 +4730,14 @@
         "x-enumNames": [
           "Read",
           "Write",
-          "Delete"
+          "Delete",
+          "Manage"
         ],
         "enum": [
           "Read",
           "Write",
-          "Delete"
+          "Delete",
+          "Manage"
         ]
       },
       "ApplicationResponseDetailsDto": {

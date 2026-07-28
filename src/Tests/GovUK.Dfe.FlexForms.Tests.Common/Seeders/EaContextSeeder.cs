@@ -42,7 +42,7 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Seeders
             var roleSubmitter = new Role(new RoleId(new Guid(SubmitterRoleId)), "Submitter");
             var roleUser = new Role(new RoleId(RoleConstants.UserRoleId), RoleNames.User);
             var roleCaseworker = new Role(new RoleId(RoleConstants.CaseworkerRoleId), RoleNames.Caseworker);
-            var tenantAdmin = new Role(new RoleId(Guid.NewGuid()), RoleNames.SuperAdmin, tenantId, isSystem: true);
+            var tenantAdmin = new Role(new RoleId(Guid.NewGuid()), RoleNames.Admin, tenantId, isSystem: true);
             var tenantUser = new Role(new RoleId(Guid.NewGuid()), RoleNames.User, tenantId, isSystem: true);
             var tenantCaseworker = new Role(new RoleId(Guid.NewGuid()), RoleNames.Caseworker, tenantId, isSystem: true);
             var now = DateTime.UtcNow;

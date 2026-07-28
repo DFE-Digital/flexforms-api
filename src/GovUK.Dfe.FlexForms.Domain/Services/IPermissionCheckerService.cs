@@ -88,4 +88,10 @@ public interface IPermissionCheckerService
     /// (create, edit schema versions, publish).
     /// </summary>
     bool CanManageTemplates();
+
+    /// <summary>
+    /// Checks if the current user can administer users in the current tenant
+    /// (User Manager / role assignment).
+    /// </summary>
+    bool CanManageUsers();
 }

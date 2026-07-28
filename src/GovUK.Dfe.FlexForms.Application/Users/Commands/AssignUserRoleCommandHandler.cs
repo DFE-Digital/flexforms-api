@@ -45,7 +45,7 @@ public sealed class AssignUserRoleCommandHandler(
         AssignUserRoleCommand command,
         CancellationToken cancellationToken)
     {
-        if (!permissionCheckerService.IsAdmin())
+        if (!permissionCheckerService.CanManageUsers())
             return Result<UserDto>.Forbid("Only administrators can assign roles");
 
         var currentTenant = tenantContextAccessor.CurrentTenant;
@@ -61,7 +61,7 @@ public sealed class AssignUserRoleCommandHandler(
         if (string.IsNullOrWhiteSpace(command.Role))
             return Result<UserDto>.Failure("Role is required");
 
-        if (RoleNames.IsReservedRoleName(command.Role))
+        if (RoleNames.IsReservedRoleName(command.Role) && RoleNames.ResolveAssignable(command.Role) is null)
         {
             return Result<UserDto>.Failure(
                 $"Role '{command.Role}' is reserved for platform administrators and cannot be assigned to tenant users.");
@@ -126,7 +126,7 @@ public sealed class AssignUserRoleCommandHandler(
             currentRoleName ??= existingUser.Role?.Name
                 ?? RoleNames.FromRoleId(existingUser.RoleId.Value);
 
-            if (RoleNames.IsSuperAdmin(currentRoleName) || RoleNames.IsReservedRoleName(currentRoleName))
+            if (RoleNames.IsSuperAdmin(currentRoleName))
             {
                 return Result<UserDto>.Forbid(
                     "Cannot change a platform SuperAdmin membership through tenant role assignment");

@@ -34,7 +34,7 @@ public sealed class GetTenantUsersQueryHandler(
         GetTenantUsersQuery request,
         CancellationToken cancellationToken)
     {
-        if (!permissionCheckerService.IsAdmin())
+        if (!permissionCheckerService.CanManageUsers())
             return Result<IReadOnlyCollection<TenantUserDto>>.Forbid("Only administrators can list tenant users");
 
         var currentTenant = tenantContextAccessor.CurrentTenant;

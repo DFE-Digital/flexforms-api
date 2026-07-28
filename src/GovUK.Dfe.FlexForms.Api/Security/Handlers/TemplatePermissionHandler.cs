@@ -1,6 +1,6 @@
-using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 
 namespace GovUK.Dfe.FlexForms.Api.Security.Handlers
 {
@@ -11,25 +11,30 @@ namespace GovUK.Dfe.FlexForms.Api.Security.Handlers
             AuthorizationHandlerContext context,
             TemplatePermissionRequirement requirement)
         {
-            if (PermissionClaimEvaluator.HasFullAdminAccess(context.User)
-                || PermissionClaimEvaluator.CanManageTemplates(context.User))
+            if (PermissionClaimEvaluator.HasTenantAdminAccess(context.User))
             {
                 context.Succeed(requirement);
                 return Task.CompletedTask;
             }
 
-            // First check if the user has any template permission
+            var templateId = accessor.HttpContext?.Request.RouteValues["templateId"]?.ToString();
+            if (!string.IsNullOrWhiteSpace(templateId)
+                && PermissionClaimEvaluator.CanManageTemplate(context.User, templateId))
+            {
+                context.Succeed(requirement);
+                return Task.CompletedTask;
+            }
+
+            // First check if the user has any template permission for the requested action
             var hasAnyTemplatePermission = context.User.Claims.Any(c =>
                 c.Type == "permission" &&
                 c.Value.StartsWith("Template:", StringComparison.OrdinalIgnoreCase) &&
-                c.Value.EndsWith($":{requirement.Action}", StringComparison.OrdinalIgnoreCase)
-                && !c.Value.Contains($":{PermissionConstants.ManageResourceKey}:", StringComparison.OrdinalIgnoreCase));
+                c.Value.EndsWith($":{requirement.Action}", StringComparison.OrdinalIgnoreCase));
 
             if (!hasAnyTemplatePermission)
                 return Task.CompletedTask;
 
             // Then check for specific template permission if templateId is provided
-            var templateId = accessor.HttpContext?.Request.RouteValues["templateId"]?.ToString();
             if (string.IsNullOrWhiteSpace(templateId))
             {
                 context.Succeed(requirement);

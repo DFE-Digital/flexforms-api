@@ -40,7 +40,7 @@ public sealed class RemoveUserFromTenantCommandHandler(
         RemoveUserFromTenantCommand command,
         CancellationToken cancellationToken)
     {
-        if (!permissionCheckerService.IsAdmin())
+        if (!permissionCheckerService.CanManageUsers())
             return Result<bool>.Forbid("Only administrators can remove users from the tenant");
 
         var currentTenant = tenantContextAccessor.CurrentTenant;

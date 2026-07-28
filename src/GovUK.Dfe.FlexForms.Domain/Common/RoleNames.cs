@@ -2,8 +2,8 @@ namespace GovUK.Dfe.FlexForms.Domain.Common;
 
 /// <summary>
 /// Well-known role names stored in the Roles table and issued as role claims.
-/// Only <see cref="SuperAdmin"/> (platform) and <see cref="User"/> are system roles.
-/// Tenant-specific capabilities use custom roles + <c>RolePermissions</c>.
+/// <see cref="SuperAdmin"/> is platform-wide; <see cref="Admin"/> and <see cref="User"/>
+/// are tenant system roles. Tenant-specific capabilities use custom roles + <c>RolePermissions</c>.
 /// </summary>
 public static class RoleNames
 {
@@ -14,8 +14,8 @@ public static class RoleNames
     public const string SuperAdmin = "SuperAdmin";
 
     /// <summary>
-    /// Legacy privileged name kept for JWT / authorization grace. Prefer <see cref="SuperAdmin"/>.
-    /// Reserved — cannot be assigned or used as a custom tenant role name.
+    /// Tenant administrator. Full access within a tenant, assignable through tenant APIs,
+    /// and reserved so tenants cannot create a custom role with the same name.
     /// </summary>
     public const string Admin = "Admin";
 
@@ -32,6 +32,7 @@ public static class RoleNames
     /// </summary>
     public static readonly IReadOnlyCollection<string> Assignable =
     [
+        Admin,
         User
     ];
 
@@ -47,12 +48,10 @@ public static class RoleNames
     ];
 
     /// <summary>
-    /// Returns true when the role is the privileged platform admin (current or legacy name).
+    /// Returns true when the role is the privileged platform admin.
     /// </summary>
     public static bool IsSuperAdmin(string? roleName) =>
-        string.Equals(roleName, SuperAdmin, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(roleName, Admin, StringComparison.OrdinalIgnoreCase)
-        || string.Equals(roleName, "Administrator", StringComparison.OrdinalIgnoreCase);
+        string.Equals(roleName, SuperAdmin, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Returns true when the name is reserved for platform use and must not be used
@@ -89,20 +88,22 @@ public static class RoleNames
         if (string.Equals(roleName, User, StringComparison.OrdinalIgnoreCase))
             return User;
 
+        if (string.Equals(roleName, Admin, StringComparison.OrdinalIgnoreCase))
+            return Admin;
+
         return null;
     }
 
     /// <summary>
     /// Returns true when assigning <paramref name="targetRole"/> would downgrade a platform
-    /// SuperAdmin membership to User. Other roles (including legacy Caseworker) may be
-    /// reassigned to User via the tenant API.
+    /// SuperAdmin membership to User.
     /// </summary>
     public static bool IsDowngradeToUser(string? currentRole, string targetRole)
     {
         if (!string.Equals(ResolveAssignable(targetRole) ?? targetRole, User, StringComparison.OrdinalIgnoreCase))
             return false;
 
-        return IsSuperAdmin(currentRole) || IsReservedRoleName(currentRole);
+        return IsSuperAdmin(currentRole);
     }
 
     /// <summary>

@@ -19,9 +19,9 @@ public class PermissionClaimEvaluatorTests
     }
 
     [Fact]
-    public void CanManageTemplates_ReturnsTrue_ForTemplateManageWriteClaim()
+    public void CanManageTemplates_ReturnsTrue_ForTemplateAnyManageClaim()
     {
-        var user = CreateUserWithPermissionClaims("Template:Manage:Write");
+        var user = CreateUserWithPermissionClaims("Template:Any:Manage");
         Assert.True(PermissionClaimEvaluator.CanManageTemplates(user));
     }
 
@@ -29,6 +29,15 @@ public class PermissionClaimEvaluatorTests
     public void CanManageTemplates_ReturnsFalse_ForTemplateAnyWriteClaim()
     {
         var user = CreateUserWithPermissionClaims("Template:Any:Write");
+        Assert.False(PermissionClaimEvaluator.CanManageTemplates(user));
+    }
+
+    [Fact]
+    public void CanManageTemplate_ReturnsTrue_ForSpecificTemplateManageClaim()
+    {
+        var templateId = Guid.NewGuid().ToString();
+        var user = CreateUserWithPermissionClaims($"Template:{templateId}:Manage");
+        Assert.True(PermissionClaimEvaluator.CanManageTemplate(user, templateId));
         Assert.False(PermissionClaimEvaluator.CanManageTemplates(user));
     }
 

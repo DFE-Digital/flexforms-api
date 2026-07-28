@@ -142,4 +142,13 @@ public sealed class ClaimBasedPermissionCheckerService(IHttpContextAccessor http
 
         return PermissionClaimEvaluator.CanManageTemplates(user);
     }
+
+    /// <inheritdoc />
+    public bool CanManageUsers()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        if (user == null) return false;
+
+        return PermissionClaimEvaluator.CanManageUsers(user);
+    }
 }

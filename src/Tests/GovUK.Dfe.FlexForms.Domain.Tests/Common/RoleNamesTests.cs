@@ -5,17 +5,18 @@ namespace GovUK.Dfe.FlexForms.Domain.Tests.Common;
 public class RoleNamesTests
 {
     [Theory]
+    [InlineData(RoleNames.Admin)]
+    [InlineData("admin")]
     [InlineData(RoleNames.User)]
     [InlineData("user")]
-    public void IsAssignable_ShouldAllowUser(string roleName)
+    public void IsAssignable_ShouldAllowTenantSystemRoles(string roleName)
     {
         Assert.True(RoleNames.IsAssignable(roleName));
-        Assert.Equal(RoleNames.User, RoleNames.ResolveAssignable(roleName));
+        Assert.NotNull(RoleNames.ResolveAssignable(roleName));
     }
 
     [Theory]
     [InlineData(RoleNames.SuperAdmin)]
-    [InlineData(RoleNames.Admin)]
     [InlineData(RoleNames.Caseworker)]
     [InlineData("Administrator")]
     [InlineData("superadmin")]
@@ -45,9 +46,9 @@ public class RoleNamesTests
     }
 
     [Fact]
-    public void Assignable_ShouldOnlyIncludeUser()
+    public void Assignable_ShouldIncludeAdminAndUser()
     {
-        Assert.Equal(new[] { RoleNames.User }, RoleNames.Assignable);
+        Assert.Equal(new[] { RoleNames.Admin, RoleNames.User }, RoleNames.Assignable);
         Assert.DoesNotContain(RoleNames.SuperAdmin, RoleNames.Assignable);
         Assert.DoesNotContain(RoleNames.Caseworker, RoleNames.Assignable);
     }
@@ -56,7 +57,7 @@ public class RoleNamesTests
     public void IsDowngradeToUser_ShouldProtectOnlyPlatformSuperAdmin()
     {
         Assert.True(RoleNames.IsDowngradeToUser(RoleNames.SuperAdmin, RoleNames.User));
-        Assert.True(RoleNames.IsDowngradeToUser(RoleNames.Admin, RoleNames.User));
+        Assert.False(RoleNames.IsDowngradeToUser(RoleNames.Admin, RoleNames.User));
         Assert.False(RoleNames.IsDowngradeToUser(RoleNames.Caseworker, RoleNames.User));
         Assert.False(RoleNames.IsDowngradeToUser(RoleNames.User, RoleNames.User));
     }

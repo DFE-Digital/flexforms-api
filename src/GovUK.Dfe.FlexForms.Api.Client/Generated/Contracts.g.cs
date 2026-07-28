@@ -344,7 +344,7 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// Creates a new template in the current tenant. Admin or Template:Manage:Write.
+        /// Creates a new template in the current tenant. Admin or Template:Any:Manage.
         /// <br/>The creating user is granted Read/Write template permission.
         /// </summary>
         /// <returns>Template created successfully.</returns>
@@ -379,7 +379,8 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// Sets whether a template is live for end users. Admin or Template:Manage:Write.
+        /// Sets whether a template is live for end users. Admin or Template:Any:Manage
+        /// <br/>(or Template:{id}:Manage for that template).
         /// </summary>
         /// <returns>Template live status updated.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>

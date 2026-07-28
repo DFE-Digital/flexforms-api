@@ -7,7 +7,7 @@ namespace GovUK.Dfe.FlexForms.Domain.Entities;
 
 /// <summary>
 /// A named role. Legacy global system roles have <see cref="TenantId"/> null.
-/// Tenant-scoped roles (including per-tenant copies of SuperAdmin/User) set <see cref="TenantId"/>.
+/// Tenant-scoped roles (including per-tenant copies of Admin/User) set <see cref="TenantId"/>.
 /// </summary>
 public sealed class Role : BaseAggregateRoot, IEntity<RoleId>
 {
@@ -21,7 +21,7 @@ public sealed class Role : BaseAggregateRoot, IEntity<RoleId>
     public Guid? TenantId { get; private set; }
 
     /// <summary>
-    /// Platform-seeded system roles (SuperAdmin/User) that tenants should not delete.
+    /// Platform-seeded or tenant system roles that tenants should not delete.
     /// </summary>
     public bool IsSystem { get; private set; }
 
@@ -73,7 +73,7 @@ public sealed class Role : BaseAggregateRoot, IEntity<RoleId>
     }
 
     /// <summary>
-    /// Creates a tenant-scoped copy of a system-assignable role (currently <see cref="RoleNames.User"/>).
+    /// Creates a tenant-scoped copy of a system-assignable role.
     /// </summary>
     public static Role CreateSystemAssignableForTenant(Guid tenantId, string name)
     {
@@ -90,15 +90,15 @@ public sealed class Role : BaseAggregateRoot, IEntity<RoleId>
     /// </summary>
     public static Role CreateProvisionedForTenant(Guid tenantId, string name)
     {
+        var canonical = RoleNames.ResolveAssignable(name);
+        if (canonical is not null)
+            return CreateSystemAssignableForTenant(tenantId, canonical);
+
         if (RoleNames.IsReservedRoleName(name))
         {
             throw new InvalidOperationException(
                 $"Role name '{name.Trim()}' is reserved for platform use and cannot be used as a tenant role.");
         }
-
-        var canonical = RoleNames.ResolveAssignable(name);
-        if (canonical is not null)
-            return CreateSystemAssignableForTenant(tenantId, canonical);
 
         return CreateCustomForTenant(tenantId, name);
     }
@@ -123,7 +123,7 @@ public sealed class Role : BaseAggregateRoot, IEntity<RoleId>
                 "System role permissions cannot be replaced via this API. Create a custom role instead.");
         }
 
-        if (RoleNames.IsReservedRoleName(Name) || RoleNames.IsSuperAdmin(Name))
+        if (RoleNames.IsSuperAdmin(Name))
         {
             throw new InvalidOperationException(
                 $"Permissions for role '{Name}' cannot be changed via this API.");

@@ -14,12 +14,24 @@ public static class PermissionClaimEvaluator
     public const string PermissionClaimType = "permission";
 
     /// <summary>
-    /// Returns true when the user has full administrative access (all resources, all actions).
-    /// SuperAdmin is special-cased; legacy Admin role claims are accepted during transition.
+    /// Returns true when the user has platform-wide administrative access.
+    /// </summary>
+    public static bool HasPlatformAdminAccess(ClaimsPrincipal user) =>
+        user.IsInRole(RoleNames.SuperAdmin);
+
+    /// <summary>
+    /// Returns true when the user has tenant administrative access.
+    /// </summary>
+    public static bool HasTenantAdminAccess(ClaimsPrincipal user) =>
+        HasPlatformAdminAccess(user)
+        || user.IsInRole(RoleNames.Admin);
+
+    /// <summary>
+    /// Returns true when the user has tenant administrative access.
+    /// Kept as the broad bypass used by tenant-scoped authorization handlers.
     /// </summary>
     public static bool HasFullAdminAccess(ClaimsPrincipal user) =>
-        user.IsInRole(RoleNames.SuperAdmin)
-        || user.IsInRole(RoleNames.Admin);
+        HasTenantAdminAccess(user);
 
     /// <summary>
     /// Returns true when the principal is an interactive Admin user (user JWT), not a machine/
@@ -55,11 +67,27 @@ public static class PermissionClaimEvaluator
 
     /// <summary>
     /// Returns true when the user can administer templates in the current tenant
-    /// (create, edit versions, publish). SuperAdmin/Admin, or <c>Template:Manage:Write</c>.
+    /// (create, edit versions, publish). Tenant admins, or any <c>Template:*:Manage</c> claim.
     /// </summary>
     public static bool CanManageTemplates(ClaimsPrincipal user) =>
-        HasFullAdminAccess(user)
-        || HasPermissionClaim(user, ResourceType.Template, PermissionConstants.ManageResourceKey, AccessType.Write);
+        HasTenantAdminAccess(user)
+        || HasAnyPermissionClaim(user, ResourceType.Template, AccessType.Manage);
+
+    /// <summary>
+    /// Returns true when the user can administer the specified template in the current tenant.
+    /// </summary>
+    public static bool CanManageTemplate(ClaimsPrincipal user, string templateId) =>
+        HasTenantAdminAccess(user)
+        || HasPermissionClaim(user, ResourceType.Template, templateId, AccessType.Manage)
+        || HasPermissionClaim(user, ResourceType.Template, PermissionConstants.AnyResourceKey, AccessType.Manage);
+
+    /// <summary>
+    /// Returns true when the user can administer users in the current tenant.
+    /// Tenant admins, or any <c>User:*:Manage</c> claim.
+    /// </summary>
+    public static bool CanManageUsers(ClaimsPrincipal user) =>
+        HasTenantAdminAccess(user)
+        || HasAnyPermissionClaim(user, ResourceType.User, AccessType.Manage);
 
     /// <summary>
     /// Returns true when the user can write any application in the tenant (Admin only).

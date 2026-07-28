@@ -24,6 +24,21 @@ public class UserRoleProvisionerRegistryTests
     }
 
     [Fact]
+    public void GetProvisioner_ShouldResolveAdminProvisioner()
+    {
+        var userFactory = new UserFactory();
+        var registry = new UserRoleProvisionerRegistry([
+            new StandardUserRoleProvisioner(userFactory),
+            new AdminRoleProvisioner(userFactory)
+        ]);
+
+        var provisioner = registry.GetProvisioner("admin");
+
+        Assert.NotNull(provisioner);
+        Assert.Equal(RoleNames.Admin, provisioner!.RoleName);
+    }
+
+    [Fact]
     public void GetProvisioner_ShouldReturnNull_ForUnknownRole()
     {
         var userFactory = Substitute.For<IUserFactory>();
@@ -45,6 +60,5 @@ public class UserRoleProvisionerRegistryTests
 
         Assert.Null(registry.GetProvisioner(RoleNames.Caseworker));
         Assert.Null(registry.GetProvisioner(RoleNames.SuperAdmin));
-        Assert.Null(registry.GetProvisioner(RoleNames.Admin));
     }
 }

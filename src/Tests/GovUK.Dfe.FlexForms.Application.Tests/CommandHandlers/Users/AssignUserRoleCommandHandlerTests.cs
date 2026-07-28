@@ -90,7 +90,7 @@ public class AssignUserRoleCommandHandlerTests
         IUserRoleProvisionerRegistry roleProvisionerRegistry,
         IHttpContextAccessor httpContextAccessor)
     {
-        permissionCheckerService.IsAdmin().Returns(false);
+        permissionCheckerService.CanManageUsers().Returns(false);
 
         var handler = CreateHandler(
             userRepo,
@@ -118,7 +118,7 @@ public class AssignUserRoleCommandHandlerTests
         IUserRoleProvisionerRegistry roleProvisionerRegistry,
         IHttpContextAccessor httpContextAccessor)
     {
-        permissionCheckerService.IsAdmin().Returns(true);
+        permissionCheckerService.CanManageUsers().Returns(true);
 
         var handler = CreateHandler(
             userRepo,
@@ -147,7 +147,7 @@ public class AssignUserRoleCommandHandlerTests
         IUserRoleProvisionerRegistry roleProvisionerRegistry,
         IHttpContextAccessor httpContextAccessor)
     {
-        permissionCheckerService.IsAdmin().Returns(true);
+        permissionCheckerService.CanManageUsers().Returns(true);
 
         var handler = CreateHandler(
             userRepo,
@@ -166,16 +166,49 @@ public class AssignUserRoleCommandHandlerTests
 
     [Theory]
     [CustomAutoData(typeof(UserCustomization))]
-    public async Task Handle_ShouldFail_WhenRoleIsLegacyAdmin(
+    public async Task Handle_ShouldCreateUser_WhenRoleIsAdmin(
+        string adminEmail,
         string email,
         string name,
+        UserId adminUserId,
         IEaRepository<User> userRepo,
         IUnitOfWork unitOfWork,
         IPermissionCheckerService permissionCheckerService,
+        IUserRoleProvisioner provisioner,
         IUserRoleProvisionerRegistry roleProvisionerRegistry,
         IHttpContextAccessor httpContextAccessor)
     {
-        permissionCheckerService.IsAdmin().Returns(true);
+        permissionCheckerService.CanManageUsers().Returns(true);
+
+        var grantedOn = DateTime.UtcNow;
+        var adminUser = new User(
+            adminUserId,
+            new RoleId(RoleConstants.AdminRoleId),
+            "Admin",
+            adminEmail,
+            grantedOn,
+            null,
+            null,
+            null);
+
+        var createdUser = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.AdminRoleId),
+            name,
+            email,
+            grantedOn,
+            adminUserId,
+            null,
+            null);
+
+        var users = new List<User> { adminUser }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        SetupHttpContext(httpContextAccessor, adminEmail);
+
+        provisioner.RoleName.Returns(RoleNames.Admin);
+        provisioner.RequiresTemplateIds.Returns(false);
+        provisioner.CreateUser(Arg.Any<RoleAssignmentRequest>()).Returns(createdUser);
+        roleProvisionerRegistry.GetProvisioner(RoleNames.Admin).Returns(provisioner);
 
         var handler = CreateHandler(
             userRepo,
@@ -188,8 +221,9 @@ public class AssignUserRoleCommandHandlerTests
             new AssignUserRoleCommand(email, name, RoleNames.Admin, null),
             CancellationToken.None);
 
-        Assert.False(result.IsSuccess);
-        Assert.Contains("reserved for platform", result.Error, StringComparison.OrdinalIgnoreCase);
+        Assert.True(result.IsSuccess);
+        Assert.Equal(createdUser.Id!.Value, result.Value!.UserId);
+        Assert.Contains(RoleNames.Admin, result.Value.Authorization!.Roles!);
     }
 
     [Theory]
@@ -206,7 +240,7 @@ public class AssignUserRoleCommandHandlerTests
         IUserRoleProvisionerRegistry roleProvisionerRegistry,
         IHttpContextAccessor httpContextAccessor)
     {
-        permissionCheckerService.IsAdmin().Returns(true);
+        permissionCheckerService.CanManageUsers().Returns(true);
 
         var templateId = Guid.NewGuid();
         var grantedOn = DateTime.UtcNow;
@@ -276,7 +310,7 @@ public class AssignUserRoleCommandHandlerTests
         IUserFactory userFactory,
         IHttpContextAccessor httpContextAccessor)
     {
-        permissionCheckerService.IsAdmin().Returns(true);
+        permissionCheckerService.CanManageUsers().Returns(true);
 
         var grantedOn = DateTime.UtcNow;
         var customRoleName = "CaseReviewer";
@@ -351,7 +385,7 @@ public class AssignUserRoleCommandHandlerTests
         IUserRoleProvisionerRegistry roleProvisionerRegistry,
         IHttpContextAccessor httpContextAccessor)
     {
-        permissionCheckerService.IsAdmin().Returns(true);
+        permissionCheckerService.CanManageUsers().Returns(true);
 
         var templateId = Guid.NewGuid();
         var grantedOn = DateTime.UtcNow;
@@ -417,7 +451,7 @@ public class AssignUserRoleCommandHandlerTests
         IUserRoleProvisionerRegistry roleProvisionerRegistry,
         IHttpContextAccessor httpContextAccessor)
     {
-        permissionCheckerService.IsAdmin().Returns(true);
+        permissionCheckerService.CanManageUsers().Returns(true);
 
         var adminEmail = $"admin-{Guid.NewGuid()}@example.com";
         var grantedOn = DateTime.UtcNow;
@@ -470,7 +504,7 @@ public class AssignUserRoleCommandHandlerTests
         IUserRoleProvisionerRegistry roleProvisionerRegistry,
         IHttpContextAccessor httpContextAccessor)
     {
-        permissionCheckerService.IsAdmin().Returns(true);
+        permissionCheckerService.CanManageUsers().Returns(true);
 
         var templateId = Guid.NewGuid();
         var grantedOn = DateTime.UtcNow;
@@ -532,7 +566,7 @@ public class AssignUserRoleCommandHandlerTests
         IUserRoleProvisionerRegistry roleProvisionerRegistry,
         IHttpContextAccessor httpContextAccessor)
     {
-        permissionCheckerService.IsAdmin().Returns(true);
+        permissionCheckerService.CanManageUsers().Returns(true);
 
         var handler = CreateHandler(
             userRepo,

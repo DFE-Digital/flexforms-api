@@ -38,7 +38,7 @@ public class TemplatesController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-/// Creates a new template in the current tenant. Admin or Template:Manage:Write.
+/// Creates a new template in the current tenant. Admin or Template:Any:Manage.
 /// The creating user is granted Read/Write template permission.
 /// </summary>
     [HttpPost]
@@ -133,7 +133,8 @@ public class TemplatesController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-/// Sets whether a template is live for end users. Admin or Template:Manage:Write.
+/// Sets whether a template is live for end users. Admin or Template:Any:Manage
+/// (or Template:{id}:Manage for that template).
 /// </summary>
     [HttpPut("{templateId}/live")]
     [Authorize(Policy = "CanCreateTemplate")]

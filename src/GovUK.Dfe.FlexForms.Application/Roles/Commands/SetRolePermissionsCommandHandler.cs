@@ -118,8 +118,7 @@ public sealed class SetRolePermissionsCommandHandler(
         CancellationToken cancellationToken)
     {
         var key = resourceKey.Trim();
-        if (string.Equals(key, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(key, PermissionConstants.ManageResourceKey, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(key, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase))
             return null;
 
         switch (resourceType)

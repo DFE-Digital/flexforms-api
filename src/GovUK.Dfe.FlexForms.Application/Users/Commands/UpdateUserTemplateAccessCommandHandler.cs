@@ -40,7 +40,7 @@ public sealed class UpdateUserTemplateAccessCommandHandler(
         UpdateUserTemplateAccessCommand command,
         CancellationToken cancellationToken)
     {
-        if (!permissionCheckerService.IsAdmin())
+        if (!permissionCheckerService.CanManageUsers())
             return Result<TenantUserDto>.Forbid("Only administrators can update user template access");
 
         var catalogueIds = await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken);

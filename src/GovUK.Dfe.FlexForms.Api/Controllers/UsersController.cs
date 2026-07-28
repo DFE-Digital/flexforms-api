@@ -76,7 +76,7 @@ public class UsersController(ISender sender) : ControllerBase
     [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
     [SwaggerResponse(403, "Forbidden - only administrators can assign roles", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
-    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
+    [Authorize(Policy = "CanManageUsers")]
     public async Task<ActionResult<UserDto>> AssignUserRoleAsync(
         [FromBody] AssignUserRoleRequest request,
         CancellationToken cancellationToken)
@@ -104,7 +104,7 @@ public class UsersController(ISender sender) : ControllerBase
     [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
     [SwaggerResponse(403, "Forbidden - only administrators can list tenant users", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
-    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
+    [Authorize(Policy = "CanManageUsers")]
     public async Task<ActionResult<IReadOnlyCollection<TenantUserDto>>> GetTenantUsersAsync(
         CancellationToken cancellationToken)
     {
@@ -131,7 +131,7 @@ public class UsersController(ISender sender) : ControllerBase
     [SwaggerResponse(403, "Forbidden - only administrators can update template access", typeof(ExceptionResponse))]
     [SwaggerResponse(404, "User not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
-    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
+    [Authorize(Policy = "CanManageUsers")]
     public async Task<ActionResult<TenantUserDto>> UpdateUserTemplateAccessAsync(
         Guid userId,
         [FromBody] UpdateUserTemplateAccessRequest request,
@@ -164,7 +164,7 @@ public class UsersController(ISender sender) : ControllerBase
     [SwaggerResponse(403, "Forbidden - only administrators can remove users from the tenant", typeof(ExceptionResponse))]
     [SwaggerResponse(404, "User not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
-    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
+    [Authorize(Policy = "CanManageUsers")]
     public async Task<IActionResult> RemoveUserFromTenantAsync(
         Guid userId,
         CancellationToken cancellationToken)
