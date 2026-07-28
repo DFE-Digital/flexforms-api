@@ -131,7 +131,8 @@ public class CachedInternalUserTokenStore(
             
             var cacheOptions = new DistributedCacheEntryOptions
             {
-                AbsoluteExpiration = tokenData.ExpiresAt.Subtract(ExpiryBuffer)
+                // DistributedCacheAdapter only honours AbsoluteExpirationRelativeToNow / SlidingExpiration.
+                AbsoluteExpirationRelativeToNow = GetCacheTtl(tokenData.ExpiresAt)
             };
             
             try
@@ -142,7 +143,7 @@ public class CachedInternalUserTokenStore(
             {
                 logger.LogError(ex, ">>>>>>>>>> Authentication >>> Failed to cache token for user {UserId}", userId);
             }
-            }
+        }
         else
         {
             logger.LogWarning(">>>>>>>>>> Authentication >>> Could not identify user ID for token caching");
@@ -175,7 +176,7 @@ public class CachedInternalUserTokenStore(
             {
                 logger.LogError(ex, ">>>>>>>>>> Authentication >>> Failed to clear token cache for user {UserId}", userId);
             }
-            }
+        }
         else
         {
             logger.LogDebug(">>>>>>>>>> Authentication >>> Could not identify user ID for cache clearing");
@@ -224,21 +225,37 @@ public class CachedInternalUserTokenStore(
         }
     }
 
+    private static TimeSpan GetCacheTtl(DateTime expiresAt)
+    {
+        var ttl = expiresAt.Subtract(ExpiryBuffer) - DateTime.UtcNow;
+        return ttl > TimeSpan.Zero ? ttl : TimeSpan.FromMinutes(1);
+    }
+
     private static string? GetUserIdFromContext(HttpContext context)
     {
-        // Try to get user identifier from claims
         var user = context.User;
-        if (user?.Identity?.IsAuthenticated == true)
+        if (user?.Identity?.IsAuthenticated != true)
         {
-            // Try different claim types that might identify the user
-            var userId = user.FindFirst("appid")?.Value ??
-                        user.FindFirst("azp")?.Value ??
-                        user.FindFirst(ClaimTypes.Email)?.Value ??
-                        user.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            
-            return userId;
+            return null;
         }
-        return null;
+
+        // Prefer per-user identity claims. Never use appid/azp — those are client/app IDs
+        // and would make every user share the same OBO cache entry.
+        return user.FindFirst("preferred_username")?.Value
+               ?? user.FindFirst(ClaimTypes.Email)?.Value
+               ?? user.FindFirst("email")?.Value
+               ?? user.FindFirst("sub")?.Value
+               ?? user.FindFirst(ClaimTypes.NameIdentifier)?.Value
+               ?? user.Identity?.Name;
+    }
+
+    /// <summary>
+    /// Cache key used for the OBO JWT. Keep in sync with Application UserCacheInvalidator removals.
+    /// </summary>
+    public static string BuildCacheKey(Guid? tenantId, string userKey)
+    {
+        var baseKey = $"{CacheKeyPrefix}{userKey}";
+        return tenantId.HasValue ? $"t:{tenantId}:{baseKey}" : baseKey;
     }
 
     private record CachedTokenData(string Token, DateTime ExpiresAt);

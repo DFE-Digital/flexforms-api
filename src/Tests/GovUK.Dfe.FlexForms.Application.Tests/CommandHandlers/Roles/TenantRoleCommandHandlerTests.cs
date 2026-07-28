@@ -103,7 +103,8 @@ public class TenantRoleCommandHandlerTests
             Substitute.For<IApplicationRepository>(),
             Substitute.For<ITenantTemplateCatalogue>(),
             Substitute.For<IEaRepository<User>>(),
-            Substitute.For<IUnitOfWork>());
+            Substitute.For<IUnitOfWork>(),
+            Substitute.For<IUserCacheInvalidator>());
 
         var result = await handler.Handle(
             new SetRolePermissionsCommand(

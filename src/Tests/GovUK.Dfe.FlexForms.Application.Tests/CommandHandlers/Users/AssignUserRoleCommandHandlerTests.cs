@@ -1,4 +1,5 @@
 using GovUK.Dfe.FlexForms.Application.Users.Commands;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Factories;
@@ -65,7 +66,8 @@ public class AssignUserRoleCommandHandlerTests
         IUserRoleProvisionerRegistry roleProvisionerRegistry,
         IHttpContextAccessor httpContextAccessor,
         ITenantRoleService? tenantRoleService = null,
-        IUserFactory? userFactory = null)
+        IUserFactory? userFactory = null,
+        IUserCacheInvalidator? userCacheInvalidator = null)
     {
         return new AssignUserRoleCommandHandler(
             userRepo,
@@ -76,7 +78,8 @@ public class AssignUserRoleCommandHandlerTests
             CreateMembershipService(),
             tenantRoleService ?? CreateTenantRoleService(),
             userFactory ?? Substitute.For<IUserFactory>(),
-            httpContextAccessor);
+            httpContextAccessor,
+            userCacheInvalidator ?? Substitute.For<IUserCacheInvalidator>());
     }
 
     [Theory]

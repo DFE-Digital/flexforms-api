@@ -19,4 +19,9 @@ public interface IUserCacheInvalidator
         string? externalProviderId,
         UserId userId,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes all tenant-scoped user permission claim caches (e.g. after role permission changes).
+    /// </summary>
+    Task InvalidateTenantUserClaimsAsync(CancellationToken cancellationToken = default);
 }

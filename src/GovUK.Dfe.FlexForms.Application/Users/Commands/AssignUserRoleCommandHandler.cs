@@ -1,4 +1,5 @@
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Factories;
@@ -38,7 +39,8 @@ public sealed class AssignUserRoleCommandHandler(
     ITenantMembershipService tenantMembershipService,
     ITenantRoleService tenantRoleService,
     IUserFactory userFactory,
-    IHttpContextAccessor httpContextAccessor)
+    IHttpContextAccessor httpContextAccessor,
+    IUserCacheInvalidator userCacheInvalidator)
     : IRequestHandler<AssignUserRoleCommand, Result<UserDto>>
 {
     public async Task<Result<UserDto>> Handle(
@@ -231,6 +233,13 @@ public sealed class AssignUserRoleCommandHandler(
             cancellationToken);
 
         await unitOfWork.CommitAsync(cancellationToken);
+
+        // Drop permission / OBO caches so the next request re-exchanges with the new role.
+        await userCacheInvalidator.InvalidateForUserAsync(
+            user.Email,
+            user.ExternalProviderId,
+            user.Id,
+            cancellationToken);
 
         return Result<UserDto>.Success(new UserDto
         {
