@@ -69,16 +69,18 @@ public class UserAutoRegistrationHandler : DelegatingHandler
         // First attempt - try the request
         var response = await base.SendAsync(request, cancellationToken);
 
-        // Check if this is a "User not found" error from token exchange
-        if (IsUserNotFoundError(response, request))
+        // Check if this is a recoverable auth error from token exchange
+        // (user not found, or existing user without tenant membership).
+        if (IsAutoRegisterableExchangeError(response, request))
         {
-            _logger.LogInformation("User not found during token exchange. Attempting auto-registration...");
+            _logger.LogInformation(
+                "Token exchange failed due to missing user or tenant membership. Attempting auto-registration...");
 
             // Use semaphore to prevent duplicate registrations from concurrent requests
             await _registrationLock.WaitAsync(cancellationToken);
             try
             {
-                // Try to auto-register the user
+                // Try to auto-register the user (creates user and/or TenantMembership)
                 var registered = await TryAutoRegisterUserAsync(cancellationToken);
 
                 if (registered)
@@ -107,7 +109,7 @@ public class UserAutoRegistrationHandler : DelegatingHandler
         return response;
     }
 
-    private bool IsUserNotFoundError(HttpResponseMessage response, HttpRequestMessage request)
+    private bool IsAutoRegisterableExchangeError(HttpResponseMessage response, HttpRequestMessage request)
     {
         // Only intercept errors from token exchange endpoint
         if (!request.RequestUri?.AbsolutePath.Contains("/tokens/exchange", StringComparison.OrdinalIgnoreCase) == true)
@@ -115,7 +117,7 @@ public class UserAutoRegistrationHandler : DelegatingHandler
             return false;
         }
 
-        // Check for 403 Forbidden or 404 Not Found (typical for user not found)
+        // Check for 403 Forbidden or 404 Not Found (typical for user not found / not a member)
         if (response.StatusCode != HttpStatusCode.Forbidden &&
             response.StatusCode != HttpStatusCode.InternalServerError &&
             response.StatusCode != HttpStatusCode.NotFound)
@@ -123,7 +125,7 @@ public class UserAutoRegistrationHandler : DelegatingHandler
             return false;
         }
 
-        // Try to read the error message to confirm it's a "user not found" error
+        // Try to read the error message to confirm it's a recoverable registration error
         try
         {
             var contentTask = response.Content.ReadAsStringAsync();
@@ -133,12 +135,17 @@ public class UserAutoRegistrationHandler : DelegatingHandler
             if (string.IsNullOrEmpty(content))
                 return false;
 
-            // Check if error message indicates user not found
-            return content.Contains("user", StringComparison.OrdinalIgnoreCase) &&
-                   content.Contains("user not found", StringComparison.OrdinalIgnoreCase) &&
-                   (content.Contains("not found", StringComparison.OrdinalIgnoreCase) ||
-                   content.Contains("resource not found", StringComparison.OrdinalIgnoreCase) ||
-                   content.Contains("does not exist", StringComparison.OrdinalIgnoreCase));
+            // Brand-new users: "User not found for email ..."
+            var isUserNotFound =
+                content.Contains("user not found", StringComparison.OrdinalIgnoreCase)
+                || (content.Contains("user", StringComparison.OrdinalIgnoreCase)
+                    && content.Contains("does not exist", StringComparison.OrdinalIgnoreCase));
+
+            // Existing users without TenantMembership: "User is not a member of tenant '...'"
+            var isNotTenantMember =
+                content.Contains("not a member of tenant", StringComparison.OrdinalIgnoreCase);
+
+            return isUserNotFound || isNotTenantMember;
         }
         catch
         {
@@ -174,14 +181,12 @@ public class UserAutoRegistrationHandler : DelegatingHandler
                 return false;
             }
 
-            // Template access is resolved by the API:
-            // - exactly one live tenant form → auto-grant
-            // - zero or multiple live forms → register with no form access
+            // Template access is resolved by the API using SelfRegistrationAccessRules:
+            // every live tenant form gets Template R/W + TenantMembership (User).
             _logger.LogInformation("Auto-registering user; template access will be resolved by the API from live tenant forms");
 
             // Create the registration request.
-            // Guid.Empty means "no explicit template" — the API auto-assigns only when
-            // the tenant has exactly one live form; otherwise registers with no form access.
+            // Guid.Empty means "no explicit template" — the API auto-assigns all live tenant forms.
             var registerRequest = new RegisterUserRequest
             {
                 AccessToken = tokenState.ExternalIdpToken.Value,

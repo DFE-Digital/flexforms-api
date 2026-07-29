@@ -4,6 +4,7 @@ using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.Queries;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
@@ -87,6 +88,10 @@ public class ExchangeTokenQueryHandlerTests
         ITenantMembershipService? membershipService = null,
         ITenantOidcAudienceBinder? audienceBinder = null)
     {
+        var selfRegistrationAccess = Substitute.For<ISelfRegistrationTemplateAccessService>();
+        selfRegistrationAccess.EnsureLiveTemplateAccessAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
+            .Returns(false);
+
         return new ExchangeTokenQueryHandler(
             externalValidator,
             userRepo,
@@ -96,6 +101,9 @@ public class ExchangeTokenQueryHandlerTests
             accessibleTemplateService ?? CreateAccessibleService(new TemplateId(Guid.NewGuid())),
             membershipService ?? Substitute.For<ITenantMembershipService>(),
             audienceBinder ?? CreateAudienceBinder(),
+            selfRegistrationAccess,
+            Substitute.For<IUnitOfWork>(),
+            Substitute.For<IUserCacheInvalidator>(),
             internalRequestChecker,
             logger);
     }

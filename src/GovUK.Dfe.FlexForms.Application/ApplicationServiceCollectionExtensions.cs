@@ -89,6 +89,7 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<ITenantTemplateCatalogue, TenantTemplateCatalogue>();
             services.AddScoped<ITenantTemplateResolver, TenantTemplateResolver>();
             services.AddScoped<IUserAccessibleTemplateService, UserAccessibleTemplateService>();
+            services.AddScoped<ISelfRegistrationTemplateAccessService, SelfRegistrationTemplateAccessService>();
 
             services.AddBackgroundService();
             

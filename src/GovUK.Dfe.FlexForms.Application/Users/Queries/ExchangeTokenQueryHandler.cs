@@ -5,6 +5,7 @@ using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
@@ -30,6 +31,9 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
         IUserAccessibleTemplateService userAccessibleTemplateService,
         ITenantMembershipService tenantMembershipService,
         ITenantOidcAudienceBinder tenantOidcAudienceBinder,
+        ISelfRegistrationTemplateAccessService selfRegistrationTemplateAccess,
+        IUnitOfWork unitOfWork,
+        IUserCacheInvalidator userCacheInvalidator,
         [FromKeyedServices("internal")] ICustomRequestChecker internalRequestChecker,
         ILogger<ExchangeTokenQueryHandler> logger)
         : IRequestHandler<ExchangeTokenQuery, Result<ExchangeTokenDto>>
@@ -150,11 +154,42 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             if (string.IsNullOrWhiteSpace(membershipRoleName))
                 return Result<ExchangeTokenDto>.Conflict($"User {email} has no role assigned for this tenant");
 
-            // Multi-template tenants: users may exist with no form access yet (pending admin grant).
-            // Allow token exchange so the web app can show the no-access page.
+            // Self-registered User role with no form access: backfill Template R/W for every live
+            // tenant form. Fixes users registered before auto-grant, or when exchange succeeded
+            // before register could grant templates.
             var accessibleTemplates = await userAccessibleTemplateService.GetAccessibleTemplateIdsAsync(
                 dbUser.TemplatePermissions,
                 ct);
+
+            if (accessibleTemplates.Count == 0
+                && string.Equals(membershipRoleName, RoleNames.User, StringComparison.OrdinalIgnoreCase))
+            {
+                var trackedUser = await new GetUserWithAllPermissionsByEmailQueryObject(email)
+                    .Apply(userRepo.Query())
+                    .FirstOrDefaultAsync(cancellationToken: ct);
+
+                if (trackedUser is not null
+                    && await selfRegistrationTemplateAccess.EnsureLiveTemplateAccessAsync(trackedUser, ct))
+                {
+                    await unitOfWork.CommitAsync(ct);
+                    await userCacheInvalidator.InvalidateForUserAsync(
+                        trackedUser.Email,
+                        trackedUser.ExternalProviderId,
+                        trackedUser.Id!,
+                        ct);
+
+                    dbUser = trackedUser;
+                    accessibleTemplates = await userAccessibleTemplateService.GetAccessibleTemplateIdsAsync(
+                        dbUser.TemplatePermissions,
+                        ct);
+
+                    logger.LogInformation(
+                        "ExchangeToken: Backfilled live template access for self-registered user {Email} on tenant {TenantName}. TemplateCount={Count}.",
+                        email,
+                        currentTenant.Name,
+                        accessibleTemplates.Count);
+                }
+            }
 
             if (accessibleTemplates.Count == 0)
             {

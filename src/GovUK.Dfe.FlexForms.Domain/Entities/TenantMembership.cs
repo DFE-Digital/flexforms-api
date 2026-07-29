@@ -43,6 +43,40 @@ public sealed class TenantMembership : BaseAggregateRoot, IEntity<TenantMembersh
         IsActive = isActive;
     }
 
+    /// <summary>
+    /// Creates a new active membership binding a user to a tenant role.
+    /// </summary>
+    public static TenantMembership Create(
+        Guid tenantId,
+        UserId userId,
+        RoleId roleId,
+        DateTime createdOn)
+    {
+        return new TenantMembership(
+            new TenantMembershipId(Guid.NewGuid()),
+            tenantId,
+            userId,
+            roleId,
+            createdOn,
+            isActive: true);
+    }
+
+    /// <summary>
+    /// Creates a self-registered tenant membership with the standard User role.
+    /// Elevation to Admin/custom roles is done via administrative assignment.
+    /// </summary>
+    public static TenantMembership CreateSelfRegisteredUser(
+        Guid tenantId,
+        UserId userId,
+        RoleId userRoleId,
+        DateTime createdOn)
+    {
+        if (userRoleId is null)
+            throw new ArgumentNullException(nameof(userRoleId));
+
+        return Create(tenantId, userId, userRoleId, createdOn);
+    }
+
     public void AssignRole(RoleId roleId, DateTime when)
     {
         RoleId = roleId ?? throw new ArgumentNullException(nameof(roleId));
@@ -59,5 +93,14 @@ public sealed class TenantMembership : BaseAggregateRoot, IEntity<TenantMembersh
     {
         IsActive = false;
         LastModifiedOn = when;
+    }
+
+    /// <summary>
+    /// Reassigns the membership role and ensures the membership is active.
+    /// </summary>
+    public void ReassignAndActivate(RoleId roleId, DateTime when)
+    {
+        AssignRole(roleId, when);
+        Activate(when);
     }
 }

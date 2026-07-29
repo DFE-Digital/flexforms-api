@@ -158,7 +158,9 @@ public class RegisterUserCommandHandlerTests
             tenantContextAccessor,
             AllowAllTenantTemplates(),
             CreateRegisterMembershipService(),
-            CreateRegisterAudienceBinder());
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -237,7 +239,9 @@ public class RegisterUserCommandHandlerTests
             tenantContextAccessor,
             AllowAllTenantTemplates(),
             CreateRegisterMembershipService(),
-            CreateRegisterAudienceBinder());
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
 
         var command = new RegisterUserCommand(subjectToken, templateId);
 
@@ -252,7 +256,8 @@ public class RegisterUserCommandHandlerTests
         Assert.Equal(email, result.Value.Email);
 
         await userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
-        await unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+        // Existing users without TenantMembership get one created so exchange can succeed.
+        await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -316,7 +321,9 @@ public class RegisterUserCommandHandlerTests
             tenantContextAccessor,
             AllowAllTenantTemplates(),
             CreateRegisterMembershipService(),
-            CreateRegisterAudienceBinder());
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -398,7 +405,9 @@ public class RegisterUserCommandHandlerTests
             tenantContextAccessor,
             AllowAllTenantTemplates(),
             CreateRegisterMembershipService(),
-            CreateRegisterAudienceBinder());
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -437,7 +446,9 @@ public class RegisterUserCommandHandlerTests
             tenantContextAccessor,
             AllowAllTenantTemplates(),
             CreateRegisterMembershipService(),
-            CreateRegisterAudienceBinder());
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -486,7 +497,9 @@ public class RegisterUserCommandHandlerTests
             tenantContextAccessor,
             AllowAllTenantTemplates(),
             CreateRegisterMembershipService(),
-            CreateRegisterAudienceBinder());
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -541,7 +554,9 @@ public class RegisterUserCommandHandlerTests
             tenantContextAccessor,
             AllowAllTenantTemplates(),
             CreateRegisterMembershipService(),
-            CreateRegisterAudienceBinder());
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -628,7 +643,9 @@ public class RegisterUserCommandHandlerTests
             tenantContextAccessor,
             AllowAllTenantTemplates(),
             CreateRegisterMembershipService(),
-            CreateRegisterAudienceBinder());
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act

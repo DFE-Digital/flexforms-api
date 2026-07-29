@@ -1,4 +1,5 @@
 using GovUK.Dfe.FlexForms.Application.TenantMemberships.QueryObjects;
+using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
@@ -40,19 +41,15 @@ public sealed class TenantMembershipService(
 
         if (existing is null)
         {
-            var membership = new TenantMembership(
-                new TenantMembershipId(Guid.NewGuid()),
-                tenantId,
-                userId,
-                role.Id!,
-                now,
-                isActive: true);
+            var membership = string.Equals(roleName, RoleNames.User, StringComparison.OrdinalIgnoreCase)
+                ? TenantMembership.CreateSelfRegisteredUser(tenantId, userId, role.Id!, now)
+                : TenantMembership.Create(tenantId, userId, role.Id!, now);
+
             await membershipRepository.AddAsync(membership, cancellationToken);
             return membership;
         }
 
-        existing.AssignRole(role.Id!, now);
-        existing.Activate(now);
+        existing.ReassignAndActivate(role.Id!, now);
         return existing;
     }
 

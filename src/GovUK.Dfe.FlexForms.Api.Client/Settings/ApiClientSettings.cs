@@ -19,8 +19,8 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Settings
         
         /// <summary>
         /// Default template ID used for explicit registration flows that still pass a template.
-        /// Auto-registration no longer requires this: the API assigns the sole live tenant form
-        /// when exactly one exists, otherwise registers the user with no form access.
+        /// Auto-registration no longer requires this: the API assigns Template R/W for every
+        /// live form in the tenant catalogue.
         /// </summary>
         public Guid? DefaultTemplateId { get; set; }
         
