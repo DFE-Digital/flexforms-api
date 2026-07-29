@@ -38,82 +38,19 @@ namespace GovUK.Dfe.FlexForms.Api.Security
             // per-tenant signing material. Per-tenant JWT settings live in the registry now.
             var baseConfig = configuration;
             
-            // Register external identity validation with multi-provider support
-            // Each tenant's DfESignIn and Entra SSO configs are added as isolated providers
-            // The validator will try each provider until one fully validates (issuer + audience must match same provider)
+            // Register external identity validation with multi-provider support.
+            // Initial list is from tenants loaded at startup; TenantExternalIdentityProviderReloader
+            // rebuilds the validator when ITenantConfigurationChangedNotifier fires (no recycle).
             services.AddExternalIdentityValidation(baseConfig, multiOpts =>
             {
-                foreach (var tenant in allTenants)
+                foreach (var provider in TenantOidcProviderBuilder.BuildProviders(allTenants))
                 {
-                    // Add DfE Sign-In provider
-                    var dfeSignInSection = tenant.Settings.GetSection("DfESignIn");
-                    var discoveryEndpoint = dfeSignInSection["DiscoveryEndpoint"];
-                    
-                    if (!string.IsNullOrEmpty(discoveryEndpoint))
-                    {
-                        var providerOpts = new OpenIdConnectOptions
-                        {
-                            Issuer = dfeSignInSection["Issuer"],
-                            Authority = dfeSignInSection["Authority"],
-                            ClientId = dfeSignInSection["ClientId"],
-                            ClientSecret = dfeSignInSection["ClientSecret"],
-                            DiscoveryEndpoint = discoveryEndpoint,
-                            
-                            ValidateIssuer = bool.TryParse(dfeSignInSection["ValidateIssuer"], out var vi) ? vi : true,
-                            ValidateAudience = bool.TryParse(dfeSignInSection["ValidateAudience"], out var va) ? va : true,
-                            ValidateLifetime = bool.TryParse(dfeSignInSection["ValidateLifetime"], out var vl) ? vl : true,
-                            
-                            RedirectUri = dfeSignInSection["RedirectUri"],
-                            Prompt = dfeSignInSection["Prompt"],
-                            ResponseType = dfeSignInSection["ResponseType"] ?? "code",
-                            RequireHttpsMetadata = bool.TryParse(dfeSignInSection["RequireHttpsMetadata"], out var rhm) ? rhm : true,
-                            GetClaimsFromUserInfoEndpoint = bool.TryParse(dfeSignInSection["GetClaimsFromUserInfoEndpoint"], out var gc) ? gc : true,
-                            SaveTokens = bool.TryParse(dfeSignInSection["SaveTokens"], out var st) ? st : true,
-                            UseTokenLifetime = bool.TryParse(dfeSignInSection["UseTokenLifetime"], out var utl) ? utl : true,
-                            NameClaimType = dfeSignInSection["NameClaimType"] ?? "email"
-                        };
-                        
-                        var scopesSection = dfeSignInSection.GetSection("Scopes");
-                        if (scopesSection.Exists())
-                        {
-                            providerOpts.Scopes = scopesSection.Get<List<string>>() ?? new List<string> { "openid", "profile", "email" };
-                        }
-                        
-                        multiOpts.Providers.Add(providerOpts);
-                    }
-
-                    // Add Entra SSO provider (token validation for ID tokens passed during exchange)
-                    var entraSsoSection = tenant.Settings.GetSection(EntraSsoOptions.SectionName);
-                    var entraSso = entraSsoSection.Get<EntraSsoOptions>();
-                    if (entraSso is { Enabled: true } && !string.IsNullOrEmpty(entraSso.TenantId))
-                    {
-                        var instance = entraSso.Instance.TrimEnd('/');
-                        var entraProvider = new OpenIdConnectOptions
-                        {
-                            Issuer = $"{instance}/{entraSso.TenantId}/v2.0",
-                            Authority = entraSso.Authority,
-                            ClientId = entraSso.ClientId,
-                            DiscoveryEndpoint = $"{instance}/{entraSso.TenantId}/v2.0/.well-known/openid-configuration",
-                            ValidateIssuer = true,
-                            ValidateAudience = true,
-                            ValidateLifetime = true,
-                            ValidIssuers = new List<string>
-                            {
-                                $"{instance}/{entraSso.TenantId}/v2.0",
-                                $"https://sts.windows.net/{entraSso.TenantId}/",
-                                $"https://login.microsoftonline.com/{entraSso.TenantId}/v2.0"
-                            },
-                            ValidAudiences = new List<string>
-                            {
-                                entraSso.ClientId,
-                                $"api://{entraSso.ClientId}"
-                            }
-                        };
-
-                        multiOpts.Providers.Add(entraProvider);
-                    }
+                    multiOpts.Providers.Add(provider);
                 }
             });
+
+            services.AddSingleton<TenantExternalIdentityProviderReloader>();
+            services.AddHostedService(sp => sp.GetRequiredService<TenantExternalIdentityProviderReloader>());
 
             // SaaS: named TokenSettings are resolved live from ITenantConfigurationProvider so
             // /tokens/exchange signs with the same Authorization:TokenSettings secret that
