@@ -41,12 +41,14 @@ public class SelfRegistrationAccessRulesTests
             null,
             null,
             null,
-            initialTemplatePermissions:
+            initialPermissions:
             [
-                new TemplatePermission(
-                    new TemplatePermissionId(Guid.NewGuid()),
+                new Permission(
+                    new PermissionId(Guid.NewGuid()),
                     userId,
-                    templateId,
+                    applicationId: null,
+                    templateId.Value.ToString(),
+                    ResourceType.Template,
                     AccessType.Write,
                     DateTime.UtcNow,
                     userId)

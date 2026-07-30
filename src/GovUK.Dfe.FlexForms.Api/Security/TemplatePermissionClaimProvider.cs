@@ -1,16 +1,20 @@
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Security.Interfaces;
-using GovUK.Dfe.FlexForms.Application.TemplatePermissions.Queries;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
-using MediatR;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 using System.Security.Claims;
 
 namespace GovUK.Dfe.FlexForms.Api.Security;
+
+/// <summary>
+/// Azure AD service-principal claim provider: emits Template permission claims from
+/// the unified <see cref="Permission"/> store.
+/// </summary>
 public class TemplatePermissionsClaimProvider(
-    ISender sender,
     ILogger<TemplatePermissionsClaimProvider> logger,
     IEaRepository<User> userRepo) : ICustomClaimProvider
 {
@@ -28,27 +32,23 @@ public class TemplatePermissionsClaimProvider(
             return Array.Empty<Claim>();
         }
 
-        var dbUser = await (new GetUserByExternalProviderIdQueryObject(clientId))
-                .Apply(userRepo.Query().AsNoTracking())
-                .FirstOrDefaultAsync();
+        var dbUser = await new GetUserByExternalProviderIdQueryObject(clientId)
+            .Apply(userRepo.Query().AsNoTracking())
+            .FirstOrDefaultAsync();
 
-        if (dbUser is null)
+        if (dbUser?.Id is null)
             return Array.Empty<Claim>();
 
-        var query = new GetTemplatePermissionsForUserByUserIdQuery(dbUser.Id!);
-        var result = await sender.Send(query);
+        var userWithPerms = await new GetUserWithAllPermissionsByUserIdQueryObject(dbUser.Id)
+            .Apply(userRepo.Query().AsNoTracking())
+            .FirstOrDefaultAsync();
 
-        if (result is { IsSuccess: false })
-        {
-            logger.LogWarning($"TemplatePermissionsClaimProvider() > Failed to return the template permissions for Azure AppId:{clientId}");
+        if (userWithPerms is null)
             return Array.Empty<Claim>();
-        }
 
-        return result.Value == null
-            ? Array.Empty<Claim>()
-            : result.Value.Select(p => new Claim(
+        return UserTemplateAccess.GetTemplateGrants(userWithPerms)
+            .Select(p => new Claim(
                 "permission",
-                $"Template:{p.TemplateId}:{p.AccessType}")
-            );
+                $"{ResourceType.Template}:{p.ResourceKey}:{p.AccessType}"));
     }
 }

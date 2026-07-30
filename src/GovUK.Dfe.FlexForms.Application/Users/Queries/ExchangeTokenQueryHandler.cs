@@ -158,7 +158,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             // tenant form. Fixes users registered before auto-grant, or when exchange succeeded
             // before register could grant templates.
             var accessibleTemplates = await userAccessibleTemplateService.GetAccessibleTemplateIdsAsync(
-                dbUser.TemplatePermissions,
+                dbUser.Permissions,
                 ct);
 
             if (accessibleTemplates.Count == 0
@@ -180,7 +180,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
 
                     dbUser = trackedUser;
                     accessibleTemplates = await userAccessibleTemplateService.GetAccessibleTemplateIdsAsync(
-                        dbUser.TemplatePermissions,
+                        dbUser.Permissions,
                         ct);
 
                     logger.LogInformation(
@@ -197,7 +197,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                     "ExchangeToken: User {Email} has no accessible templates for tenant {TenantName}. TemplatePermissionCount={PermissionCount}. Allowing login without form access.",
                     email,
                     currentTenant.Name,
-                    dbUser.TemplatePermissions.Count);
+                    UserTemplateAccess.GetTemplateIds(dbUser).Count);
             }
 
             // Caller was already authenticated by the API pipeline (ServiceCallers → CompositeScheme →

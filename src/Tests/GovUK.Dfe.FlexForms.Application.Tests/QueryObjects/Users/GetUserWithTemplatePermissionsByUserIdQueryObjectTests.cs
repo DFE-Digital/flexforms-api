@@ -2,6 +2,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using FluentAssertions;
 using MockQueryable;
@@ -26,12 +27,14 @@ public class GetUserWithTemplatePermissionsByUserIdQueryObjectTests
             null,
             null,
             null,
-            initialTemplatePermissions:
+            initialPermissions:
             [
-                new TemplatePermission(
-                    new TemplatePermissionId(Guid.NewGuid()),
+                new Permission(
+                    new PermissionId(Guid.NewGuid()),
                     userId,
-                    templateId,
+                    applicationId: null,
+                    templateId.Value.ToString(),
+                    ResourceType.Template,
                     AccessType.Read,
                     DateTime.UtcNow,
                     userId)
@@ -53,7 +56,7 @@ public class GetUserWithTemplatePermissionsByUserIdQueryObjectTests
 
         result.Should().ContainSingle();
         result[0].Id.Should().Be(userId);
-        result[0].TemplatePermissions.Should().ContainSingle(tp => tp.TemplateId == templateId);
+        UserTemplateAccess.GetTemplateIds(result[0]).Should().ContainSingle(id => id == templateId);
     }
 
     [Fact]

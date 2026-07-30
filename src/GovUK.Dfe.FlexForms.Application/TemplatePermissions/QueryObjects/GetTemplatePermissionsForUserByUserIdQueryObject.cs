@@ -5,11 +5,14 @@ using Microsoft.EntityFrameworkCore;
 
 namespace GovUK.Dfe.FlexForms.Application.TemplatePermissions.QueryObjects;
 
+/// <summary>
+/// Loads a user by id including permissions (Template grants live in Permissions).
+/// </summary>
 public sealed class GetTemplatePermissionsForUserByUserIdQueryObject(UserId userId)
     : IQueryObject<User>
 {
     public IQueryable<User> Apply(IQueryable<User> query) =>
         query
             .Where(u => u.Id == userId)
-            .Include(u => u.TemplatePermissions);
-} 
+            .Include(u => u.Permissions);
+}

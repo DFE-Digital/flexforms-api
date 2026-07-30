@@ -48,14 +48,14 @@ public class UsersControllerAssignRoleTests
         var createdUser = await dbContext.Users
             .Include(u => u.Role)
             .Include(u => u.Permissions)
-            .Include(u => u.TemplatePermissions)
             .SingleAsync(u => u.Email == email);
 
         Assert.Equal(RoleNames.User, createdUser.Role!.Name);
         Assert.Contains(
-            createdUser.TemplatePermissions,
-            tp => tp.TemplateId.Value == Guid.Parse(EaContextSeeder.TemplateId)
-                  && tp.AccessType == AccessType.Read);
+            createdUser.Permissions,
+            p => p.ResourceType == ResourceType.Template
+                 && p.ResourceKey == EaContextSeeder.TemplateId
+                 && p.AccessType == AccessType.Read);
     }
 
     [Theory]

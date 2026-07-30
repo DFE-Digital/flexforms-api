@@ -59,14 +59,20 @@ public class GetAllUserPermissionsQueryHandlerTests
         var role = new Role(user.RoleId, "TestRole");
         user.GetType().GetProperty("Role")!.SetValue(user, role);
 
-        // Add permissions to user
+        // Add permissions to user (including Template grants in the unified store)
         var permissions = fixture.Customize(permCustom).CreateMany<Permission>().ToList();
+        var templateId = Guid.NewGuid();
+        permissions.Add(new Permission(
+            new PermissionId(Guid.NewGuid()),
+            userId,
+            applicationId: null,
+            templateId.ToString(),
+            ResourceType.Template,
+            AccessType.Read,
+            DateTime.UtcNow,
+            userId));
         var permissionsBacking = typeof(User).GetField("_permissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
         permissionsBacking.SetValue(user, permissions);
-
-        var templatePermissions = fixture.CreateMany<TemplatePermission>().ToList();
-        var templatePermissionsBacking = typeof(User).GetField("_templatePermissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        templatePermissionsBacking.SetValue(user, templatePermissions);
 
         var userQueryable = new List<User> { user }.AsQueryable().BuildMock();
         userRepo.Query().Returns(userQueryable);
@@ -106,14 +112,10 @@ public class GetAllUserPermissionsQueryHandlerTests
                 && p.AccessType == permission.AccessType);
             Assert.Equal(permission.ApplicationId?.Value, dto.ApplicationId);
         });
-        Assert.All(templatePermissions, templatePermission =>
-        {
-            var dto = result.Value.Permissions.First(p =>
-                p.ResourceType == ResourceType.Template
-                && p.ResourceKey == templatePermission.TemplateId.Value.ToString()
-                && p.AccessType == templatePermission.AccessType);
-            Assert.NotNull(dto);
-        });
+        Assert.Contains(result.Value.Permissions, p =>
+            p.ResourceType == ResourceType.Template
+            && p.ResourceKey == templateId.ToString()
+            && p.AccessType == AccessType.Read);
     }
 
     [Theory]

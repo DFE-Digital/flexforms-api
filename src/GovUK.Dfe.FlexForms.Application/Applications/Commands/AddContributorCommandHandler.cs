@@ -95,7 +95,7 @@ public sealed class AddContributorCommandHandler(
             if (!isOwner && !isAdmin)
                 return Result<UserDto>.Forbid("Only the application owner or admin can add contributors");
 
-            // Load permissions so idempotent grants work (and TemplatePermissions are visible).
+            // Load permissions so idempotent grants work (including Template form access).
             var existingContributor = await (new GetUserWithAllPermissionsByEmailQueryObject(request.Email))
                 .Apply(userRepo.Query())
                 .FirstOrDefaultAsync(cancellationToken);

@@ -6,6 +6,7 @@ namespace GovUK.Dfe.FlexForms.Domain.Services;
 /// Merges role-default and user-specific permission grants into claim values.
 /// When a user has any grant for a given <c>ResourceType</c> + <c>ResourceKey</c>,
 /// role grants for that same key are omitted (user overrides role).
+/// Template (form) access is stored as <see cref="ResourceType.Template"/> user grants.
 /// </summary>
 public static class PermissionClaimMerger
 {
@@ -13,8 +14,7 @@ public static class PermissionClaimMerger
 
     public static IReadOnlyList<string> Merge(
         IEnumerable<Grant> roleGrants,
-        IEnumerable<Grant> userGrants,
-        IEnumerable<(Guid TemplateId, AccessType AccessType)> templateGrants)
+        IEnumerable<Grant> userGrants)
     {
         var userKeys = new HashSet<(ResourceType Type, string Key)>(
             userGrants.Select(g => (g.ResourceType, NormalizeKey(g.ResourceKey))),
@@ -33,9 +33,6 @@ public static class PermissionClaimMerger
 
         foreach (var grant in userGrants)
             claims.Add(Format(grant.ResourceType, grant.ResourceKey, grant.AccessType));
-
-        foreach (var (templateId, accessType) in templateGrants)
-            claims.Add($"Template:{templateId}:{accessType}");
 
         return claims.ToList();
     }

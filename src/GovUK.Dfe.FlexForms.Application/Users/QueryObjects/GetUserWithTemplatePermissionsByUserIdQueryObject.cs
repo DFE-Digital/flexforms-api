@@ -6,13 +6,13 @@ using Microsoft.EntityFrameworkCore;
 namespace GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 
 /// <summary>
-/// Loads a user by id including template permissions (for tenant removal / access changes).
+/// Loads a user by id including permissions (for tenant removal / template access changes).
 /// </summary>
 public sealed class GetUserWithTemplatePermissionsByUserIdQueryObject(UserId userId)
     : IQueryObject<User>
 {
     public IQueryable<User> Apply(IQueryable<User> query) =>
         query
-            .Include(u => u.TemplatePermissions)
+            .Include(u => u.Permissions)
             .Where(u => u.Id == userId);
 }

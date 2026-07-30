@@ -70,17 +70,15 @@ public sealed class GetTenantUsersQueryHandler(
                     ?? RoleNames.FromRoleId(m.RoleId.Value)
                     ?? string.Empty;
 
-                var userTemplates = user.TemplatePermissions
-                    .Where(tp => catalogueSet.Contains(tp.TemplateId))
-                    .Select(tp => tp.TemplateId.Value)
-                    .Distinct()
+                var userTemplates = UserTemplateAccess.GetTemplateIds(user)
+                    .Where(catalogueSet.Contains)
                     .Select(templateId =>
                     {
-                        templateLookup.TryGetValue(templateId, out var template);
+                        templateLookup.TryGetValue(templateId.Value, out var template);
                         return new TenantUserTemplateDto
                         {
-                            TemplateId = templateId,
-                            TemplateName = template?.Name ?? templateId.ToString(),
+                            TemplateId = templateId.Value,
+                            TemplateName = template?.Name ?? templateId.Value.ToString(),
                             IsLive = template?.IsLive ?? false
                         };
                     })

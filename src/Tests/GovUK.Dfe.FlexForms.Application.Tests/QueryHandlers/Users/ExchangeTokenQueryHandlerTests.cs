@@ -45,7 +45,7 @@ public class ExchangeTokenQueryHandlerTests
     {
         var service = Substitute.For<IUserAccessibleTemplateService>();
         service.GetAccessibleTemplateIdsAsync(
-                Arg.Any<IEnumerable<TemplatePermission>>(),
+                Arg.Any<IEnumerable<Permission>>(),
                 Arg.Any<CancellationToken>())
             .Returns(accessible.ToList().AsReadOnly());
         return service;
@@ -130,12 +130,14 @@ public class ExchangeTokenQueryHandlerTests
             .Returns(new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Email, email) })));
 
         userCustom.OverrideEmail = email;
-        userCustom.OverrideTemplatePermissions = new[]
+        userCustom.OverridePermissions = new[]
         {
-            new TemplatePermission(
-                new TemplatePermissionId(Guid.NewGuid()),
+            new Permission(
+                new PermissionId(Guid.NewGuid()),
                 new UserId(Guid.NewGuid()),
-                accessibleTemplateId,
+                applicationId: null,
+                accessibleTemplateId.Value.ToString(),
+                ResourceType.Template,
                 AccessType.Read,
                 DateTime.UtcNow,
                 new UserId(Guid.NewGuid()))
@@ -207,12 +209,14 @@ public class ExchangeTokenQueryHandlerTests
             .Returns(new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Email, email) })));
 
         userCustom.OverrideEmail = email;
-        userCustom.OverrideTemplatePermissions = new[]
+        userCustom.OverridePermissions = new[]
         {
-            new TemplatePermission(
-                new TemplatePermissionId(Guid.NewGuid()),
+            new Permission(
+                new PermissionId(Guid.NewGuid()),
                 new UserId(Guid.NewGuid()),
-                permittedTemplateId,
+                applicationId: null,
+                permittedTemplateId.Value.ToString(),
+                ResourceType.Template,
                 AccessType.Read,
                 DateTime.UtcNow,
                 new UserId(Guid.NewGuid()))
@@ -509,7 +513,7 @@ public class ExchangeTokenQueryHandlerTests
             .Returns(new ClaimsPrincipal(new ClaimsIdentity(new[] { new Claim(ClaimTypes.Email, email) })));
 
         userCustom.OverrideEmail = email;
-        userCustom.OverrideTemplatePermissions = Array.Empty<TemplatePermission>();
+        userCustom.OverridePermissions = Array.Empty<Permission>();
         var user = new Fixture().Customize(userCustom).Create<User>();
         user.GetType().GetProperty("Role")!.SetValue(user, new Role(user.RoleId, "TestRole"));
         userRepo.Query().Returns(new List<User> { user }.AsQueryable().BuildMock());

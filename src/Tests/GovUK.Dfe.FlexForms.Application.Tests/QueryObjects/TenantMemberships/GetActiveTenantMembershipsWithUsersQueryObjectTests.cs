@@ -32,13 +32,14 @@ public class GetActiveTenantMembershipsWithUsersQueryObjectTests
         result.Should().OnlyContain(m => m.IsActive);
         result.Should().OnlyContain(m => m.Role != null);
         result.Should().OnlyContain(m => m.User != null);
-        result.Should().OnlyContain(m => m.User!.TemplatePermissions != null);
+        result.Should().OnlyContain(m => m.User!.Permissions != null);
     }
 
     private static User CreateUser(string name, RoleId roleId)
     {
+        var userId = new UserId(Guid.NewGuid());
         var user = new User(
-            new UserId(Guid.NewGuid()),
+            userId,
             roleId,
             name,
             $"{name.ToLowerInvariant()}@example.com",
@@ -46,15 +47,17 @@ public class GetActiveTenantMembershipsWithUsersQueryObjectTests
             null,
             null,
             null,
-            initialTemplatePermissions:
+            initialPermissions:
             [
-                new TemplatePermission(
-                    new TemplatePermissionId(Guid.NewGuid()),
-                    new UserId(Guid.NewGuid()),
-                    new TemplateId(Guid.NewGuid()),
+                new Permission(
+                    new PermissionId(Guid.NewGuid()),
+                    userId,
+                    applicationId: null,
+                    Guid.NewGuid().ToString(),
+                    ResourceType.Template,
                     AccessType.Read,
                     DateTime.UtcNow,
-                    new UserId(Guid.NewGuid()))
+                    userId)
             ]);
         return user;
     }

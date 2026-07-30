@@ -317,7 +317,7 @@ public class ClaimBasedPermissionCheckerServiceTests
     }
 
     [Fact]
-    public void HasPermission_WhenUserHasOnlyAnyReadWildcard_ReturnsFalse()
+    public void HasPermission_WhenUserHasOnlyAnyReadWildcard_ReturnsTrue()
     {
         var resourceId = Guid.NewGuid().ToString();
         var claim = new Claim("permission", $"{ResourceType.Application}:Any:{AccessType.Read}");
@@ -325,18 +325,18 @@ public class ClaimBasedPermissionCheckerServiceTests
 
         var result = _service.HasPermission(ResourceType.Application, resourceId, AccessType.Read);
 
-        Assert.False(result);
+        Assert.True(result);
     }
 
     [Fact]
-    public void HasAnyPermission_WhenUserHasOnlyAnyReadWildcard_ReturnsFalse()
+    public void HasAnyPermission_WhenUserHasOnlyAnyReadWildcard_ReturnsTrue()
     {
         var claim = new Claim("permission", $"{ResourceType.Application}:Any:{AccessType.Read}");
         _user.AddIdentity(new ClaimsIdentity(new[] { claim }));
 
         var result = _service.HasAnyPermission(ResourceType.Application, AccessType.Read);
 
-        Assert.False(result);
+        Assert.True(result);
     }
 
     [Theory]

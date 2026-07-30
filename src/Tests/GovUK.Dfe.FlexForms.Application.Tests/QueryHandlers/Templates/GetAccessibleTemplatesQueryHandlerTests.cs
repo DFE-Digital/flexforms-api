@@ -77,7 +77,7 @@ public class GetAccessibleTemplatesQueryHandlerTests
 
         var accessibleService = Substitute.For<IUserAccessibleTemplateService>();
         accessibleService.GetAccessibleTemplateIdsAsync(
-                Arg.Any<IEnumerable<TemplatePermission>>(),
+                Arg.Any<IEnumerable<Permission>>(),
                 Arg.Any<CancellationToken>())
             .Returns(new[] { TemplateA, TemplateB }.AsReadOnly());
 

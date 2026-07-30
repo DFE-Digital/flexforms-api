@@ -323,16 +323,17 @@ public class UserPermissionClaimProviderTests
         var userId = new UserId(Guid.NewGuid());
         var roleId = new RoleId(Guid.NewGuid());
         
-        // Set up template permissions
-        var templatePermission = new TemplatePermission(
-            new TemplatePermissionId(Guid.NewGuid()),
+        // Set up template permissions as unified Permissions
+        var templatePermission = new Permission(
+            new PermissionId(Guid.NewGuid()),
             userId,
-            new TemplateId(templateId),
+            applicationId: null,
+            templateId.ToString(),
+            ResourceType.Template,
             AccessType.Write,
             DateTime.UtcNow,
-            userId // grantedBy
-        );
-        var templatePermissions = new[] { templatePermission };
+            userId);
+        var permissions = new[] { templatePermission };
         
         var user = new User(
             id: userId,
@@ -344,7 +345,7 @@ public class UserPermissionClaimProviderTests
             lastModifiedOn: null,
             lastModifiedBy: null,
             externalProviderId: null,
-            initialTemplatePermissions: templatePermissions
+            initialPermissions: permissions
         );
 
         // Set up the role
@@ -385,7 +386,7 @@ public class UserPermissionClaimProviderTests
         var userId = new UserId(Guid.NewGuid());
         var roleId = new RoleId(Guid.NewGuid());
         
-        // Set up user permissions
+        // Set up user permissions including Template grant
         var permission = new Permission(
             new PermissionId(Guid.NewGuid()),
             userId,
@@ -396,18 +397,16 @@ public class UserPermissionClaimProviderTests
             DateTime.UtcNow,
             userId // grantedBy
         );
-        var permissions = new[] { permission };
-
-        // Set up template permissions
-        var templatePermission = new TemplatePermission(
-            new TemplatePermissionId(Guid.NewGuid()),
+        var templatePermission = new Permission(
+            new PermissionId(Guid.NewGuid()),
             userId,
-            new TemplateId(templateId),
+            applicationId: null,
+            templateId.ToString(),
+            ResourceType.Template,
             AccessType.Write,
             DateTime.UtcNow,
-            userId // grantedBy
-        );
-        var templatePermissions = new[] { templatePermission };
+            userId);
+        var permissions = new[] { permission, templatePermission };
         
         var user = new User(
             id: userId,
@@ -419,8 +418,7 @@ public class UserPermissionClaimProviderTests
             lastModifiedOn: null,
             lastModifiedBy: null,
             externalProviderId: null,
-            initialPermissions: permissions,
-            initialTemplatePermissions: templatePermissions
+            initialPermissions: permissions
         );
 
         // Set up the role

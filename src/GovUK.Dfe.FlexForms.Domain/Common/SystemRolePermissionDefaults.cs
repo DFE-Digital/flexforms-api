@@ -5,7 +5,7 @@ namespace GovUK.Dfe.FlexForms.Domain.Common;
 /// <summary>
 /// Default <c>RolePermissions</c> seeded for system roles.
 /// User-specific grants (email-scoped User/Notifications, per-template access) remain on the user
-/// as overrides via <c>Permissions</c> / <c>TemplatePermissions</c>.
+/// as overrides via <c>Permissions</c> (<c>ResourceType.Template</c> for form access).
 /// </summary>
 public static class SystemRolePermissionDefaults
 {

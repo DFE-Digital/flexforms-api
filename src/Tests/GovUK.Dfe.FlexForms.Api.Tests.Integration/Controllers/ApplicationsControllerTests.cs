@@ -1891,7 +1891,6 @@ public class ApplicationsControllerTests
     {
         var user = dbContext.Users
             .Include(u => u.Permissions)
-            .Include(u => u.TemplatePermissions)
             .Single(u => u.Email == email);
 
         var claims = new List<Claim> { new(ClaimTypes.Email, email) };
@@ -1901,13 +1900,6 @@ public class ApplicationsControllerTests
             claims.Add(new Claim(
                 "permission",
                 $"{permission.ResourceType}:{permission.ResourceKey}:{permission.AccessType}"));
-        }
-
-        foreach (var templatePermission in user.TemplatePermissions)
-        {
-            claims.Add(new Claim(
-                "permission",
-                $"Template:{templatePermission.TemplateId.Value}:{templatePermission.AccessType}"));
         }
 
         return claims;

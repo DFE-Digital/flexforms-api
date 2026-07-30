@@ -16,7 +16,6 @@ namespace GovUK.Dfe.FlexForms.Application.Users.QueryObjects
             return query
                 .Where(u => u.Id == userId)
                 .Include(u => u.Permissions)
-                .Include(u => u.TemplatePermissions)
                 .Include(u => u.Role);
         }
     }

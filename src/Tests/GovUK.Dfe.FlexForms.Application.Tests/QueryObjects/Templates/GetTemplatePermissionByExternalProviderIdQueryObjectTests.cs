@@ -1,4 +1,5 @@
 using AutoFixture;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Templates.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
@@ -9,26 +10,27 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.QueryObjects.Templates;
 public class GetTemplatePermissionByExternalProviderIdQueryObjectTests
 {
     [Theory]
-    [CustomAutoData(typeof(TemplatePermissionCustomization))]
+    [CustomAutoData(typeof(PermissionCustomization))]
     public void Apply_ShouldReturnMatchingPermission_WhenExternalProviderIdAndTemplateIdMatch(
         string externalId,
-        TemplatePermissionCustomization tpCustom)
+        PermissionCustomization permCustom)
     {
         // Arrange
         var template = new Fixture().Customize(new TemplateCustomization()).Create<Template>();
         var user = new Fixture().Customize(new UserCustomization { OverrideExternalProviderId = externalId }).Create<User>();
         var otherUser = new Fixture().Customize(new UserCustomization { OverrideExternalProviderId = "other-id" }).Create<User>();
 
-        tpCustom.OverrideTemplateId = template.Id;
-        tpCustom.OverrideUserId = user.Id;
-        var matchingPermission = new Fixture().Customize(tpCustom).Create<TemplatePermission>();
-        typeof(TemplatePermission).GetProperty(nameof(TemplatePermission.User))!.SetValue(matchingPermission, user);
-        typeof(TemplatePermission).GetProperty(nameof(TemplatePermission.Template))!.SetValue(matchingPermission, template);
+        permCustom.OverrideUserId = user.Id;
+        permCustom.OverrideAppId = null;
+        permCustom.OverrideResourceType = ResourceType.Template;
+        permCustom.OverrideResourceKey = template.Id!.Value.ToString();
+        permCustom.OverrideAccessType = AccessType.Read;
+        var matchingPermission = new Fixture().Customize(permCustom).Create<Permission>();
+        typeof(Permission).GetProperty(nameof(Permission.User))!.SetValue(matchingPermission, user);
 
-        tpCustom.OverrideUserId = otherUser.Id;
-        var otherPermission = new Fixture().Customize(tpCustom).Create<TemplatePermission>();
-        typeof(TemplatePermission).GetProperty(nameof(TemplatePermission.User))!.SetValue(otherPermission, otherUser);
-        typeof(TemplatePermission).GetProperty(nameof(TemplatePermission.Template))!.SetValue(otherPermission, template);
+        permCustom.OverrideUserId = otherUser.Id;
+        var otherPermission = new Fixture().Customize(permCustom).Create<Permission>();
+        typeof(Permission).GetProperty(nameof(Permission.User))!.SetValue(otherPermission, otherUser);
 
         var permissions = new[] { matchingPermission, otherPermission }.AsQueryable();
         var queryObject = new GetTemplatePermissionByExternalProviderIdQueryObject(externalId, template.Id.Value);
@@ -39,24 +41,27 @@ public class GetTemplatePermissionByExternalProviderIdQueryObjectTests
         // Assert
         Assert.Single(result);
         Assert.Equal(externalId, result[0].User!.ExternalProviderId);
-        Assert.Equal(template.Id, result[0].Template!.Id);
+        Assert.Equal(ResourceType.Template, result[0].ResourceType);
+        Assert.Equal(template.Id.Value.ToString(), result[0].ResourceKey);
     }
 
     [Theory]
-    [CustomAutoData(typeof(TemplatePermissionCustomization))]
+    [CustomAutoData(typeof(PermissionCustomization))]
     public void Apply_ShouldReturnEmpty_WhenNoPermissionsMatch(
         string externalId,
-        TemplatePermissionCustomization tpCustom)
+        PermissionCustomization permCustom)
     {
         // Arrange
         var template = new Fixture().Customize(new TemplateCustomization()).Create<Template>();
         var user = new Fixture().Customize(new UserCustomization { OverrideExternalProviderId = "other-id" }).Create<User>();
 
-        tpCustom.OverrideTemplateId = template.Id;
-        tpCustom.OverrideUserId = user.Id;
-        var permission = new Fixture().Customize(tpCustom).Create<TemplatePermission>();
-        typeof(TemplatePermission).GetProperty(nameof(TemplatePermission.User))!.SetValue(permission, user);
-        typeof(TemplatePermission).GetProperty(nameof(TemplatePermission.Template))!.SetValue(permission, template);
+        permCustom.OverrideUserId = user.Id;
+        permCustom.OverrideAppId = null;
+        permCustom.OverrideResourceType = ResourceType.Template;
+        permCustom.OverrideResourceKey = template.Id!.Value.ToString();
+        permCustom.OverrideAccessType = AccessType.Read;
+        var permission = new Fixture().Customize(permCustom).Create<Permission>();
+        typeof(Permission).GetProperty(nameof(Permission.User))!.SetValue(permission, user);
 
         var permissions = new[] { permission }.AsQueryable();
         var queryObject = new GetTemplatePermissionByExternalProviderIdQueryObject(externalId, template.Id.Value);
@@ -69,24 +74,26 @@ public class GetTemplatePermissionByExternalProviderIdQueryObjectTests
     }
 
     [Theory]
-    [CustomAutoData(typeof(TemplatePermissionCustomization))]
+    [CustomAutoData(typeof(PermissionCustomization))]
     public void Apply_ShouldReturnEmpty_WhenTemplateIdDoesNotMatch(
         string externalId,
-        TemplatePermissionCustomization tpCustom)
+        PermissionCustomization permCustom)
     {
         // Arrange
         var template = new Fixture().Customize(new TemplateCustomization()).Create<Template>();
         var otherTemplate = new Fixture().Customize(new TemplateCustomization()).Create<Template>();
         var user = new Fixture().Customize(new UserCustomization { OverrideExternalProviderId = externalId }).Create<User>();
 
-        tpCustom.OverrideTemplateId = template.Id;
-        tpCustom.OverrideUserId = user.Id;
-        var permission = new Fixture().Customize(tpCustom).Create<TemplatePermission>();
-        typeof(TemplatePermission).GetProperty(nameof(TemplatePermission.User))!.SetValue(permission, user);
-        typeof(TemplatePermission).GetProperty(nameof(TemplatePermission.Template))!.SetValue(permission, template);
+        permCustom.OverrideUserId = user.Id;
+        permCustom.OverrideAppId = null;
+        permCustom.OverrideResourceType = ResourceType.Template;
+        permCustom.OverrideResourceKey = template.Id!.Value.ToString();
+        permCustom.OverrideAccessType = AccessType.Read;
+        var permission = new Fixture().Customize(permCustom).Create<Permission>();
+        typeof(Permission).GetProperty(nameof(Permission.User))!.SetValue(permission, user);
 
         var permissions = new[] { permission }.AsQueryable();
-        var queryObject = new GetTemplatePermissionByExternalProviderIdQueryObject(externalId, otherTemplate.Id.Value);
+        var queryObject = new GetTemplatePermissionByExternalProviderIdQueryObject(externalId, otherTemplate.Id!.Value);
 
         // Act
         var result = queryObject.Apply(permissions).ToList();
@@ -96,20 +103,22 @@ public class GetTemplatePermissionByExternalProviderIdQueryObjectTests
     }
 
     [Theory]
-    [CustomAutoData(typeof(TemplatePermissionCustomization))]
-    public void Apply_ShouldIncludeTemplateAndUser_InResults(
+    [CustomAutoData(typeof(PermissionCustomization))]
+    public void Apply_ShouldIncludeUser_InResults(
         string externalId,
-        TemplatePermissionCustomization tpCustom)
+        PermissionCustomization permCustom)
     {
         // Arrange
         var template = new Fixture().Customize(new TemplateCustomization()).Create<Template>();
         var user = new Fixture().Customize(new UserCustomization { OverrideExternalProviderId = externalId }).Create<User>();
 
-        tpCustom.OverrideTemplateId = template.Id;
-        tpCustom.OverrideUserId = user.Id;
-        var permission = new Fixture().Customize(tpCustom).Create<TemplatePermission>();
-        typeof(TemplatePermission).GetProperty(nameof(TemplatePermission.User))!.SetValue(permission, user);
-        typeof(TemplatePermission).GetProperty(nameof(TemplatePermission.Template))!.SetValue(permission, template);
+        permCustom.OverrideUserId = user.Id;
+        permCustom.OverrideAppId = null;
+        permCustom.OverrideResourceType = ResourceType.Template;
+        permCustom.OverrideResourceKey = template.Id!.Value.ToString();
+        permCustom.OverrideAccessType = AccessType.Read;
+        var permission = new Fixture().Customize(permCustom).Create<Permission>();
+        typeof(Permission).GetProperty(nameof(Permission.User))!.SetValue(permission, user);
 
         var permissions = new[] { permission }.AsQueryable();
         var queryObject = new GetTemplatePermissionByExternalProviderIdQueryObject(externalId, template.Id.Value);
@@ -119,9 +128,9 @@ public class GetTemplatePermissionByExternalProviderIdQueryObjectTests
 
         // Assert
         Assert.Single(result);
-        Assert.NotNull(result[0].Template);
         Assert.NotNull(result[0].User);
-        Assert.Equal(template.Id, result[0].Template!.Id);
+        Assert.Equal(ResourceType.Template, result[0].ResourceType);
+        Assert.Equal(template.Id.Value.ToString(), result[0].ResourceKey);
         Assert.Equal(user.Id, result[0].User!.Id);
     }
-} 
+}

@@ -38,7 +38,8 @@ public class PermissionClaimEvaluatorTests
         var templateId = Guid.NewGuid().ToString();
         var user = CreateUserWithPermissionClaims($"Template:{templateId}:Manage");
         Assert.True(PermissionClaimEvaluator.CanManageTemplate(user, templateId));
-        Assert.False(PermissionClaimEvaluator.CanManageTemplates(user));
+        // Any Template:*:Manage claim grants tenant-wide template administration
+        Assert.True(PermissionClaimEvaluator.CanManageTemplates(user));
     }
 
     [Fact]

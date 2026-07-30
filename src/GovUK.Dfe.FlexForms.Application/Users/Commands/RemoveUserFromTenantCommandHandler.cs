@@ -50,7 +50,7 @@ public sealed class RemoveUserFromTenantCommandHandler(
         var actingEmail = httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Email);
         var userId = new UserId(command.UserId);
 
-        var user = await new GetUserWithTemplatePermissionsByUserIdQueryObject(userId)
+        var user = await new GetUserWithAllPermissionsByUserIdQueryObject(userId)
             .Apply(userRepository.Query())
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -67,10 +67,8 @@ public sealed class RemoveUserFromTenantCommandHandler(
         if (catalogueIds.Count > 0)
         {
             var catalogueSet = catalogueIds.ToHashSet();
-            var tenantTemplateIds = user.TemplatePermissions
-                .Where(tp => catalogueSet.Contains(tp.TemplateId))
-                .Select(tp => tp.TemplateId)
-                .Distinct()
+            var tenantTemplateIds = UserTemplateAccess.GetTemplateIds(user)
+                .Where(catalogueSet.Contains)
                 .ToList();
 
             if (tenantTemplateIds.Count > 0)

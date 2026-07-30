@@ -13,7 +13,7 @@ public class PermissionClaimMergerTests
             new PermissionClaimMerger.Grant(ResourceType.Application, "Any", AccessType.Read)
         };
 
-        var claims = PermissionClaimMerger.Merge(role, [], []);
+        var claims = PermissionClaimMerger.Merge(role, []);
 
         Assert.Contains("Application:Any:Read", claims);
     }
@@ -31,7 +31,7 @@ public class PermissionClaimMergerTests
             new PermissionClaimMerger.Grant(ResourceType.Application, "Any", AccessType.Delete)
         };
 
-        var claims = PermissionClaimMerger.Merge(role, user, []);
+        var claims = PermissionClaimMerger.Merge(role, user);
 
         Assert.DoesNotContain("Application:Any:Read", claims);
         Assert.DoesNotContain("Application:Any:Write", claims);
@@ -51,7 +51,7 @@ public class PermissionClaimMergerTests
             new PermissionClaimMerger.Grant(ResourceType.Application, "Any", AccessType.Write)
         };
 
-        var claims = PermissionClaimMerger.Merge(role, user, []);
+        var claims = PermissionClaimMerger.Merge(role, user);
 
         Assert.DoesNotContain("Application:Any:Read", claims);
         Assert.Contains("Application:Any:Write", claims);
@@ -59,13 +59,12 @@ public class PermissionClaimMergerTests
     }
 
     [Fact]
-    public void Merge_AddsTemplateGrants()
+    public void Merge_AddsTemplateGrants_FromUserPermissions()
     {
         var templateId = Guid.NewGuid();
         var claims = PermissionClaimMerger.Merge(
             [],
-            [],
-            [(templateId, AccessType.Read)]);
+            [new PermissionClaimMerger.Grant(ResourceType.Template, templateId.ToString(), AccessType.Read)]);
 
         Assert.Contains($"Template:{templateId}:Read", claims);
     }
@@ -82,7 +81,7 @@ public class PermissionClaimMergerTests
             new PermissionClaimMerger.Grant(ResourceType.User, "alice@example.com", AccessType.Write)
         };
 
-        var claims = PermissionClaimMerger.Merge(role, user, []);
+        var claims = PermissionClaimMerger.Merge(role, user);
 
         Assert.Single(claims);
         Assert.Contains("User:alice@example.com:Write", claims, StringComparer.OrdinalIgnoreCase);

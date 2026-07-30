@@ -347,24 +347,28 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Seeders
             ctx.Permissions.AddRange(notificationsReadPermission, notificationsWritePermission, notificationsDeletePermission,
                                    aliceNotificationsReadPermission, aliceNotificationsWritePermission, aliceNotificationsDeletePermission);
 
-            var templatePerm1 = new TemplatePermission(
-                new TemplatePermissionId(new Guid(TemplatePermissionId1)),
+            var templatePerm1 = new Permission(
+                new PermissionId(new Guid(TemplatePermissionId1)),
                 userId: bobId,
-                templateId: templateId,
+                applicationId: null,
+                resourceKey: templateId.Value.ToString(),
+                resourceType: ResourceType.Template,
                 accessType: AccessType.Write,
                 grantedOn: now,
                 grantedBy: aliceId
             );
 
-            var templatePerm2 = new TemplatePermission(
-                new TemplatePermissionId(new Guid(TemplatePermissionId2)),
+            var templatePerm2 = new Permission(
+                new PermissionId(new Guid(TemplatePermissionId2)),
                 userId: aliceId,
-                templateId: templateId,
+                applicationId: null,
+                resourceKey: templateId.Value.ToString(),
+                resourceType: ResourceType.Template,
                 accessType: AccessType.Write,
                 grantedOn: now,
                 grantedBy: aliceId
             );
-            ctx.TemplatePermissions.AddRange(templatePerm1, templatePerm2);
+            ctx.Permissions.AddRange(templatePerm1, templatePerm2);
 
             var response2Id = new ResponseId(new Guid(ResponseId2));
             var response2 = new ApplicationResponse(

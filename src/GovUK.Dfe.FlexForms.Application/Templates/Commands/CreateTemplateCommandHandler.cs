@@ -76,13 +76,13 @@ public sealed class CreateTemplateCommandHandler(
             User? dbUser;
             if (principalId.Contains('@'))
             {
-                dbUser = await new GetUserWithAllTemplatePermissionsQueryObject(principalId)
+                dbUser = await new GetUserWithAllPermissionsByEmailQueryObject(principalId)
                     .Apply(userRepository.Query())
                     .FirstOrDefaultAsync(cancellationToken);
             }
             else
             {
-                dbUser = await new GetUserWithAllTemplatePermissionsByExternalIdQueryObject(principalId)
+                dbUser = await new GetUserWithAllPermissionsByExternalIdQueryObject(principalId)
                     .Apply(userRepository.Query())
                     .FirstOrDefaultAsync(cancellationToken);
             }

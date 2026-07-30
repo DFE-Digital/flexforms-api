@@ -17,7 +17,7 @@ namespace GovUK.Dfe.FlexForms.Api.Security;
 /// <summary>
 /// Enriches the principal with <c>permission</c> claims on every request:
 /// role defaults (<see cref="RolePermission"/>) plus user overrides
-/// (<see cref="Permission"/> / <see cref="TemplatePermission"/>).
+/// (<see cref="Permission"/>, including <c>ResourceType.Template</c> form access).
 /// When a user has any grant for a resource type+key, role grants for that key are omitted.
 /// </summary>
 public class UserPermissionClaimProvider(
@@ -91,11 +91,7 @@ public class UserPermissionClaimProvider(
                     .Select(p => new PermissionClaimMerger.Grant(p.ResourceType, p.ResourceKey, p.AccessType))
                     .ToList();
 
-                var templateGrants = (userWithPerms?.TemplatePermissions ?? [])
-                    .Select(tp => (tp.TemplateId.Value, tp.AccessType))
-                    .ToList();
-
-                return PermissionClaimMerger.Merge(roleGrants, userGrants, templateGrants).ToList();
+                return PermissionClaimMerger.Merge(roleGrants, userGrants).ToList();
             },
             methodName);
 

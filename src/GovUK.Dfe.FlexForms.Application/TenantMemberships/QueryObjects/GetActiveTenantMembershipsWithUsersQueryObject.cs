@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace GovUK.Dfe.FlexForms.Application.TenantMemberships.QueryObjects;
 
 /// <summary>
-/// All active memberships for a tenant, with user, role, and the user's template permissions.
+/// All active memberships for a tenant, with user, role, and the user's permissions.
 /// </summary>
 public sealed class GetActiveTenantMembershipsWithUsersQueryObject(Guid tenantId)
     : IQueryObject<TenantMembership>
@@ -15,7 +15,7 @@ public sealed class GetActiveTenantMembershipsWithUsersQueryObject(Guid tenantId
             .AsNoTracking()
             .Include(m => m.Role)
             .Include(m => m.User)!
-                .ThenInclude(u => u!.TemplatePermissions)
+                .ThenInclude(u => u!.Permissions)
             .Where(m => m.TenantId == tenantId && m.IsActive)
             .OrderBy(m => m.User!.Name);
 }

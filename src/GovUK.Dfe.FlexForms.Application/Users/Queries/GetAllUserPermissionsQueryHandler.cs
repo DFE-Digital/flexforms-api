@@ -81,10 +81,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                         var userGrants = userWithPermissions.Permissions
                             .Select(p => new PermissionClaimMerger.Grant(p.ResourceType, p.ResourceKey, p.AccessType));
 
-                        var templateGrants = userWithPermissions.TemplatePermissions
-                            .Select(tp => (tp.TemplateId.Value, tp.AccessType));
-
-                        var mergedClaims = PermissionClaimMerger.Merge(roleGrants, userGrants, templateGrants);
+                        var mergedClaims = PermissionClaimMerger.Merge(roleGrants, userGrants);
 
                         // Preserve ApplicationId on user-owned application grants for web consumers.
                         var applicationIdsByKey = userWithPermissions.Permissions

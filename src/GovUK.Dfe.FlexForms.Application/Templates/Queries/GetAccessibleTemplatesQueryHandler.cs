@@ -66,13 +66,13 @@ public sealed class GetAccessibleTemplatesQueryHandler(
                 User? dbUser;
                 if (principalId.Contains('@'))
                 {
-                    dbUser = await new GetUserWithAllTemplatePermissionsQueryObject(principalId)
+                    dbUser = await new GetUserWithAllPermissionsByEmailQueryObject(principalId)
                         .Apply(userRepository.Query().AsNoTracking())
                         .FirstOrDefaultAsync(cancellationToken);
                 }
                 else
                 {
-                    dbUser = await new GetUserWithAllTemplatePermissionsByExternalIdQueryObject(principalId)
+                    dbUser = await new GetUserWithAllPermissionsByExternalIdQueryObject(principalId)
                         .Apply(userRepository.Query().AsNoTracking())
                         .FirstOrDefaultAsync(cancellationToken);
                 }
@@ -83,7 +83,7 @@ public sealed class GetAccessibleTemplatesQueryHandler(
                 }
 
                 accessibleIds = await userAccessibleTemplateService.GetAccessibleTemplateIdsAsync(
-                    dbUser.TemplatePermissions,
+                    dbUser.Permissions,
                     cancellationToken);
             }
 

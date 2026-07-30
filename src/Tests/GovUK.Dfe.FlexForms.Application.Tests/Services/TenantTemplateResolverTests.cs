@@ -228,11 +228,13 @@ public class UserAccessibleTemplateServiceTests
         Assert.Equal(TemplateA, result[0]);
     }
 
-    private static TemplatePermission CreatePermission(TemplateId templateId) =>
+    private static Permission CreatePermission(TemplateId templateId) =>
         new(
-            new TemplatePermissionId(Guid.NewGuid()),
+            new PermissionId(Guid.NewGuid()),
             new UserId(Guid.NewGuid()),
-            templateId,
+            applicationId: null,
+            templateId.Value.ToString(),
+            GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums.ResourceType.Template,
             GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums.AccessType.Read,
             DateTime.UtcNow,
             new UserId(Guid.NewGuid()));

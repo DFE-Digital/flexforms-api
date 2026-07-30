@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace GovUK.Dfe.FlexForms.Application.Users.QueryObjects
 {
     /// <summary>
-    /// Filters to one user by normalized email, and includes all Template Permission children.
+    /// Filters to one user by normalized email, and includes permissions (including Template grants).
     /// </summary>
     public sealed class GetUserWithAllTemplatePermissionsQueryObject(string email)
         : IQueryObject<User>
@@ -16,7 +16,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users.QueryObjects
         {
             return query
                 .Where(u => u.Email.ToLower() == _normalizedEmail)
-                .Include(u => u.TemplatePermissions);
+                .Include(u => u.Permissions);
         }
     }
 }

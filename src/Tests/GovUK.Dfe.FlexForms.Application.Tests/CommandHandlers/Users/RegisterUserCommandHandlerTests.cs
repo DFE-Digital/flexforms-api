@@ -205,10 +205,12 @@ public class RegisterUserCommandHandlerTests
         var tenantContextAccessor = CreateRegisterTenantContext();
         var templateId = Guid.NewGuid();
         var userId = new UserId(Guid.NewGuid());
-        var templatePermission = new TemplatePermission(
-            new TemplatePermissionId(Guid.NewGuid()),
+        var templatePermission = new Permission(
+            new PermissionId(Guid.NewGuid()),
             userId,
-            new TemplateId(templateId),
+            applicationId: null,
+            templateId.ToString(),
+            ResourceType.Template,
             AccessType.Read,
             DateTime.UtcNow,
             userId);
@@ -223,8 +225,7 @@ public class RegisterUserCommandHandlerTests
             null,
             null,
             null,
-            initialPermissions: null,
-            initialTemplatePermissions: new[] { templatePermission });
+            initialPermissions: new[] { templatePermission });
 
         var users = new[] { existingUser }.AsQueryable().BuildMockDbSet();
         userRepo.Query().Returns(users);
