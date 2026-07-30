@@ -1,10 +1,15 @@
+using System.Text;
+using FluentValidation;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
-using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using MediatR;
 
 namespace GovUK.Dfe.FlexForms.Application.TenantAdmin.Commands;
 
+/// <param name="SettingsJson">
+/// UTF-8 settings JSON, Base64-encoded (WAF-safe transport; decoded before persistence).
+/// </param>
 public sealed record UpsertTenantSettingCommand(
     Guid TenantId,
     string Category,
@@ -14,7 +19,7 @@ public sealed record UpsertTenantSettingCommand(
 
 /// <summary>
 /// Upserts a TenantConfig settings category for a tenant.
-/// Callers must be tenant Admins and may only mutate the tenant resolved for the current request.
+/// Callers must be interactive SuperAdmins and may only mutate the tenant resolved for the current request.
 /// </summary>
 public sealed class UpsertTenantSettingCommandHandler(
     ITenantSettingsWriter settingsWriter,
@@ -27,10 +32,10 @@ public sealed class UpsertTenantSettingCommandHandler(
         UpsertTenantSettingCommand request,
         CancellationToken cancellationToken)
     {
-        if (!permissionChecker.IsInteractiveTenantAdmin())
+        if (!permissionChecker.IsInteractivePlatformAdmin())
         {
             return Result<UpsertTenantSettingResponse>.Forbid(
-                "Only interactive Admin users (user JWT) can update tenant settings. Client-credentials / service tokens are not allowed.");
+                "Only interactive SuperAdmin users can update tenant settings. Client-credentials / service tokens are not allowed.");
         }
 
         var currentTenant = tenantContextAccessor.CurrentTenant;
@@ -47,13 +52,31 @@ public sealed class UpsertTenantSettingCommandHandler(
                 $"Administrators may only update their own tenant ('{currentTenant.Id}').");
         }
 
+        string decodedSettingsJson;
+        try
+        {
+            var bytes = Convert.FromBase64String(request.SettingsJson);
+            decodedSettingsJson = Encoding.UTF8.GetString(bytes);
+        }
+        catch (FormatException)
+        {
+            return Result<UpsertTenantSettingResponse>.Failure(
+                "Invalid Base64 format for SettingsJson");
+        }
+
+        if (string.IsNullOrWhiteSpace(decodedSettingsJson))
+        {
+            return Result<UpsertTenantSettingResponse>.Failure(
+                "Settings JSON is required.");
+        }
+
         try
         {
             var result = await settingsWriter.UpsertSettingAsync(
                 request.TenantId,
                 request.Category,
                 request.Target,
-                request.SettingsJson,
+                decodedSettingsJson,
                 request.IsSecret,
                 cancellationToken);
 

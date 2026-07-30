@@ -116,16 +116,17 @@ public class TenantAdminController(ISender sender) : ControllerBase
 
     /// <summary>
     /// Adds or updates a configuration section for the caller's own tenant only.
-    /// Requires an interactive Admin user JWT; the route <paramref name="tenantId"/> must
+    /// Requires an interactive SuperAdmin user JWT; the route <paramref name="tenantId"/> must
     /// match the resolved tenant context.
+    /// Uses POST and Base64-encoded SettingsJson (same WAF-safe pattern as template schemas).
     /// </summary>
-    [HttpPut("{tenantId:guid}/settings")]
+    [HttpPost("{tenantId:guid}/settings")]
     [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
     [SwaggerResponse(200, "Setting updated.", typeof(UpsertTenantSettingResponse))]
     [SwaggerResponse(201, "Setting created.", typeof(UpsertTenantSettingResponse))]
     [SwaggerResponse(400, "Validation error.", typeof(ExceptionResponse))]
     [SwaggerResponse(401, "Unauthorized.", typeof(ExceptionResponse))]
-    [SwaggerResponse(403, "Forbidden - interactive Admin of own tenant required.", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Forbidden - interactive SuperAdmin of own tenant required.", typeof(ExceptionResponse))]
     [SwaggerResponse(404, "Tenant not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
     public async Task<IActionResult> UpsertTenantSetting(
@@ -162,6 +163,16 @@ public class TenantAdminController(ISender sender) : ControllerBase
             _ => StatusCodes.Status400BadRequest
         };
 
-        return new ObjectResult(result) { StatusCode = statusCode };
+        // Return ExceptionResponse directly so API clients can deserialize 4xx bodies
+        // (and so we do not rely solely on ResultToExceptionFilter).
+        return new ObjectResult(new ExceptionResponse
+        {
+            StatusCode = statusCode,
+            Message = result.Error ?? "Request failed",
+            ExceptionType = result.ErrorCode?.ToString() ?? "Error"
+        })
+        {
+            StatusCode = statusCode
+        };
     }
 }
