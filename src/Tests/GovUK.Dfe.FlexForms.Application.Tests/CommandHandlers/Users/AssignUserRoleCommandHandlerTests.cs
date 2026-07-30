@@ -56,6 +56,13 @@ public class AssignUserRoleCommandHandlerTests
         var service = Substitute.For<ITenantRoleService>();
         service.GetByNameAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns(customRole);
+        service.GetOrCreateTenantRoleAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                var tenantId = ci.ArgAt<Guid>(0);
+                var roleName = ci.ArgAt<string>(1);
+                return new Role(new RoleId(Guid.NewGuid()), roleName, tenantId, true);
+            });
         return service;
     }
 
@@ -227,6 +234,10 @@ public class AssignUserRoleCommandHandlerTests
         Assert.True(result.IsSuccess);
         Assert.Equal(createdUser.Id!.Value, result.Value!.UserId);
         Assert.Contains(RoleNames.Admin, result.Value.Authorization!.Roles!);
+
+        provisioner.Received(1).CreateUser(Arg.Is<RoleAssignmentRequest>(r =>
+            r.TenantRoleId != null
+            && !RoleNames.IsPlatformSuperAdminRoleId(r.TenantRoleId.Value)));
     }
 
     [Theory]

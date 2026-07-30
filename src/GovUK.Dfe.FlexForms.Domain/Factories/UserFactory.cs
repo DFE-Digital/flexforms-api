@@ -258,6 +258,7 @@ public class UserFactory : IUserFactory
     /// <inheritdoc />
     public User CreateAdmin(
         UserId id,
+        RoleId tenantAdminRoleId,
         string name,
         string email,
         UserId grantedBy,
@@ -265,6 +266,11 @@ public class UserFactory : IUserFactory
     {
         if (id == null)
             throw new ArgumentException("Id cannot be null", nameof(id));
+
+        if (tenantAdminRoleId == null)
+            throw new ArgumentException("Tenant admin role id cannot be null", nameof(tenantAdminRoleId));
+
+        EnsureTenantAdminRoleId(tenantAdminRoleId);
 
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Name cannot be null or empty", nameof(name));
@@ -279,7 +285,7 @@ public class UserFactory : IUserFactory
 
         var user = new User(
             id,
-            new RoleId(RoleConstants.AdminRoleId),
+            tenantAdminRoleId,
             name,
             email,
             when,
@@ -294,19 +300,35 @@ public class UserFactory : IUserFactory
     /// <inheritdoc />
     public void GrantAdminAccess(
         User user,
+        RoleId tenantAdminRoleId,
         UserId grantedBy,
         DateTime? grantedOn = null)
     {
         if (user == null)
             throw new ArgumentException("User cannot be null", nameof(user));
 
+        if (tenantAdminRoleId == null)
+            throw new ArgumentException("Tenant admin role id cannot be null", nameof(tenantAdminRoleId));
+
+        EnsureTenantAdminRoleId(tenantAdminRoleId);
+
         if (grantedBy == null)
             throw new ArgumentException("GrantedBy cannot be null", nameof(grantedBy));
 
         var when = grantedOn ?? DateTime.UtcNow;
 
-        user.AssignRole(new RoleId(RoleConstants.AdminRoleId));
+        user.AssignRole(tenantAdminRoleId);
         GrantAdminPermissions(user, grantedBy, when);
+    }
+
+    private static void EnsureTenantAdminRoleId(RoleId tenantAdminRoleId)
+    {
+        if (RoleNames.IsPlatformSuperAdminRoleId(tenantAdminRoleId.Value))
+        {
+            throw new ArgumentException(
+                "Cannot assign the platform SuperAdmin role as a tenant Admin. Use the tenant-scoped Admin role id.",
+                nameof(tenantAdminRoleId));
+        }
     }
 
     /// <inheritdoc />

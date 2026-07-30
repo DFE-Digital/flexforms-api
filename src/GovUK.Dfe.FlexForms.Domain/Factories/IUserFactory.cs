@@ -47,20 +47,24 @@ public interface IUserFactory
         DateTime? grantedOn = null);
 
     /// <summary>
-    /// Creates a new admin user with the Admin role.
+    /// Creates a new admin user with the tenant-scoped Admin role.
     /// </summary>
+    /// <param name="tenantAdminRoleId">Per-tenant Admin role id (never the platform SuperAdmin id).</param>
     User CreateAdmin(
         UserId id,
+        RoleId tenantAdminRoleId,
         string name,
         string email,
         UserId grantedBy,
         DateTime? createdOn = null);
 
     /// <summary>
-    /// Assigns the Admin role to an existing user.
+    /// Assigns the tenant-scoped Admin role to an existing user.
     /// </summary>
+    /// <param name="tenantAdminRoleId">Per-tenant Admin role id (never the platform SuperAdmin id).</param>
     void GrantAdminAccess(
         User user,
+        RoleId tenantAdminRoleId,
         UserId grantedBy,
         DateTime? grantedOn = null);
 

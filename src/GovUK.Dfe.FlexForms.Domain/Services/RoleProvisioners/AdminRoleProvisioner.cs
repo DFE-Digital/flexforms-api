@@ -17,15 +17,34 @@ public sealed class AdminRoleProvisioner(IUserFactory userFactory) : IUserRolePr
     public bool RequiresTemplateIds => false;
 
     /// <inheritdoc />
-    public User CreateUser(RoleAssignmentRequest request) =>
-        userFactory.CreateAdmin(
+    public User CreateUser(RoleAssignmentRequest request)
+    {
+        var tenantAdminRoleId = RequireTenantAdminRoleId(request);
+        return userFactory.CreateAdmin(
             new UserId(Guid.NewGuid()),
+            tenantAdminRoleId,
             request.Name,
             request.Email,
             request.GrantedBy,
             request.GrantedOn);
+    }
 
     /// <inheritdoc />
-    public void AssignToExistingUser(User user, RoleAssignmentRequest request) =>
-        userFactory.GrantAdminAccess(user, request.GrantedBy, request.GrantedOn);
+    public void AssignToExistingUser(User user, RoleAssignmentRequest request)
+    {
+        var tenantAdminRoleId = RequireTenantAdminRoleId(request);
+        userFactory.GrantAdminAccess(user, tenantAdminRoleId, request.GrantedBy, request.GrantedOn);
+    }
+
+    private static RoleId RequireTenantAdminRoleId(RoleAssignmentRequest request)
+    {
+        if (request.TenantRoleId is null)
+        {
+            throw new ArgumentException(
+                "Tenant Admin role id is required when assigning the Admin role.",
+                nameof(request));
+        }
+
+        return request.TenantRoleId;
+    }
 }
