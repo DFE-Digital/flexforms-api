@@ -1,5 +1,6 @@
 using AutoFixture;
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.TemplatePermissions.Queries;
@@ -43,24 +44,30 @@ public class GetTemplatePermissionsForUserByUserIdQueryHandlerTests
     }
 
     [Theory]
-    [CustomAutoData(typeof(UserCustomization), typeof(TemplatePermissionCustomization))]
+    [CustomAutoData(typeof(UserCustomization), typeof(PermissionCustomization))]
     public async Task Handle_ShouldReturnTemplatePermissions_WhenUserExists(
         UserCustomization userCustom,
-        TemplatePermissionCustomization permCustom)
+        PermissionCustomization permCustom)
     {
         // Arrange
         var userId = new UserId(Guid.NewGuid());
+        var templateId = Guid.NewGuid();
         userCustom.OverrideId = userId;
         var fixture = new Fixture().Customize(userCustom);
         var user = fixture.Create<User>();
 
         var backingField = typeof(User)
-            .GetField("_templatePermissions",
+            .GetField("_permissions",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        backingField.SetValue(user, new List<TemplatePermission>());
+        backingField.SetValue(user, new List<Permission>());
 
-        var templatePermission = new Fixture().Customize(permCustom).Create<TemplatePermission>();
-        ((List<TemplatePermission>)backingField.GetValue(user)!).Add(templatePermission);
+        permCustom.OverrideUserId = userId;
+        permCustom.OverrideAppId = null;
+        permCustom.OverrideResourceType = ResourceType.Template;
+        permCustom.OverrideResourceKey = templateId.ToString();
+        permCustom.OverrideAccessType = AccessType.Read;
+        var templatePermission = new Fixture().Customize(permCustom).Create<Permission>();
+        ((List<Permission>)backingField.GetValue(user)!).Add(templatePermission);
 
         var userList = new List<User> { user };
         _userRepo.Query().Returns(userList.AsQueryable().BuildMock());
@@ -73,6 +80,7 @@ public class GetTemplatePermissionsForUserByUserIdQueryHandlerTests
         Assert.True(result.IsSuccess);
         Assert.Single(result.Value!);
         Assert.Equal(templatePermission.Id!.Value, result.Value!.First().TemplatePermissionId);
+        Assert.Equal(templateId, result.Value!.First().TemplateId);
     }
 
     [Theory]

@@ -47,9 +47,9 @@ public sealed class CreateTemplateCommandHandler(
     {
         try
         {
-            if (!permissionCheckerService.IsAdmin())
+            if (!permissionCheckerService.CanManageTemplates())
             {
-                return Result<TemplateDto>.Forbid("Only Admin users can create templates.");
+                return Result<TemplateDto>.Forbid("Only Admin users or roles with Template Manage permission can create templates.");
             }
 
             var tenant = tenantContextAccessor.CurrentTenant;
@@ -76,13 +76,13 @@ public sealed class CreateTemplateCommandHandler(
             User? dbUser;
             if (principalId.Contains('@'))
             {
-                dbUser = await new GetUserWithAllTemplatePermissionsQueryObject(principalId)
+                dbUser = await new GetUserWithAllPermissionsByEmailQueryObject(principalId)
                     .Apply(userRepository.Query())
                     .FirstOrDefaultAsync(cancellationToken);
             }
             else
             {
-                dbUser = await new GetUserWithAllTemplatePermissionsByExternalIdQueryObject(principalId)
+                dbUser = await new GetUserWithAllPermissionsByExternalIdQueryObject(principalId)
                     .Apply(userRepository.Query())
                     .FirstOrDefaultAsync(cancellationToken);
             }

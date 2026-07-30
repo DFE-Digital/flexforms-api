@@ -54,7 +54,7 @@ public sealed class GetApplicationsForUserByExternalProviderIdQueryHandler(
                             ApplicationListingQueryBuilder.EmptyPagedResult(request.PageNumber, request.PageSize));
 
                     var templateIdsFilter = await userAccessibleTemplateService.ResolveAccessibleListingFilterAsync(
-                        userWithAuthorization.TemplatePermissions,
+                        userWithAuthorization.Permissions,
                         request.TemplateId,
                         cancellationToken);
 

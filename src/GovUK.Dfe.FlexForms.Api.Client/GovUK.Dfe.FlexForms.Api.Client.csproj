@@ -19,12 +19,10 @@
 
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<PackageReference Include="GovUK.Dfe.CoreLibs.Contracts" Version="1.0.78" />
+		<PackageReference Include="GovUK.Dfe.CoreLibs.Contracts" Version="1.0.84" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Http" Version="1.0.10" />
-		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.28-prerelease.26" />
-		<PackageReference Include="Microsoft.Identity.Client" Version="4.72.1" />
+		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.29-prerelease.5" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.10.0" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">

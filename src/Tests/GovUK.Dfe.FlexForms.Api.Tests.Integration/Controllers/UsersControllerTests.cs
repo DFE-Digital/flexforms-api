@@ -57,7 +57,6 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
 
             var expectedUser = dbContext.Users
                 .Include(u => u.Permissions)
-                .Include(u => u.TemplatePermissions)
                 .Include(u => u.Role)
                 .FirstOrDefault(u => u.ExternalProviderId == externalId.ToString())!;
 
@@ -69,12 +68,6 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
                     ResourceKey = p.ResourceKey,
                     AccessType = p.AccessType
                 })
-                .Concat(expectedUser.TemplatePermissions.Select(tp => new UserPermissionDto
-                {
-                    ResourceType = ResourceType.Template,
-                    ResourceKey = tp.TemplateId.Value.ToString(),
-                    AccessType = tp.AccessType
-                }))
                 .ToList();
 
             var result = await usersClient.GetMyPermissionsAsync();
@@ -171,7 +164,6 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
 
             var expectedUser = dbContext.Users
                 .Include(u => u.Permissions)
-                .Include(u => u.TemplatePermissions)
                 .Include(u => u.Role)
                 .First(u => u.Email == testEmail);
 
@@ -183,12 +175,6 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
                     ResourceKey = p.ResourceKey,
                     AccessType = p.AccessType
                 })
-                .Concat(expectedUser.TemplatePermissions.Select(tp => new UserPermissionDto
-                {
-                    ResourceType = ResourceType.Template,
-                    ResourceKey = tp.TemplateId.Value.ToString(),
-                    AccessType = tp.AccessType
-                }))
                 .ToList();
 
             var result = await usersClient.GetMyPermissionsAsync();

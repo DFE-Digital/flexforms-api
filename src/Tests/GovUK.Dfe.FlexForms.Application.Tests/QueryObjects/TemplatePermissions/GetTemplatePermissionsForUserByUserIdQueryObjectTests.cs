@@ -1,4 +1,5 @@
 using AutoFixture;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.TemplatePermissions.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
@@ -18,11 +19,11 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.QueryObjects.TemplatePermissions
 public class GetTemplatePermissionsForUserByUserIdQueryObjectTests
 {
     [Theory]
-    [CustomAutoData(typeof(UserCustomization), typeof(TemplatePermissionCustomization))]
+    [CustomAutoData(typeof(UserCustomization), typeof(PermissionCustomization))]
     public void Apply_ShouldReturnMatchingUser_WithAllTemplatePermissions(
         UserId userId,
         UserCustomization userCustom,
-        TemplatePermissionCustomization tpCustom)
+        PermissionCustomization permCustom)
     {
         // Arrange
         var sharedRoleId = new RoleId(Guid.NewGuid());
@@ -33,15 +34,20 @@ public class GetTemplatePermissionsForUserByUserIdQueryObjectTests
         var userA = fixtureUserA.Create<User>();
 
         var backingField = typeof(User)
-            .GetField("_templatePermissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        backingField.SetValue(userA, new List<TemplatePermission>());
+            .GetField("_permissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        backingField.SetValue(userA, new List<Permission>());
 
-        var tp = new Fixture().Customize(tpCustom).Create<TemplatePermission>();
-        ((List<TemplatePermission>)backingField.GetValue(userA)!).Add(tp);
+        permCustom.OverrideUserId = userId;
+        permCustom.OverrideAppId = null;
+        permCustom.OverrideResourceType = ResourceType.Template;
+        permCustom.OverrideResourceKey = Guid.NewGuid().ToString();
+        permCustom.OverrideAccessType = AccessType.Read;
+        var tp = new Fixture().Customize(permCustom).Create<Permission>();
+        ((List<Permission>)backingField.GetValue(userA)!).Add(tp);
 
         var userCustomB = new UserCustomization { OverrideRoleId = sharedRoleId };
         var userB = new Fixture().Customize(userCustomB).Create<User>();
-        backingField.SetValue(userB, new List<TemplatePermission>());
+        backingField.SetValue(userB, new List<Permission>());
 
         using var context = CreateAndSeedSqliteContext(ctx =>
         {
@@ -59,7 +65,7 @@ public class GetTemplatePermissionsForUserByUserIdQueryObjectTests
         // Assert
         Assert.Single(result);
         Assert.Equal(userId, result[0].Id);
-        Assert.Single(result[0].TemplatePermissions);
+        Assert.Single(result[0].Permissions.Where(p => p.ResourceType == ResourceType.Template));
     }
 
     [Theory]
@@ -73,8 +79,8 @@ public class GetTemplatePermissionsForUserByUserIdQueryObjectTests
         var user = fixture.Create<User>();
 
         var backingField = typeof(User)
-            .GetField("_templatePermissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        backingField.SetValue(user, new List<TemplatePermission>());
+            .GetField("_permissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        backingField.SetValue(user, new List<Permission>());
 
         using var context = CreateAndSeedSqliteContext(ctx =>
         {
@@ -114,4 +120,4 @@ public class GetTemplatePermissionsForUserByUserIdQueryObjectTests
         return scope.ServiceProvider.GetRequiredService<ExternalApplicationsContext>();
 
     }
-} 
+}

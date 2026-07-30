@@ -33,9 +33,9 @@ public sealed class SetTemplateLiveCommandHandler(
     {
         try
         {
-            if (!permissionCheckerService.IsAdmin())
+            if (!permissionCheckerService.CanManageTemplates())
             {
-                return Result<TemplateDto>.Forbid("Only Admin users can set template live status.");
+                return Result<TemplateDto>.Forbid("Only Admin users or roles with Template Manage permission can set template live status.");
             }
 
             var templateId = new TemplateId(request.TemplateId);

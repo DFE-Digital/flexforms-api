@@ -23,10 +23,7 @@ public sealed class ClaimBasedPermissionCheckerService(IHttpContextAccessor http
         if (PermissionClaimEvaluator.HasFullAdminAccess(user))
             return true;
 
-        if (accessType == AccessType.Read && IsCaseworkerReadResource(user, resourceType))
-            return true;
-
-        return PermissionClaimEvaluator.HasPermissionClaim(user, resourceType, resourceId, accessType);
+        return PermissionClaimEvaluator.HasPermissionClaimOrTenantWide(user, resourceType, resourceId, accessType);
     }
 
     /// <inheritdoc />
@@ -129,12 +126,12 @@ public sealed class ClaimBasedPermissionCheckerService(IHttpContextAccessor http
     }
 
     /// <inheritdoc />
-    public bool IsCaseworker()
+    public bool IsInteractivePlatformAdmin()
     {
         var user = _httpContextAccessor.HttpContext?.User;
         if (user == null) return false;
 
-        return user.IsInRole(RoleNames.Caseworker);
+        return PermissionClaimEvaluator.IsInteractivePlatformAdmin(user);
     }
 
     /// <inheritdoc />
@@ -146,7 +143,21 @@ public sealed class ClaimBasedPermissionCheckerService(IHttpContextAccessor http
         return PermissionClaimEvaluator.CanReadAllApplications(user);
     }
 
-    private static bool IsCaseworkerReadResource(ClaimsPrincipal user, ResourceType resourceType) =>
-        user.IsInRole(RoleNames.Caseworker)
-        && resourceType is ResourceType.Application or ResourceType.ApplicationFiles;
+    /// <inheritdoc />
+    public bool CanManageTemplates()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        if (user == null) return false;
+
+        return PermissionClaimEvaluator.CanManageTemplates(user);
+    }
+
+    /// <inheritdoc />
+    public bool CanManageUsers()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        if (user == null) return false;
+
+        return PermissionClaimEvaluator.CanManageUsers(user);
+    }
 }

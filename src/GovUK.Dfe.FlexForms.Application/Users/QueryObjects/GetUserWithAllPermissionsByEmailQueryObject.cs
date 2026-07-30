@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 namespace GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 
 /// <summary>
-/// Filters to one user by normalized email and includes role, permissions, and template permissions.
+/// Filters to one user by normalized email and includes role and permissions.
 /// </summary>
 public sealed class GetUserWithAllPermissionsByEmailQueryObject(string email) : IQueryObject<User>
 {
@@ -16,6 +16,5 @@ public sealed class GetUserWithAllPermissionsByEmailQueryObject(string email) : 
         query
             .Where(u => u.Email.ToLower() == _normalizedEmail)
             .Include(u => u.Permissions)
-            .Include(u => u.TemplatePermissions)
             .Include(u => u.Role);
 }

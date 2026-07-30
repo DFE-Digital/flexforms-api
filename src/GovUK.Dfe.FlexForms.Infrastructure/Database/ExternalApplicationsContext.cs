@@ -33,6 +33,8 @@ public class ExternalApplicationsContext : DbContext
 
     public DbSet<Role> Roles { get; set; } = null!;
     public DbSet<User> Users { get; set; } = null!;
+    public DbSet<TenantMembership> TenantMemberships { get; set; } = null!;
+    public DbSet<RolePermission> RolePermissions { get; set; } = null!;
     public DbSet<Template> Templates { get; set; } = null!;
     public DbSet<TemplateVersion> TemplateVersions { get; set; } = null!;
     public DbSet<Domain.Entities.Application> Applications { get; set; } = null!;
@@ -65,6 +67,8 @@ public class ExternalApplicationsContext : DbContext
 
         modelBuilder.Entity<Role>(b => ConfigureRole(b, useTemporal));
         modelBuilder.Entity<User>(b => ConfigureUser(b, useTemporal));
+        modelBuilder.Entity<TenantMembership>(b => ConfigureTenantMembership(b, useTemporal));
+        modelBuilder.Entity<RolePermission>(ConfigureRolePermission);
         modelBuilder.Entity<Template>(b => ConfigureTemplate(b, useTemporal));
         modelBuilder.Entity<TemplateVersion>(ConfigureTemplateVersion);
         modelBuilder.Entity<Domain.Entities.Application>(b => ConfigureApplication(b, useTemporal));
@@ -168,7 +172,19 @@ public class ExternalApplicationsContext : DbContext
             .HasColumnName("Name")
             .HasMaxLength(50)
             .IsRequired();
-        b.HasIndex(e => e.Name).IsUnique();
+        b.Property(e => e.TenantId)
+            .HasColumnName("TenantId")
+            .IsRequired(false);
+        b.Property(e => e.IsSystem)
+            .HasColumnName("IsSystem")
+            .IsRequired()
+            .HasDefaultValue(false);
+        // Legacy global roles keep TenantId NULL; tenant-scoped roles are unique per (TenantId, Name).
+        b.HasIndex(e => new { e.TenantId, e.Name })
+            .IsUnique()
+            .HasDatabaseName("IX_Roles_TenantId_Name");
+        b.HasIndex(e => e.TenantId)
+            .HasDatabaseName("IX_Roles_TenantId");
 
         if (useTemporal)
         {
@@ -184,6 +200,117 @@ public class ExternalApplicationsContext : DbContext
             b.Property<DateTime?>("PeriodStart").HasColumnName("PeriodStart").IsRequired(false);
             b.Property<DateTime?>("PeriodEnd").HasColumnName("PeriodEnd").IsRequired(false);
         }
+    }
+
+    private static void ConfigureTenantMembership(EntityTypeBuilder<TenantMembership> b, bool useTemporal)
+    {
+        if (useTemporal)
+            b.ToTable("TenantMemberships", DefaultSchema, tb => tb.IsTemporal(ttb =>
+            {
+                ttb.HasPeriodStart("PeriodStart");
+                ttb.HasPeriodEnd("PeriodEnd");
+                ttb.UseHistoryTable("History_TenantMemberships", DefaultSchema);
+            }));
+        else
+            b.ToTable("TenantMemberships", DefaultSchema);
+
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Id)
+            .HasColumnName("TenantMembershipId")
+            .ValueGeneratedNever()
+            .HasConversion(v => v.Value, v => new TenantMembershipId(v))
+            .IsRequired();
+        b.Property(e => e.TenantId)
+            .HasColumnName("TenantId")
+            .IsRequired();
+        b.Property(e => e.UserId)
+            .HasColumnName("UserId")
+            .HasConversion(v => v.Value, v => new UserId(v))
+            .IsRequired();
+        b.Property(e => e.RoleId)
+            .HasColumnName("RoleId")
+            .HasConversion(v => v.Value, v => new RoleId(v))
+            .IsRequired();
+        b.Property(e => e.IsActive)
+            .HasColumnName("IsActive")
+            .IsRequired()
+            .HasDefaultValue(true);
+        b.Property(e => e.CreatedOn)
+            .HasColumnName("CreatedOn")
+            .HasDefaultValueSql("GETDATE()")
+            .IsRequired();
+        b.Property(e => e.LastModifiedOn)
+            .HasColumnName("LastModifiedOn")
+            .IsRequired(false);
+
+        b.HasOne(e => e.User)
+            .WithMany()
+            .HasForeignKey(e => e.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+        b.HasOne(e => e.Role)
+            .WithMany()
+            .HasForeignKey(e => e.RoleId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        b.HasIndex(e => new { e.TenantId, e.UserId })
+            .IsUnique()
+            .HasDatabaseName("IX_TenantMemberships_TenantId_UserId");
+        b.HasIndex(e => e.UserId)
+            .HasDatabaseName("IX_TenantMemberships_UserId");
+
+        if (useTemporal)
+        {
+            b.Property<DateTime>("PeriodStart")
+                .ValueGeneratedOnAddOrUpdate()
+                .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
+            b.Property<DateTime>("PeriodEnd")
+                .ValueGeneratedOnAddOrUpdate()
+                .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
+        }
+        else
+        {
+            b.Property<DateTime?>("PeriodStart").HasColumnName("PeriodStart").IsRequired(false);
+            b.Property<DateTime?>("PeriodEnd").HasColumnName("PeriodEnd").IsRequired(false);
+        }
+    }
+
+    private static void ConfigureRolePermission(EntityTypeBuilder<RolePermission> b)
+    {
+        b.ToTable("RolePermissions", DefaultSchema);
+
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Id)
+            .HasColumnName("RolePermissionId")
+            .ValueGeneratedNever()
+            .HasConversion(v => v.Value, v => new RolePermissionId(v))
+            .IsRequired();
+        b.Property(e => e.RoleId)
+            .HasColumnName("RoleId")
+            .HasConversion(v => v.Value, v => new RoleId(v))
+            .IsRequired();
+        b.Property(e => e.ResourceKey)
+            .HasColumnName("ResourceKey")
+            .HasMaxLength(256)
+            .IsRequired();
+        b.Property(e => e.ResourceType)
+            .HasColumnName("ResourceType")
+            .IsRequired();
+        b.Property(e => e.AccessType)
+            .HasColumnName("AccessType")
+            .IsRequired();
+        b.Property(e => e.CreatedOn)
+            .HasColumnName("CreatedOn")
+            .HasDefaultValueSql("GETDATE()")
+            .IsRequired();
+
+        b.HasOne(e => e.Role)
+            .WithMany(r => r.Permissions)
+            .HasForeignKey(e => e.RoleId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.HasIndex(e => new { e.RoleId, e.ResourceType, e.ResourceKey, e.AccessType })
+            .IsUnique()
+            .HasDatabaseName("IX_RolePermissions_Role_Resource_Access");
     }
 
     private static void ConfigureUser(EntityTypeBuilder<User> b, bool useTemporal)

@@ -4,6 +4,7 @@ using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
@@ -13,6 +14,7 @@ using GovUK.Dfe.CoreLibs.Security.Interfaces;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using MockQueryable.NSubstitute;
 using NSubstitute;
@@ -31,6 +33,38 @@ public class RegisterUserCommandHandlerTests
         resolver.GetTemplateIdsForCurrentTenantAsync(Arg.Any<CancellationToken>())
             .Returns(callInfo => Array.Empty<TemplateId>());
         return resolver;
+    }
+
+    private static ITenantMembershipService CreateRegisterMembershipService()
+    {
+        var service = Substitute.For<ITenantMembershipService>();
+        service.UpsertMembershipAsync(Arg.Any<Guid>(), Arg.Any<UserId>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ci => new TenantMembership(
+                new TenantMembershipId(Guid.NewGuid()),
+                ci.ArgAt<Guid>(0),
+                ci.ArgAt<UserId>(1),
+                new RoleId(Guid.NewGuid()),
+                DateTime.UtcNow));
+        service.GetActiveMembershipAsync(Arg.Any<Guid>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns((TenantMembership?)null);
+        return service;
+    }
+
+    private static ITenantOidcAudienceBinder CreateRegisterAudienceBinder()
+    {
+        var binder = Substitute.For<ITenantOidcAudienceBinder>();
+        binder.TokenMatchesTenant(Arg.Any<TenantConfiguration>(), Arg.Any<IEnumerable<string>>())
+            .Returns(true);
+        return binder;
+    }
+
+    private static ITenantContextAccessor CreateRegisterTenantContext()
+    {
+        var config = new Microsoft.Extensions.Configuration.ConfigurationBuilder().AddInMemoryCollection().Build();
+        var tenant = new TenantConfiguration(Guid.NewGuid(), "Test", config, Array.Empty<string>());
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        accessor.CurrentTenant.Returns(tenant);
+        return accessor;
     }
 
     private static IEaRepository<Template> LiveTemplateRepository(Guid templateId)
@@ -86,7 +120,7 @@ public class RegisterUserCommandHandlerTests
         externalValidator.ValidateIdTokenAsync(subjectToken, false, false, Arg.Any<InternalServiceAuthOptions?>(), Arg.Any<TestAuthenticationOptions?>(), Arg.Any<CancellationToken>())
             .Returns(claimsPrincipal);
 
-        var tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
+        var tenantContextAccessor = CreateRegisterTenantContext();
 
         // No existing user
         var users = new List<User>().AsQueryable().BuildMockDbSet();
@@ -122,7 +156,11 @@ public class RegisterUserCommandHandlerTests
             userFactory,
             unitOfWork,
             tenantContextAccessor,
-            AllowAllTenantTemplates());
+            AllowAllTenantTemplates(),
+            CreateRegisterMembershipService(),
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -164,13 +202,15 @@ public class RegisterUserCommandHandlerTests
         externalValidator.ValidateIdTokenAsync(subjectToken, false, false, Arg.Any<InternalServiceAuthOptions?>(), Arg.Any<TestAuthenticationOptions?>(), Arg.Any<CancellationToken>())
             .Returns(claimsPrincipal);
 
-        var tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
+        var tenantContextAccessor = CreateRegisterTenantContext();
         var templateId = Guid.NewGuid();
         var userId = new UserId(Guid.NewGuid());
-        var templatePermission = new TemplatePermission(
-            new TemplatePermissionId(Guid.NewGuid()),
+        var templatePermission = new Permission(
+            new PermissionId(Guid.NewGuid()),
             userId,
-            new TemplateId(templateId),
+            applicationId: null,
+            templateId.ToString(),
+            ResourceType.Template,
             AccessType.Read,
             DateTime.UtcNow,
             userId);
@@ -185,8 +225,7 @@ public class RegisterUserCommandHandlerTests
             null,
             null,
             null,
-            initialPermissions: null,
-            initialTemplatePermissions: new[] { templatePermission });
+            initialPermissions: new[] { templatePermission });
 
         var users = new[] { existingUser }.AsQueryable().BuildMockDbSet();
         userRepo.Query().Returns(users);
@@ -199,7 +238,11 @@ public class RegisterUserCommandHandlerTests
             userFactory,
             unitOfWork,
             tenantContextAccessor,
-            AllowAllTenantTemplates());
+            AllowAllTenantTemplates(),
+            CreateRegisterMembershipService(),
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
 
         var command = new RegisterUserCommand(subjectToken, templateId);
 
@@ -214,7 +257,8 @@ public class RegisterUserCommandHandlerTests
         Assert.Equal(email, result.Value.Email);
 
         await userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
-        await unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+        // Existing users without TenantMembership get one created so exchange can succeed.
+        await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -240,7 +284,7 @@ public class RegisterUserCommandHandlerTests
         externalValidator.ValidateIdTokenAsync(subjectToken, false, false, Arg.Any<InternalServiceAuthOptions?>(), Arg.Any<TestAuthenticationOptions?>(), Arg.Any<CancellationToken>())
             .Returns(claimsPrincipal);
 
-        var tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
+        var tenantContextAccessor = CreateRegisterTenantContext();
 
         // No existing user
         var users = new List<User>().AsQueryable().BuildMockDbSet();
@@ -276,7 +320,11 @@ public class RegisterUserCommandHandlerTests
             userFactory,
             unitOfWork,
             tenantContextAccessor,
-            AllowAllTenantTemplates());
+            AllowAllTenantTemplates(),
+            CreateRegisterMembershipService(),
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -320,7 +368,7 @@ public class RegisterUserCommandHandlerTests
         externalValidator.ValidateIdTokenAsync(subjectToken, false, false, Arg.Any<InternalServiceAuthOptions?>(), Arg.Any<TestAuthenticationOptions?>(), Arg.Any<CancellationToken>())
             .Returns(claimsPrincipal);
 
-        var tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
+        var tenantContextAccessor = CreateRegisterTenantContext();
 
         // No existing user
         var users = new List<User>().AsQueryable().BuildMockDbSet();
@@ -356,7 +404,11 @@ public class RegisterUserCommandHandlerTests
             userFactory,
             unitOfWork,
             tenantContextAccessor,
-            AllowAllTenantTemplates());
+            AllowAllTenantTemplates(),
+            CreateRegisterMembershipService(),
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -379,7 +431,7 @@ public class RegisterUserCommandHandlerTests
         IUnitOfWork unitOfWork)
     {
         // Arrange
-        var tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
+        var tenantContextAccessor = CreateRegisterTenantContext();
         externalValidator.ValidateIdTokenAsync(subjectToken, false, false, Arg.Any<InternalServiceAuthOptions?>(), Arg.Any<TestAuthenticationOptions?>(), Arg.Any<CancellationToken>())
             .Throws(new SecurityTokenException("Invalid token"));
 
@@ -393,7 +445,11 @@ public class RegisterUserCommandHandlerTests
             userFactory,
             unitOfWork,
             tenantContextAccessor,
-            AllowAllTenantTemplates());
+            AllowAllTenantTemplates(),
+            CreateRegisterMembershipService(),
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -429,7 +485,7 @@ public class RegisterUserCommandHandlerTests
         externalValidator.ValidateIdTokenAsync(subjectToken, false, false, Arg.Any<InternalServiceAuthOptions?>(), Arg.Any<TestAuthenticationOptions?>(), Arg.Any<CancellationToken>())
             .Returns(claimsPrincipal);
 
-        var tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
+        var tenantContextAccessor = CreateRegisterTenantContext();
 
         var templateId = Guid.NewGuid();
         var handler = new RegisterUserCommandHandler(
@@ -440,7 +496,11 @@ public class RegisterUserCommandHandlerTests
             userFactory,
             unitOfWork,
             tenantContextAccessor,
-            AllowAllTenantTemplates());
+            AllowAllTenantTemplates(),
+            CreateRegisterMembershipService(),
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -478,7 +538,7 @@ public class RegisterUserCommandHandlerTests
         externalValidator.ValidateIdTokenAsync(subjectToken, false, false, Arg.Any<InternalServiceAuthOptions?>(), Arg.Any<TestAuthenticationOptions?>(), Arg.Any<CancellationToken>())
             .Returns(claimsPrincipal);
 
-        var tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
+        var tenantContextAccessor = CreateRegisterTenantContext();
 
         // Mock to throw exception
         userRepo.Query().Throws(new InvalidOperationException("Database error"));
@@ -493,7 +553,11 @@ public class RegisterUserCommandHandlerTests
             userFactory,
             unitOfWork,
             tenantContextAccessor,
-            AllowAllTenantTemplates());
+            AllowAllTenantTemplates(),
+            CreateRegisterMembershipService(),
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -530,7 +594,7 @@ public class RegisterUserCommandHandlerTests
         externalValidator.ValidateIdTokenAsync(subjectToken, false, false, Arg.Any<InternalServiceAuthOptions?>(), Arg.Any<TestAuthenticationOptions?>(), Arg.Any<CancellationToken>())
             .Returns(claimsPrincipal);
 
-        var tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
+        var tenantContextAccessor = CreateRegisterTenantContext();
 
         // No existing user
         var users = new List<User>().AsQueryable().BuildMockDbSet();
@@ -578,7 +642,11 @@ public class RegisterUserCommandHandlerTests
             userFactory,
             unitOfWork,
             tenantContextAccessor,
-            AllowAllTenantTemplates());
+            AllowAllTenantTemplates(),
+            CreateRegisterMembershipService(),
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act

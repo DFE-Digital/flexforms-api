@@ -6,7 +6,7 @@ using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 namespace GovUK.Dfe.FlexForms.Domain.Services.RoleProvisioners;
 
 /// <summary>
-/// Provisions users with the Admin role for full tenant administration.
+/// Provisions users with the tenant Admin role.
 /// </summary>
 public sealed class AdminRoleProvisioner(IUserFactory userFactory) : IUserRoleProvisioner
 {

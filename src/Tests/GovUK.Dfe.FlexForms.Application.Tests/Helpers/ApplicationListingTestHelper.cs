@@ -17,7 +17,7 @@ internal static class ApplicationListingTestHelper
     {
         var service = Substitute.For<IUserAccessibleTemplateService>();
         service.ResolveAccessibleListingFilterAsync(
-                Arg.Any<IEnumerable<TemplatePermission>>(),
+                Arg.Any<IEnumerable<Permission>>(),
                 Arg.Any<Guid?>(),
                 Arg.Any<CancellationToken>())
             .Returns(Array.Empty<TemplateId>());
@@ -29,7 +29,7 @@ internal static class ApplicationListingTestHelper
         var allowed = allowedTemplateIds.ToHashSet();
         var service = Substitute.For<IUserAccessibleTemplateService>();
         service.ResolveAccessibleListingFilterAsync(
-                Arg.Any<IEnumerable<TemplatePermission>>(),
+                Arg.Any<IEnumerable<Permission>>(),
                 Arg.Any<Guid?>(),
                 Arg.Any<CancellationToken>())
             .Returns(call =>

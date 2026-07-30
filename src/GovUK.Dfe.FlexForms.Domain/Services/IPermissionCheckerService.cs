@@ -78,14 +78,26 @@ public interface IPermissionCheckerService
     bool IsInteractiveTenantAdmin();
 
     /// <summary>
-    /// Checks if the current user has the Caseworker role.
+    /// Checks if the current principal is an interactive SuperAdmin (platform admin) user JWT.
+    /// Returns false for machine identities and for tenant Admin without SuperAdmin.
     /// </summary>
-    /// <returns>True if the user is a Caseworker, false otherwise</returns>
-    bool IsCaseworker();
+    bool IsInteractivePlatformAdmin();
 
     /// <summary>
     /// Checks if the current user can read all applications in the current tenant.
     /// </summary>
     /// <returns>True if the user can read all applications, false otherwise</returns>
     bool CanReadAllApplications();
+
+    /// <summary>
+    /// Checks if the current user can administer templates in the current tenant
+    /// (create, edit schema versions, publish).
+    /// </summary>
+    bool CanManageTemplates();
+
+    /// <summary>
+    /// Checks if the current user can administer users in the current tenant
+    /// (User Manager / role assignment).
+    /// </summary>
+    bool CanManageUsers();
 }

@@ -6,12 +6,14 @@ using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using MockQueryable.NSubstitute;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
@@ -22,6 +24,32 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.Applications;
 
 public class AddContributorCommandHandlerTests
 {
+    private static readonly Guid TestTenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+
+    private static ITenantContextAccessor CreateContributorTenantContext()
+    {
+        var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
+        var tenant = new TenantConfiguration(TestTenantId, "Test", config, Array.Empty<string>());
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        accessor.CurrentTenant.Returns(tenant);
+        return accessor;
+    }
+
+    private static ITenantMembershipService CreateContributorMembershipService()
+    {
+        var service = Substitute.For<ITenantMembershipService>();
+        service.GetActiveMembershipAsync(Arg.Any<Guid>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns((TenantMembership?)null);
+        service.UpsertMembershipAsync(Arg.Any<Guid>(), Arg.Any<UserId>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(ci => new TenantMembership(
+                new TenantMembershipId(Guid.NewGuid()),
+                ci.ArgAt<Guid>(0),
+                ci.ArgAt<UserId>(1),
+                new RoleId(Guid.NewGuid()),
+                DateTime.UtcNow));
+        return service;
+    }
+
     [Theory]
     [CustomAutoData(typeof(ApplicationCustomization))]
     public async Task Handle_ShouldAddNewContributor_WhenValidRequest(
@@ -80,6 +108,7 @@ public class AddContributorCommandHandlerTests
         permissionCheckerService.IsAdmin().Returns(false);
 
         var cacheInvalidator = Substitute.For<IUserCacheInvalidator>();
+        var membershipService = CreateContributorMembershipService();
 
         // Mock the CreateContributor method
         var contributor = new User(
@@ -111,6 +140,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             cacheInvalidator,
+            CreateContributorTenantContext(),
+            membershipService,
             unitOfWork);
 
         // Act
@@ -118,6 +149,11 @@ public class AddContributorCommandHandlerTests
 
         // Assert
         Assert.True(result.IsSuccess, $"Result was not successful. Error: {result.Error}");
+        await membershipService.Received(1).UpsertMembershipAsync(
+            TestTenantId,
+            contributor.Id!,
+            RoleNames.User,
+            Arg.Any<CancellationToken>());
         Assert.NotNull(result.Value);
         Assert.Equal(contributor.Id!.Value, result.Value.UserId);
         Assert.Equal(command.Name, result.Value.Name);
@@ -209,6 +245,7 @@ public class AddContributorCommandHandlerTests
         permissionCheckerService.IsAdmin().Returns(false);
 
         var cacheInvalidator = Substitute.For<IUserCacheInvalidator>();
+        var membershipService = CreateContributorMembershipService();
 
         var handler = new AddContributorCommandHandler(
             applicationRepo,
@@ -217,6 +254,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             cacheInvalidator,
+            CreateContributorTenantContext(),
+            membershipService,
             unitOfWork);
 
         // Act
@@ -225,6 +264,11 @@ public class AddContributorCommandHandlerTests
         // Assert
         Assert.True(result.IsSuccess, $"Result was not successful. Error: {result.Error}");
         Assert.NotNull(result.Value);
+        await membershipService.Received(1).UpsertMembershipAsync(
+            TestTenantId,
+            existingContributor.Id!,
+            RoleNames.User,
+            Arg.Any<CancellationToken>());
         Assert.Equal(existingContributor.Id!.Value, result.Value.UserId);
         Assert.Equal(command.Name, result.Value.Name);
         Assert.Equal(command.Email, result.Value.Email);
@@ -369,6 +413,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act
@@ -448,6 +494,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act
@@ -487,6 +535,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act
@@ -531,6 +581,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act
@@ -588,6 +640,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act
@@ -654,6 +708,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act
@@ -687,6 +743,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act
@@ -726,6 +784,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act
@@ -782,6 +842,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act
@@ -882,6 +944,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act
@@ -984,6 +1048,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act
@@ -1052,6 +1118,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act
@@ -1151,6 +1219,8 @@ public class AddContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
             unitOfWork);
 
         // Act

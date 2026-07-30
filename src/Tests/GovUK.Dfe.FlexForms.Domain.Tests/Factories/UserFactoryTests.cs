@@ -274,13 +274,15 @@ public class UserFactoryTests
         DateTime grantedOn)
     {
         // Arrange
-        var initialTemplatePermissionCount = user.TemplatePermissions.Count;
+        var initialTemplatePermissionCount = user.Permissions.Count(p => p.ResourceType == ResourceType.Template);
 
         // Act
         _factory.AddTemplatePermissionToUser(user, templateId.ToString(), accessTypes, grantedBy, grantedOn);
 
         // Assert
-        Assert.Equal(initialTemplatePermissionCount + accessTypes.Length, user.TemplatePermissions.Count);
+        Assert.Equal(
+            initialTemplatePermissionCount + accessTypes.Length,
+            user.Permissions.Count(p => p.ResourceType == ResourceType.Template));
     }
 
     [Theory]

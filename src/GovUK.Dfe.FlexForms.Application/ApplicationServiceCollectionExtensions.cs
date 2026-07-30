@@ -1,3 +1,4 @@
+using GovUK.Dfe.FlexForms.Utils.Caching;
 using GovUK.Dfe.FlexForms.Utils.Configuration;
 using GovUK.Dfe.FlexForms.Application.Common.Behaviours;
 using GovUK.Dfe.FlexForms.Application.Common.Pipeline;
@@ -68,9 +69,12 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<IUserCacheInvalidator, UserCacheInvalidator>();
             services.AddScoped<IAuthenticatedUserService, AuthenticatedUserService>();
             services.AddScoped<IApplicationCreationService, ApplicationCreationService>();
+            services.AddScoped<ITenantRoleService, TenantRoleService>();
+            services.AddScoped<ITenantMembershipService, TenantMembershipService>();
+            services.AddScoped<IRolePermissionService, RolePermissionService>();
+            services.AddSingleton<ITenantOidcAudienceBinder, TenantOidcAudienceBinder>();
 
             services.AddSingleton<IUserRoleProvisionerRegistry, UserRoleProvisionerRegistry>();
-            services.AddTransient<IUserRoleProvisioner, CaseworkerRoleProvisioner>();
             services.AddTransient<IUserRoleProvisioner, StandardUserRoleProvisioner>();
             services.AddTransient<IUserRoleProvisioner, AdminRoleProvisioner>();
 
@@ -85,11 +89,17 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<ITenantTemplateCatalogue, TenantTemplateCatalogue>();
             services.AddScoped<ITenantTemplateResolver, TenantTemplateResolver>();
             services.AddScoped<IUserAccessibleTemplateService, UserAccessibleTemplateService>();
+            services.AddScoped<ISelfRegistrationTemplateAccessService, SelfRegistrationTemplateAccessService>();
 
             services.AddBackgroundService();
             
             // Host-shaped config for CoreLibs DI registration (see CoreLibsHostConfiguration.Resolve).
+            // Resolve forces FlexForms Redis key prefixes (not DfE:Cache:) for shared Redis with EAT.
             services.AddNotificationServicesWithRedis(tenantConfig);
+            services.PostConfigure<GovUK.Dfe.CoreLibs.Notifications.Options.NotificationServiceOptions>(options =>
+            {
+                options.RedisKeyPrefix = FlexFormsCacheKeys.NotificationsKeyPrefix;
+            });
 
             services.AddFileStorage(tenantConfig);
             

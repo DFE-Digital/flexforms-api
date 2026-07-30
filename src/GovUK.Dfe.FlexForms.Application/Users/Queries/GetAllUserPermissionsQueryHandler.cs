@@ -4,8 +4,10 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Common;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
+using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using MediatR;
@@ -19,7 +21,9 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
     public sealed class GetAllUserPermissionsQueryHandler(
         IEaRepository<User> userRepo,
         ICacheService<IRedisCacheType> cacheService,
-        ITenantContextAccessor tenantContextAccessor)
+        ITenantContextAccessor tenantContextAccessor,
+        ITenantMembershipService tenantMembershipService,
+        IRolePermissionService rolePermissionService)
         : IRequestHandler<GetAllUserPermissionsQuery, Result<UserAuthorizationDto>>
     {
         public async Task<Result<UserAuthorizationDto>> Handle(
@@ -50,27 +54,73 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                             });
                         }
 
-                        var resourcePermissions = userWithPermissions.Permissions
-                            .Select(p => new UserPermissionDto
-                            {
-                                ApplicationId = p.ApplicationId?.Value,
-                                ResourceType = p.ResourceType,
-                                ResourceKey = p.ResourceKey,
-                                AccessType = p.AccessType
-                            });
+                        var roleGrants = new List<PermissionClaimMerger.Grant>();
+                        string? membershipRoleName = null;
+                        RoleId? membershipRoleId = null;
+                        var currentTenant = tenantContextAccessor.CurrentTenant;
 
-                        var templatePermissions = userWithPermissions.TemplatePermissions
-                            .Select(tp => new UserPermissionDto
+                        if (currentTenant is not null && userWithPermissions.Id is not null)
+                        {
+                            var membership = await tenantMembershipService.GetActiveMembershipAsync(
+                                currentTenant.Id,
+                                userWithPermissions.Id,
+                                cancellationToken);
+
+                            membershipRoleName = membership?.Role?.Name;
+                            membershipRoleId = membership?.RoleId;
+
+                            if (membership?.RoleId is not null)
                             {
-                                ResourceType = ResourceType.Template,
-                                ResourceKey = tp.TemplateId.Value.ToString(),
-                                AccessType = tp.AccessType
-                            });
+                                var rolePerms = await rolePermissionService.GetByRoleIdAsync(
+                                    membership.RoleId,
+                                    cancellationToken);
+
+                                roleGrants.AddRange(rolePerms.Select(rp =>
+                                    new PermissionClaimMerger.Grant(rp.ResourceType, rp.ResourceKey, rp.AccessType)));
+                            }
+                        }
+
+                        var userGrants = userWithPermissions.Permissions
+                            .Select(p => new PermissionClaimMerger.Grant(p.ResourceType, p.ResourceKey, p.AccessType));
+
+                        var mergedClaims = PermissionClaimMerger.Merge(roleGrants, userGrants);
+
+                        // Preserve ApplicationId on user-owned application grants for web consumers.
+                        var applicationIdsByKey = userWithPermissions.Permissions
+                            .Where(p => p.ApplicationId is not null)
+                            .GroupBy(p => $"{p.ResourceType}:{p.ResourceKey}:{p.AccessType}", StringComparer.OrdinalIgnoreCase)
+                            .ToDictionary(g => g.Key, g => g.First().ApplicationId!.Value, StringComparer.OrdinalIgnoreCase);
+
+                        var permissions = mergedClaims
+                            .Select(claim => ParsePermissionClaim(claim, applicationIdsByKey))
+                            .Where(p => p is not null)
+                            .Select(p => p!)
+                            .ToArray();
+
+                        var roleName = membershipRoleName
+                            ?? userWithPermissions.Role?.Name
+                            ?? RoleNames.FromRoleId(userWithPermissions.RoleId.Value)
+                            ?? RoleNames.User;
+
+                        // Platform SuperAdmin on Users.RoleId / membership RoleId must surface as
+                        // SuperAdmin even when the tenant membership row is named Admin.
+                        if (membershipRoleId is not null
+                            && RoleNames.IsPlatformSuperAdminRoleId(membershipRoleId.Value))
+                        {
+                            roleName = RoleNames.SuperAdmin;
+                        }
+                        else if (RoleNames.IsPlatformSuperAdminUser(
+                                     userWithPermissions.Role?.Name
+                                     ?? RoleNames.FromRoleId(userWithPermissions.RoleId.Value),
+                                     userWithPermissions.RoleId.Value))
+                        {
+                            roleName = RoleNames.SuperAdmin;
+                        }
 
                         var userAuthzDto = new UserAuthorizationDto
                         {
-                            Permissions = resourcePermissions.Concat(templatePermissions).ToArray(),
-                            Roles = new List<string>(){ userWithPermissions.Role?.Name! }
+                            Permissions = permissions,
+                            Roles = new List<string> { roleName }
                         };
 
                         return Result<UserAuthorizationDto>.Success(userAuthzDto);
@@ -81,6 +131,31 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             {
                 return Result<UserAuthorizationDto>.Failure(e.ToString());
             }
+        }
+
+        private static UserPermissionDto? ParsePermissionClaim(
+            string claim,
+            IReadOnlyDictionary<string, Guid> applicationIdsByKey)
+        {
+            var parts = claim.Split(':', 3);
+            if (parts.Length != 3)
+                return null;
+
+            if (!Enum.TryParse<ResourceType>(parts[0], ignoreCase: true, out var resourceType))
+                return null;
+
+            if (!Enum.TryParse<AccessType>(parts[2], ignoreCase: true, out var accessType))
+                return null;
+
+            applicationIdsByKey.TryGetValue(claim, out var applicationId);
+
+            return new UserPermissionDto
+            {
+                ApplicationId = applicationIdsByKey.ContainsKey(claim) ? applicationId : null,
+                ResourceType = resourceType,
+                ResourceKey = parts[1],
+                AccessType = accessType
+            };
         }
     }
 }

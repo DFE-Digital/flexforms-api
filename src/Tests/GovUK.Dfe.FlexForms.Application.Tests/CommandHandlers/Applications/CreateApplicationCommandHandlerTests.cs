@@ -1,4 +1,3 @@
-using AutoFixture.Xunit2;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
@@ -7,12 +6,14 @@ using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Templates.Queries;
 using GovUK.Dfe.FlexForms.Application.Tests.Helpers;
 using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
 using MediatR;
+using MockQueryable.NSubstitute;
 using NSubstitute;
 using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 
@@ -26,6 +27,38 @@ public class CreateApplicationCommandHandlerTests
         resolver.IsTemplateInCurrentTenantAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>())
             .Returns(true);
         return resolver;
+    }
+
+    private static IEaRepository<User> UserRepoWith(User user)
+    {
+        var repo = Substitute.For<IEaRepository<User>>();
+        var users = new[] { user }.AsQueryable().BuildMockDbSet();
+        repo.Query().Returns(users);
+        return repo;
+    }
+
+    private static CreateApplicationCommandHandler CreateHandler(
+        IEaRepository<Domain.Entities.Application> applicationRepo,
+        IAuthenticatedUserService authUserService,
+        IApplicationCreationService creationService,
+        IPermissionCheckerService permissionCheckerService,
+        ISender mediator,
+        IUnitOfWork unitOfWork,
+        User? trackedUser = null,
+        IUserFactory? userFactory = null)
+    {
+        return new CreateApplicationCommandHandler(
+            applicationRepo,
+            Substitute.For<IEaRepository<Template>>(),
+            trackedUser is null ? Substitute.For<IEaRepository<User>>() : UserRepoWith(trackedUser),
+            authUserService,
+            creationService,
+            permissionCheckerService,
+            AllowAllTenantTemplates(),
+            userFactory ?? new UserFactory(),
+            mediator,
+            Substitute.For<IUserCacheInvalidator>(),
+            unitOfWork);
     }
 
     [Theory]
@@ -62,16 +95,14 @@ public class CreateApplicationCommandHandlerTests
         mediator.Send(Arg.Any<GetLatestTemplateSchemaByUserIdQuery>(), Arg.Any<CancellationToken>())
             .Returns(Result<TemplateSchemaDto>.Success(templateSchema));
 
-        var handler = new CreateApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
-            Substitute.For<IEaRepository<Template>>(),
             AuthenticatedUserServiceTestHelper.MockReturningUser(user),
             ApplicationCreationServiceTestHelper.MockReturning(application),
             permissionCheckerService,
-            AllowAllTenantTemplates(),
             mediator,
-            Substitute.For<IUserCacheInvalidator>(),
-            unitOfWork);
+            unitOfWork,
+            trackedUser: user);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -80,6 +111,11 @@ public class CreateApplicationCommandHandlerTests
         Assert.Equal("APP-001", result.Value.ApplicationReference);
         Assert.Equal(templateSchema.TemplateVersionId, result.Value.TemplateVersionId);
         Assert.NotNull(result.Value.TemplateSchema);
+
+        Assert.Contains(user.Permissions, p =>
+            p.ResourceType == ResourceType.Application
+            && p.AccessType == AccessType.Write
+            && p.ResourceKey == application.Id!.Value.ToString());
 
         await applicationRepo.Received(1).AddAsync(Arg.Any<Domain.Entities.Application>(), Arg.Any<CancellationToken>());
         await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
@@ -118,16 +154,14 @@ public class CreateApplicationCommandHandlerTests
         mediator.Send(Arg.Any<GetLatestTemplateSchemaByUserIdQuery>(), Arg.Any<CancellationToken>())
             .Returns(Result<TemplateSchemaDto>.Success(templateSchema));
 
-        var handler = new CreateApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
-            Substitute.For<IEaRepository<Template>>(),
             AuthenticatedUserServiceTestHelper.MockReturningUser(user),
             ApplicationCreationServiceTestHelper.MockReturning(application),
             permissionCheckerService,
-            AllowAllTenantTemplates(),
             mediator,
-            Substitute.For<IUserCacheInvalidator>(),
-            unitOfWork);
+            unitOfWork,
+            trackedUser: user);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -147,15 +181,12 @@ public class CreateApplicationCommandHandlerTests
         ISender mediator,
         IUnitOfWork unitOfWork)
     {
-        var handler = new CreateApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
-            Substitute.For<IEaRepository<Template>>(),
             AuthenticatedUserServiceTestHelper.MockReturning(Result<User>.Forbid("Not authenticated")),
             Substitute.For<IApplicationCreationService>(),
             permissionCheckerService,
-            AllowAllTenantTemplates(),
             mediator,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -175,15 +206,12 @@ public class CreateApplicationCommandHandlerTests
         ISender mediator,
         IUnitOfWork unitOfWork)
     {
-        var handler = new CreateApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
-            Substitute.For<IEaRepository<Template>>(),
             AuthenticatedUserServiceTestHelper.MockReturning(Result<User>.Forbid("No user identifier")),
             Substitute.For<IApplicationCreationService>(),
             permissionCheckerService,
-            AllowAllTenantTemplates(),
             mediator,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -202,15 +230,12 @@ public class CreateApplicationCommandHandlerTests
         ISender mediator,
         IUnitOfWork unitOfWork)
     {
-        var handler = new CreateApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
-            Substitute.For<IEaRepository<Template>>(),
             AuthenticatedUserServiceTestHelper.MockReturning(Result<User>.NotFound("User not found")),
             Substitute.For<IApplicationCreationService>(),
             permissionCheckerService,
-            AllowAllTenantTemplates(),
             mediator,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -243,15 +268,12 @@ public class CreateApplicationCommandHandlerTests
         permissionCheckerService.HasPermission(ResourceType.Template, command.TemplateId.ToString(), AccessType.Write).Returns(false);
         permissionCheckerService.IsAdmin().Returns(true);
 
-        var handler = new CreateApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
-            Substitute.For<IEaRepository<Template>>(),
             AuthenticatedUserServiceTestHelper.MockReturningUser(user),
             Substitute.For<IApplicationCreationService>(),
             permissionCheckerService,
-            AllowAllTenantTemplates(),
             mediator,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -286,15 +308,12 @@ public class CreateApplicationCommandHandlerTests
         mediator.Send(Arg.Any<GetLatestTemplateSchemaByUserIdQuery>(), Arg.Any<CancellationToken>())
             .Returns(Result<TemplateSchemaDto>.Failure("Template schema not found"));
 
-        var handler = new CreateApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
-            Substitute.For<IEaRepository<Template>>(),
             AuthenticatedUserServiceTestHelper.MockReturningUser(user),
             Substitute.For<IApplicationCreationService>(),
             permissionCheckerService,
-            AllowAllTenantTemplates(),
             mediator,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -329,15 +348,12 @@ public class CreateApplicationCommandHandlerTests
         mediator.When(x => x.Send(Arg.Any<GetLatestTemplateSchemaByUserIdQuery>(), Arg.Any<CancellationToken>()))
             .Do(_ => throw new InvalidOperationException("Database connection failed"));
 
-        var handler = new CreateApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
-            Substitute.For<IEaRepository<Template>>(),
             AuthenticatedUserServiceTestHelper.MockReturningUser(user),
             Substitute.For<IApplicationCreationService>(),
             permissionCheckerService,
-            AllowAllTenantTemplates(),
             mediator,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);

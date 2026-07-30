@@ -7,6 +7,7 @@ using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -15,8 +16,8 @@ using Microsoft.EntityFrameworkCore;
 namespace GovUK.Dfe.FlexForms.Application.Users.Commands;
 
 /// <summary>
-/// Removes a user from the current tenant by clearing their permissions on tenant templates.
-/// The user account and role are left intact.
+/// Removes a user from the current tenant by clearing their permissions on tenant templates
+/// and deactivating their tenant membership. The user account row is left intact.
 /// </summary>
 public sealed record RemoveUserFromTenantCommand(Guid UserId)
     : IRequest<Result<bool>>;
@@ -29,6 +30,8 @@ public sealed class RemoveUserFromTenantCommandHandler(
     IUnitOfWork unitOfWork,
     IUserFactory userFactory,
     ITenantTemplateCatalogue tenantTemplateCatalogue,
+    ITenantContextAccessor tenantContextAccessor,
+    ITenantMembershipService tenantMembershipService,
     IPermissionCheckerService permissionCheckerService,
     IHttpContextAccessor httpContextAccessor)
     : IRequestHandler<RemoveUserFromTenantCommand, Result<bool>>
@@ -37,15 +40,19 @@ public sealed class RemoveUserFromTenantCommandHandler(
         RemoveUserFromTenantCommand command,
         CancellationToken cancellationToken)
     {
-        if (!permissionCheckerService.IsAdmin())
+        if (!permissionCheckerService.CanManageUsers())
             return Result<bool>.Forbid("Only administrators can remove users from the tenant");
+
+        var currentTenant = tenantContextAccessor.CurrentTenant;
+        if (currentTenant is null)
+            return Result<bool>.Forbid("Tenant context is required");
 
         var actingEmail = httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Email);
         var userId = new UserId(command.UserId);
 
-        var user = await userRepository.Query()
-            .Include(u => u.TemplatePermissions)
-            .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
+        var user = await new GetUserWithAllPermissionsByUserIdQueryObject(userId)
+            .Apply(userRepository.Query())
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (user is null)
             return Result<bool>.NotFound("User not found");
@@ -57,18 +64,21 @@ public sealed class RemoveUserFromTenantCommandHandler(
         }
 
         var catalogueIds = await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken);
-        if (catalogueIds.Count == 0)
-            return Result<bool>.Success(true);
+        if (catalogueIds.Count > 0)
+        {
+            var catalogueSet = catalogueIds.ToHashSet();
+            var tenantTemplateIds = UserTemplateAccess.GetTemplateIds(user)
+                .Where(catalogueSet.Contains)
+                .ToList();
 
-        var catalogueSet = catalogueIds.ToHashSet();
-        var tenantTemplateIds = user.TemplatePermissions
-            .Where(tp => catalogueSet.Contains(tp.TemplateId))
-            .Select(tp => tp.TemplateId)
-            .Distinct()
-            .ToList();
+            if (tenantTemplateIds.Count > 0)
+                userFactory.RemoveTemplatePermissionsFromUser(user, tenantTemplateIds);
+        }
 
-        if (tenantTemplateIds.Count > 0)
-            userFactory.RemoveTemplatePermissionsFromUser(user, tenantTemplateIds);
+        await tenantMembershipService.DeactivateMembershipAsync(
+            currentTenant.Id,
+            userId,
+            cancellationToken);
 
         await unitOfWork.CommitAsync(cancellationToken);
         return Result<bool>.Success(true);

@@ -80,7 +80,8 @@ public class DistributedCacheManager(
     {
         try
         {
-            var key = $"logout_forced_{userId}";
+            // Must use the same tenant-prefixed key as IsLogoutFlagSetAsync / ClearLogoutFlagAsync.
+            var key = GetTenantPrefixedKey($"logout_forced_{userId}");
             var options = new DistributedCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = duration

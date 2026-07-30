@@ -78,7 +78,7 @@ public sealed class GetApplicationsForUserQueryHandler(
                     }
 
                     var templateIdsFilter = await userAccessibleTemplateService.ResolveAccessibleListingFilterAsync(
-                        userWithAuthorization.TemplatePermissions,
+                        userWithAuthorization.Permissions,
                         request.TemplateId,
                         cancellationToken);
 

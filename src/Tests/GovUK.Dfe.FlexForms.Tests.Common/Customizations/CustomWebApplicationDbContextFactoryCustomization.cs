@@ -76,7 +76,7 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                         { "NotificationService:AutoCleanupIntervalMinutes", "60" },
                         { "NotificationService:MaxNotificationAgeHours", "24" },
                         { "NotificationService:RedisConnectionString", "localhost:6379" },
-                        { "NotificationService:RedisKeyPrefix", "notifications:" },
+                        { "NotificationService:RedisKeyPrefix", "FlexForms:notifications:" },
                         { "NotificationService:SessionKey", "UserNotifications" }
                     })
                     .Build();

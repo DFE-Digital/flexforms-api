@@ -509,35 +509,14 @@ public class UserFactory : IUserFactory
         UserId grantedBy,
         DateTime? grantedOn = null)
     {
-        if (user == null)
-            throw new ArgumentException("User cannot be null", nameof(user));
-        
-        if (string.IsNullOrWhiteSpace(templateId))
-            throw new ArgumentException("TemplateId cannot be null or empty", nameof(templateId));
-        
-        if (accessTypes == null)
-            throw new ArgumentException("AccessTypes cannot be null", nameof(accessTypes));
-        
-        if (grantedBy == null)
-            throw new ArgumentException("GrantedBy cannot be null", nameof(grantedBy));
-
-        var when = grantedOn ?? DateTime.UtcNow;
-
-        foreach (var accessType in accessTypes)
-        {
-            // Check if template permission already exists (idempotent)
-            var hasTemplatePermission = user.TemplatePermissions
-                .Any(tp => tp.TemplateId.Value.ToString() == templateId && tp.AccessType == accessType);
-
-            if (!hasTemplatePermission)
-            {
-                user.AddTemplatePermission(
-                    templateId,
-                    accessType,
-                    grantedBy,
-                    when);
-            }
-        }
+        AddPermissionToUser(
+            user,
+            templateId,
+            ResourceType.Template,
+            accessTypes,
+            grantedBy,
+            applicationId: null,
+            grantedOn);
     }
 
     /// <inheritdoc />
@@ -585,18 +564,22 @@ public class UserFactory : IUserFactory
         if (templateIds == null)
             throw new ArgumentNullException(nameof(templateIds));
 
-        var ids = templateIds.Select(t => t.Value).ToHashSet();
-        if (ids.Count == 0)
+        var keys = templateIds
+            .Select(t => t.Value.ToString())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (keys.Count == 0)
             return 0;
 
-        var toRemove = user.TemplatePermissions
-            .Where(tp => ids.Contains(tp.TemplateId.Value))
+        var toRemove = user.Permissions
+            .Where(p =>
+                p.ResourceType == ResourceType.Template
+                && keys.Contains(p.ResourceKey))
             .ToList();
 
         var removed = 0;
         foreach (var permission in toRemove)
         {
-            if (user.RemoveTemplatePermission(permission))
+            if (user.RemovePermission(permission))
                 removed++;
         }
 

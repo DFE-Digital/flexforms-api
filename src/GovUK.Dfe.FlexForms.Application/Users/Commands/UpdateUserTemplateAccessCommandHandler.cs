@@ -40,7 +40,7 @@ public sealed class UpdateUserTemplateAccessCommandHandler(
         UpdateUserTemplateAccessCommand command,
         CancellationToken cancellationToken)
     {
-        if (!permissionCheckerService.IsAdmin())
+        if (!permissionCheckerService.CanManageUsers())
             return Result<TenantUserDto>.Forbid("Only administrators can update user template access");
 
         var catalogueIds = await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken);
@@ -60,7 +60,7 @@ public sealed class UpdateUserTemplateAccessCommandHandler(
         var userId = new UserId(command.UserId);
         var user = await userRepository.Query()
             .Include(u => u.Role)
-            .Include(u => u.TemplatePermissions)
+            .Include(u => u.Permissions)
             .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
         if (user is null)
@@ -71,10 +71,8 @@ public sealed class UpdateUserTemplateAccessCommandHandler(
             return Result<TenantUserDto>.Failure("Could not resolve the acting administrator");
 
         var desiredSet = desiredIds.ToHashSet();
-        var currentTenantTemplateIds = user.TemplatePermissions
-            .Where(tp => catalogueSet.Contains(tp.TemplateId))
-            .Select(tp => tp.TemplateId)
-            .Distinct()
+        var currentTenantTemplateIds = UserTemplateAccess.GetTemplateIds(user)
+            .Where(catalogueSet.Contains)
             .ToList();
 
         var toRemove = currentTenantTemplateIds.Where(id => !desiredSet.Contains(id)).ToList();

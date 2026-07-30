@@ -5,12 +5,15 @@ using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -26,6 +29,11 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
         IHttpContextAccessor httpCtxAcc,
         ITenantContextAccessor tenantContextAccessor,
         IUserAccessibleTemplateService userAccessibleTemplateService,
+        ITenantMembershipService tenantMembershipService,
+        ITenantOidcAudienceBinder tenantOidcAudienceBinder,
+        ISelfRegistrationTemplateAccessService selfRegistrationTemplateAccess,
+        IUnitOfWork unitOfWork,
+        IUserCacheInvalidator userCacheInvalidator,
         [FromKeyedServices("internal")] ICustomRequestChecker internalRequestChecker,
         ILogger<ExchangeTokenQueryHandler> logger)
         : IRequestHandler<ExchangeTokenQuery, Result<ExchangeTokenDto>>
@@ -58,7 +66,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                 .ValidateIdTokenAsync(req.SubjectToken, false, validInternalAuthReq, tenantInternalAuthOptions, tenantTestAuthOptions, ct);
 
             var email = externalUser.FindFirst(ClaimTypes.Email)?.Value;
-                        
+
             if (email is null)
                 return Result<ExchangeTokenDto>.Failure("Missing email");
 
@@ -70,30 +78,133 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                     "Tenant could not be resolved for the current request.");
             }
 
-            var dbUser = await (new GetUserWithAllTemplatePermissionsQueryObject(email))
+            var currentTenant = tenantContextAccessor.CurrentTenant;
+
+            // Shared EA DB hardening: ID token audience must belong to THIS tenant's OIDC apps.
+            // Skip for internal/test auth paths (no real OIDC audience).
+            var useTestOrInternalAuth = validInternalAuthReq
+                || tenantTestAuthOptions?.Enabled == true;
+            if (!useTestOrInternalAuth
+                && !tenantOidcAudienceBinder.TokenMatchesTenant(currentTenant, ReadTokenAudiences(req.SubjectToken)))
+            {
+                logger.LogWarning(
+                    "ExchangeToken: ID token audience does not match tenant {TenantName} ({TenantId}).",
+                    currentTenant.Name,
+                    currentTenant.Id);
+                return Result<ExchangeTokenDto>.Forbid(
+                    "The identity token was not issued for this tenant. " +
+                    "Check X-Tenant-ID matches the application you signed in to.");
+            }
+
+            var dbUser = await new GetUserWithAllPermissionsByEmailQueryObject(email)
                 .Apply(userRepo.Query().AsNoTracking())
-                .Include(u => u.Role)
                 .FirstOrDefaultAsync(cancellationToken: ct);
 
             if (dbUser is null)
                 return Result<ExchangeTokenDto>.NotFound($"User not found for email {email}");
 
-            if (dbUser.Role is null)
-                return Result<ExchangeTokenDto>.Conflict($"User {email} has no role assigned");
+            if (dbUser.Id is null)
+                return Result<ExchangeTokenDto>.Failure($"User {email} has no identifier");
 
-            // Multi-template tenants: users may exist with no form access yet (pending admin grant).
-            // Allow token exchange so the web app can show the no-access page.
-            var accessibleTemplates = await userAccessibleTemplateService.GetAccessibleTemplateIdsAsync(
-                dbUser.TemplatePermissions,
+            // Shared EA DB: role for THIS tenant comes from TenantMembership, not global User.RoleId.
+            // Exception: platform SuperAdmin (well-known global AdminRoleId / SuperAdmin name) may
+            // exchange without a membership so operators are not locked out of FlexForms tenants.
+            var membership = await tenantMembershipService.GetActiveMembershipAsync(
+                currentTenant.Id,
+                dbUser.Id,
                 ct);
+
+            string? membershipRoleName;
+            if (membership is null)
+            {
+                var userGlobalRoleName = dbUser.Role?.Name
+                    ?? RoleNames.FromRoleId(dbUser.RoleId.Value);
+
+                if (RoleNames.IsPlatformSuperAdminUser(userGlobalRoleName, dbUser.RoleId.Value))
+                {
+                    membershipRoleName = RoleNames.SuperAdmin;
+                    logger.LogInformation(
+                        "ExchangeToken: Platform SuperAdmin {Email} allowed without TenantMembership for tenant {TenantName} ({TenantId}).",
+                        email,
+                        currentTenant.Name,
+                        currentTenant.Id);
+                }
+                else
+                {
+                    logger.LogWarning(
+                        "ExchangeToken: User {Email} has no active membership for tenant {TenantName} ({TenantId}).",
+                        email,
+                        currentTenant.Name,
+                        currentTenant.Id);
+                    return Result<ExchangeTokenDto>.Forbid(
+                        $"User is not a member of tenant '{currentTenant.Name}'.");
+                }
+            }
+            else
+            {
+                membershipRoleName = membership.Role?.Name
+                    ?? RoleNames.FromRoleId(membership.RoleId.Value)
+                    ?? dbUser.Role?.Name;
+
+                // Membership pointing at the well-known global admin RoleId is platform SuperAdmin.
+                if (RoleNames.IsPlatformSuperAdminRoleId(membership.RoleId.Value))
+                    membershipRoleName = RoleNames.SuperAdmin;
+            }
+
+            // Platform SuperAdmin (Users.RoleId / global SuperAdmin row) always wins over a
+            // tenant Admin membership so operators keep SuperAdmin claims in every tenant.
+            var platformRoleName = dbUser.Role?.Name
+                ?? RoleNames.FromRoleId(dbUser.RoleId.Value);
+            if (RoleNames.IsPlatformSuperAdminUser(platformRoleName, dbUser.RoleId.Value))
+                membershipRoleName = RoleNames.SuperAdmin;
+
+            if (string.IsNullOrWhiteSpace(membershipRoleName))
+                return Result<ExchangeTokenDto>.Conflict($"User {email} has no role assigned for this tenant");
+
+            // Self-registered User role with no form access: backfill Template R/W for every live
+            // tenant form. Fixes users registered before auto-grant, or when exchange succeeded
+            // before register could grant templates.
+            var accessibleTemplates = await userAccessibleTemplateService.GetAccessibleTemplateIdsAsync(
+                dbUser.Permissions,
+                ct);
+
+            if (accessibleTemplates.Count == 0
+                && string.Equals(membershipRoleName, RoleNames.User, StringComparison.OrdinalIgnoreCase))
+            {
+                var trackedUser = await new GetUserWithAllPermissionsByEmailQueryObject(email)
+                    .Apply(userRepo.Query())
+                    .FirstOrDefaultAsync(cancellationToken: ct);
+
+                if (trackedUser is not null
+                    && await selfRegistrationTemplateAccess.EnsureLiveTemplateAccessAsync(trackedUser, ct))
+                {
+                    await unitOfWork.CommitAsync(ct);
+                    await userCacheInvalidator.InvalidateForUserAsync(
+                        trackedUser.Email,
+                        trackedUser.ExternalProviderId,
+                        trackedUser.Id!,
+                        ct);
+
+                    dbUser = trackedUser;
+                    accessibleTemplates = await userAccessibleTemplateService.GetAccessibleTemplateIdsAsync(
+                        dbUser.Permissions,
+                        ct);
+
+                    logger.LogInformation(
+                        "ExchangeToken: Backfilled live template access for self-registered user {Email} on tenant {TenantName}. TemplateCount={Count}.",
+                        email,
+                        currentTenant.Name,
+                        accessibleTemplates.Count);
+                }
+            }
 
             if (accessibleTemplates.Count == 0)
             {
                 logger.LogInformation(
                     "ExchangeToken: User {Email} has no accessible templates for tenant {TenantName}. TemplatePermissionCount={PermissionCount}. Allowing login without form access.",
                     email,
-                    tenantContextAccessor.CurrentTenant.Name,
-                    dbUser.TemplatePermissions.Count);
+                    currentTenant.Name,
+                    UserTemplateAccess.GetTemplateIds(dbUser).Count);
             }
 
             // Caller was already authenticated by the API pipeline (ServiceCallers → CompositeScheme →
@@ -109,7 +220,6 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
 
             // SaaS: stamp tenant_id on the issued internal JWT so cross-tenant replay can be
             // rejected by JwtBearer validation downstream.
-            var currentTenant = tenantContextAccessor.CurrentTenant;
             identity.AddClaim(new Claim(TenantAuthClaimTypes.TenantId, currentTenant.Id.ToString()));
 
             var allowedClaimTypes = new[]
@@ -131,10 +241,10 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                 }
             }
 
-            // Add the user's role if it's not already there
-            if (!identity.HasClaim(c => c.Type == ClaimTypes.Role && c.Value == dbUser.Role.Name))
+            // Role claim from tenant membership (not the global User.RoleId).
+            if (!identity.HasClaim(c => c.Type == ClaimTypes.Role && c.Value == membershipRoleName))
             {
-                identity.AddClaim(new Claim(ClaimTypes.Role, dbUser.Role.Name));
+                identity.AddClaim(new Claim(ClaimTypes.Role, membershipRoleName));
             }
 
             // Merge Entra / app roles from the authenticated request principal, avoiding duplicates
@@ -142,7 +252,8 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             {
                 var isExcludedRole =
                     (svcRole.Type == ClaimTypes.Role || svcRole.Type == "roles") &&
-                    (svcRole.Value.Equals(RoleNames.Admin, StringComparison.OrdinalIgnoreCase) ||
+                    (svcRole.Value.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase) ||
+                     svcRole.Value.Equals(RoleNames.Admin, StringComparison.OrdinalIgnoreCase) ||
                      svcRole.Value.Equals(RoleNames.User, StringComparison.OrdinalIgnoreCase) ||
                      svcRole.Value.Equals(RoleNames.Caseworker, StringComparison.OrdinalIgnoreCase));
 
@@ -172,6 +283,19 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                 IdToken = internalToken.IdToken,
                 RefreshExpiresIn = internalToken.RefreshExpiresIn
             });
+        }
+
+        private static IEnumerable<string> ReadTokenAudiences(string subjectToken)
+        {
+            try
+            {
+                var jwt = new JwtSecurityTokenHandler().ReadJwtToken(subjectToken);
+                return jwt.Audiences ?? Enumerable.Empty<string>();
+            }
+            catch
+            {
+                return Enumerable.Empty<string>();
+            }
         }
     }
 }

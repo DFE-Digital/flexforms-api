@@ -89,7 +89,6 @@ public class StandardUserApplicationCreationAuthorizationTests
     {
         var permissionValues = user.Permissions
             .Select(p => $"{p.ResourceType}:{p.ResourceKey}:{p.AccessType}")
-            .Concat(user.TemplatePermissions.Select(tp => $"Template:{tp.TemplateId.Value}:{tp.AccessType}"))
             .Select(value => new Claim(PermissionClaimEvaluator.PermissionClaimType, value));
 
         return new ClaimsPrincipal(new ClaimsIdentity(permissionValues, "Test"));

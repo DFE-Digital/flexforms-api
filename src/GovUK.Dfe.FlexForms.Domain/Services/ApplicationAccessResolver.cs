@@ -41,8 +41,9 @@ public static class ApplicationAccessResolver
     }
 
     /// <summary>
-    /// Resolves the application listing scope for the given user based on role.
-    /// Standard users only see applications they have explicit permission rows for.
+    /// Resolves the application listing scope for the given user based on role and grants.
+    /// SuperAdmin sees all applications. Users with Application:Any:Read see all applications.
+    /// Otherwise only applications with explicit permission rows.
     /// </summary>
     public static AccessScope Resolve(User user)
     {
@@ -50,11 +51,12 @@ public static class ApplicationAccessResolver
 
         var roleName = user.Role?.Name;
 
-        if (string.Equals(roleName, RoleNames.Admin, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(roleName, RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(roleName, RoleNames.Admin, StringComparison.OrdinalIgnoreCase))
             return new AccessScope(AccessMode.AllApplicationsInTenant, Array.Empty<ApplicationId>(), Array.Empty<TemplateId>());
 
-        if (string.Equals(roleName, RoleNames.Caseworker, StringComparison.OrdinalIgnoreCase))
-            return ResolveCaseworkerScope(user);
+        if (HasTenantWideApplicationRead(user))
+            return new AccessScope(AccessMode.AllApplicationsInTenant, Array.Empty<ApplicationId>(), Array.Empty<TemplateId>());
 
         var applicationIds = user.Permissions
             .Where(p => p is { ApplicationId: not null, ResourceType: ResourceType.Application })
@@ -67,7 +69,7 @@ public static class ApplicationAccessResolver
 
     /// <summary>
     /// Returns true when the user may list all applications for the specified template
-    /// (admin, or caseworker with template-scoped read access).
+    /// (admin, or tenant-wide application read access).
     /// </summary>
     public static bool CanListAllApplicationsForTemplate(User user, TemplateId templateId)
     {
@@ -83,19 +85,9 @@ public static class ApplicationAccessResolver
         };
     }
 
-    private static AccessScope ResolveCaseworkerScope(User user)
-    {
-        var templateIds = GetReadableTemplateIds(user);
-        if (templateIds.Count > 0)
-            return new AccessScope(AccessMode.TemplateScoped, Array.Empty<ApplicationId>(), templateIds);
-
-        return AccessScope.Empty;
-    }
-
-    private static List<TemplateId> GetReadableTemplateIds(User user) =>
-        user.TemplatePermissions
-            .Where(tp => tp.AccessType == AccessType.Read)
-            .Select(tp => tp.TemplateId)
-            .Distinct()
-            .ToList();
+    private static bool HasTenantWideApplicationRead(User user) =>
+        user.Permissions.Any(p =>
+            p.ResourceType == ResourceType.Application
+            && string.Equals(p.ResourceKey, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase)
+            && p.AccessType == AccessType.Read);
 }

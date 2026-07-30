@@ -1,10 +1,12 @@
 using GovUK.Dfe.CoreLibs.Caching.Helpers;
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Common;
-using GovUK.Dfe.FlexForms.Application.TemplatePermissions.QueryObjects;
+using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using MediatR;
@@ -36,25 +38,27 @@ namespace GovUK.Dfe.FlexForms.Application.TemplatePermissions.Queries
                     cacheKey,
                     async () =>
                     {
-                        var userWithTemplatePermissions =
-                            await new GetTemplatePermissionsForUserByUserIdQueryObject(request.UserId)
-                                .Apply(userRepo.Query().AsNoTracking())
-                                .FirstOrDefaultAsync(cancellationToken);
+                        var user = await new GetUserWithAllPermissionsByUserIdQueryObject(request.UserId)
+                            .Apply(userRepo.Query().AsNoTracking())
+                            .FirstOrDefaultAsync(cancellationToken);
 
-                        if (userWithTemplatePermissions is null)
+                        if (user is null)
                         {
                             return Result<IReadOnlyCollection<TemplatePermissionDto>>.Success(
                                 Array.Empty<TemplatePermissionDto>());
                         }
 
-                        var dtoList = userWithTemplatePermissions.TemplatePermissions
+                        var dtoList = UserTemplateAccess.GetTemplateGrants(user)
                             .Select(p => new TemplatePermissionDto
                             {
                                 TemplatePermissionId = p.Id?.Value,
-                                UserId = p.UserId.Value,
-                                TemplateId = p.TemplateId.Value,
+                                UserId = user.Id!.Value,
+                                TemplateId = Guid.TryParse(p.ResourceKey, out var templateId)
+                                    ? templateId
+                                    : Guid.Empty,
                                 AccessType = p.AccessType
                             })
+                            .Where(p => p.TemplateId != Guid.Empty)
                             .ToList()
                             .AsReadOnly();
 

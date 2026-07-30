@@ -44,9 +44,9 @@ public class CreateTemplateCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ShouldForbid_WhenCallerIsNotAdmin()
+    public async Task Handle_ShouldForbid_WhenCallerCannotManageTemplates()
     {
-        _permissionChecker.IsAdmin().Returns(false);
+        _permissionChecker.CanManageTemplates().Returns(false);
 
         var result = await _handler.Handle(new CreateTemplateCommand("Transfers"), CancellationToken.None);
 
@@ -55,9 +55,9 @@ public class CreateTemplateCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ShouldCreateTemplate_WhenAdmin()
+    public async Task Handle_ShouldCreateTemplate_WhenCanManageTemplates()
     {
-        _permissionChecker.IsAdmin().Returns(true);
+        _permissionChecker.CanManageTemplates().Returns(true);
         var tenantId = Guid.NewGuid();
         _tenantContextAccessor.CurrentTenant.Returns(new TenantConfiguration(
             tenantId,

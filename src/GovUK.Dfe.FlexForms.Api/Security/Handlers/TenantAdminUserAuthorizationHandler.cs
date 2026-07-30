@@ -30,7 +30,8 @@ public sealed class TenantAdminUserAuthorizationHandler(IHttpContextAccessor htt
             return Task.CompletedTask;
         }
 
-        if (!context.User.IsInRole(RoleNames.Admin))
+        if (!context.User.IsInRole(RoleNames.SuperAdmin)
+            && !context.User.IsInRole(RoleNames.Admin))
         {
             return Task.CompletedTask;
         }

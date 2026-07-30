@@ -38,9 +38,9 @@ public class TemplatesController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-    /// Creates a new template in the current tenant. Admin only.
-    /// The creating admin is granted Read/Write template permission.
-    /// </summary>
+/// Creates a new template in the current tenant. Admin or Template:Any:Manage.
+/// The creating user is granted Read/Write template permission.
+/// </summary>
     [HttpPost]
     [Authorize(Policy = "CanCreateTemplate")]
     [SwaggerResponse(201, "Template created successfully.", typeof(TemplateDto))]
@@ -117,8 +117,7 @@ public class TemplatesController(ISender sender) : ControllerBase
     [HttpPost("{templateId}/custom-statuses")]
     [SwaggerResponse(201, "Custom status created/updated.", typeof(CustomApplicationStatusDto))]
     [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
-    [Authorize(Policy = "CanWriteTemplate")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = "CanCreateTemplate")]
     public async Task<IActionResult> CreateCustomApplicationStatusAsync([FromRoute] Guid templateId, [FromBody] CustomApplicationStatusRequest request, CancellationToken cancellationToken)
     {
         if (request is null)
@@ -134,8 +133,9 @@ public class TemplatesController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-    /// Sets whether a template is live for end users. Admin only.
-    /// </summary>
+/// Sets whether a template is live for end users. Admin or Template:Any:Manage
+/// (or Template:{id}:Manage for that template).
+/// </summary>
     [HttpPut("{templateId}/live")]
     [Authorize(Policy = "CanCreateTemplate")]
     [SwaggerResponse(200, "Template live status updated.", typeof(TemplateDto))]
@@ -161,6 +161,32 @@ public class TemplatesController(ISender sender) : ControllerBase
     }
 
     /// <summary>
+    /// Grants Template Read/Write for this template to every active member of the current tenant.
+    /// Users who already have access are skipped. Requires template administration rights.
+    /// </summary>
+    [HttpPost("{templateId}/grant-all-users")]
+    [Authorize(Policy = "CanCreateTemplate")]
+    [SwaggerResponse(200, "Template access granted to tenant users.", typeof(GrantTemplateAccessToAllUsersResponse))]
+    [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
+    [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Access denied.", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "Template not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    public async Task<IActionResult> GrantTemplateAccessToAllUsersAsync(
+        [FromRoute] Guid templateId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GrantTemplateAccessToAllUsersCommand(templateId),
+            cancellationToken);
+
+        return new ObjectResult(result)
+        {
+            StatusCode = StatusCodes.Status200OK
+        };
+    }
+
+    /// <summary>
     /// Creates a new schema version for the specified template.
     /// </summary>
     [HttpPost("{templateId}/versions")]
@@ -171,8 +197,7 @@ public class TemplatesController(ISender sender) : ControllerBase
     [SwaggerResponse(404, "Template not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
     [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
-    [Authorize(Policy = "CanWriteTemplate")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Policy = "CanCreateTemplate")]
     public async Task<IActionResult> CreateTemplateVersionAsync(
         [FromRoute] Guid templateId,
         [FromBody] CreateTemplateVersionRequest request,

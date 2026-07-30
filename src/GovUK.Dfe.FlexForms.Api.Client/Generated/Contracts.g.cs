@@ -294,6 +294,42 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial interface IRolesClient
+    {
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Tenant roles.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.ObjectModel.ObservableCollection<TenantRoleDto>> ListAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Role created.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TenantRoleDto> CreateAsync(CreateTenantRoleRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Role renamed.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TenantRoleDto> RenameAsync(System.Guid roleId, RenameTenantRoleRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Role deleted.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task DeleteAsync(System.Guid roleId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Role permissions.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.ObjectModel.ObservableCollection<RolePermissionDto>> GetPermissionsAsync(System.Guid roleId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <returns>Permissions replaced.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.ObjectModel.ObservableCollection<RolePermissionDto>> SetPermissionsAsync(System.Guid roleId, SetRolePermissionsRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial interface ITemplatesClient
     {
 
@@ -308,8 +344,8 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// Creates a new template in the current tenant. Admin only.
-        /// <br/>The creating admin is granted Read/Write template permission.
+        /// Creates a new template in the current tenant. Admin or Template:Any:Manage.
+        /// <br/>The creating user is granted Read/Write template permission.
         /// </summary>
         /// <returns>Template created successfully.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
@@ -343,11 +379,21 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// Sets whether a template is live for end users. Admin only.
+        /// Sets whether a template is live for end users. Admin or Template:Any:Manage
+        /// <br/>(or Template:{id}:Manage for that template).
         /// </summary>
         /// <returns>Template live status updated.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<TemplateDto> SetTemplateLiveAsync(System.Guid templateId, SetTemplateLiveRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Grants Template Read/Write for this template to every active member of the current tenant.
+        /// <br/>Users who already have access are skipped. Requires template administration rights.
+        /// </summary>
+        /// <returns>Template access granted to tenant users.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GrantTemplateAccessToAllUsersResponse> GrantTemplateAccessToAllUsersAsync(System.Guid templateId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
@@ -389,6 +435,15 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>Seeding complete.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<SeedTenantsResponse> SeedFromAppSettingsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Returns decrypted TenantConfig settings rows for the caller's own tenant.
+        /// <br/>Restricted to interactive SuperAdmin users.
+        /// </summary>
+        /// <returns>Tenant settings.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetTenantSettingsResponse> GetTenantSettingsAsync(System.Guid tenantId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
@@ -494,6 +549,25 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>Tenant users.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<System.Collections.ObjectModel.ObservableCollection<TenantUserDto>> GetTenantUsersAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Returns a user's direct (user-level) permission grants within the current tenant.
+        /// <br/>Does not include permissions inherited from the user's role.
+        /// </summary>
+        /// <returns>User permissions.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.ObjectModel.ObservableCollection<UserPermissionDto>> GetUserPermissionsAsync(System.Guid userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Replaces a user's direct (user-level) permission grants within the current tenant.
+        /// <br/>Does not affect permissions inherited from the user's role.
+        /// <br/>Manage access cannot be granted at user level — assign it via a tenant role instead.
+        /// </summary>
+        /// <returns>User permissions updated.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.ObjectModel.ObservableCollection<UserPermissionDto>> SetUserPermissionsAsync(System.Guid userId, SetUserPermissionsRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>

@@ -1,0 +1,137 @@
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.FlexForms.Domain.Common;
+using GovUK.Dfe.FlexForms.Domain.Services;
+
+namespace GovUK.Dfe.FlexForms.Domain.Tests.Services;
+
+public class RolePermissionGrantRulesTests
+{
+    [Fact]
+    public void EnsureValid_AllowsTemplateAnyWrite()
+    {
+        RolePermissionGrantRules.EnsureValid(
+            ResourceType.Template,
+            PermissionConstants.AnyResourceKey,
+            AccessType.Write);
+    }
+
+    [Fact]
+    public void EnsureValid_AllowsApplicationAnyRead()
+    {
+        RolePermissionGrantRules.EnsureValid(
+            ResourceType.Application,
+            PermissionConstants.AnyResourceKey,
+            AccessType.Read);
+    }
+
+    [Fact]
+    public void EnsureValid_AllowsApplicationFilesAnyRead()
+    {
+        RolePermissionGrantRules.EnsureValid(
+            ResourceType.ApplicationFiles,
+            PermissionConstants.AnyResourceKey,
+            AccessType.Read);
+    }
+
+    [Fact]
+    public void EnsureValid_AllowsTemplateAnyManage()
+    {
+        RolePermissionGrantRules.EnsureValid(
+            ResourceType.Template,
+            PermissionConstants.AnyResourceKey,
+            AccessType.Manage);
+    }
+
+    [Fact]
+    public void EnsureValid_AllowsSpecificUserManage()
+    {
+        RolePermissionGrantRules.EnsureValid(
+            ResourceType.User,
+            "user@example.com",
+            AccessType.Manage);
+    }
+
+    [Theory]
+    [InlineData(ResourceType.User, "Any", AccessType.Manage)]
+    [InlineData(ResourceType.User, "user@example.com", AccessType.Manage)]
+    [InlineData(ResourceType.Template, "Any", AccessType.Manage)]
+    [InlineData(ResourceType.Template, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", AccessType.Manage)]
+    public void EnsureValidForUser_RejectsManage(ResourceType resourceType, string resourceKey, AccessType accessType)
+    {
+        var ex = Assert.Throws<ArgumentException>(() =>
+            RolePermissionGrantRules.EnsureValidForUser(resourceType, resourceKey, accessType));
+
+        Assert.Contains("individual user", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("accessType", ex.ParamName);
+    }
+
+    [Fact]
+    public void EnsureValidForUser_AllowsTemplateAnyWrite()
+    {
+        RolePermissionGrantRules.EnsureValidForUser(
+            ResourceType.Template,
+            PermissionConstants.AnyResourceKey,
+            AccessType.Write);
+    }
+
+    [Theory]
+    [InlineData(ResourceType.Application, AccessType.Write)]
+    [InlineData(ResourceType.ApplicationFiles, AccessType.Write)]
+    [InlineData(ResourceType.User, AccessType.Read)]
+    [InlineData(ResourceType.Template, AccessType.Read)]
+    public void EnsureValid_RejectsAny_ForDisallowedGrants(ResourceType resourceType, AccessType accessType)
+    {
+        var ex = Assert.Throws<ArgumentException>(() =>
+            RolePermissionGrantRules.EnsureValid(
+                resourceType,
+                PermissionConstants.AnyResourceKey,
+                accessType));
+
+        Assert.Contains("only allowed", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void EnsureValid_RejectsManage_ForUnsupportedResourceType()
+    {
+        var ex = Assert.Throws<ArgumentException>(() =>
+            RolePermissionGrantRules.EnsureValid(
+                ResourceType.Application,
+                PermissionConstants.AnyResourceKey,
+                AccessType.Manage));
+
+        Assert.Contains("Manage", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void EnsureValid_RequiresGuid_ForApplication()
+    {
+        var ex = Assert.Throws<ArgumentException>(() =>
+            RolePermissionGrantRules.EnsureValid(
+                ResourceType.Application,
+                "not-a-guid",
+                AccessType.Read));
+
+        Assert.Contains("GUID", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void EnsureValid_RequiresEmail_ForUser()
+    {
+        var ex = Assert.Throws<ArgumentException>(() =>
+            RolePermissionGrantRules.EnsureValid(
+                ResourceType.User,
+                "not-an-email",
+                AccessType.Read));
+
+        Assert.Contains("email", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void EnsureValid_AcceptsApplicationGuid()
+    {
+        RolePermissionGrantRules.EnsureValid(
+            ResourceType.Application,
+            Guid.NewGuid().ToString(),
+            AccessType.Read);
+    }
+}

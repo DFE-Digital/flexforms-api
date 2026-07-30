@@ -32,7 +32,7 @@ public class GetAccessibleTemplatesQueryHandlerTests
             .Returns(new[] { TemplateA, TemplateB }.AsReadOnly());
 
         var permissionChecker = Substitute.For<IPermissionCheckerService>();
-        permissionChecker.IsAdmin().Returns(true);
+        permissionChecker.CanManageTemplates().Returns(true);
 
         var handler = new GetAccessibleTemplatesQueryHandler(
             templateRepo,
@@ -77,12 +77,12 @@ public class GetAccessibleTemplatesQueryHandlerTests
 
         var accessibleService = Substitute.For<IUserAccessibleTemplateService>();
         accessibleService.GetAccessibleTemplateIdsAsync(
-                Arg.Any<IEnumerable<TemplatePermission>>(),
+                Arg.Any<IEnumerable<Permission>>(),
                 Arg.Any<CancellationToken>())
             .Returns(new[] { TemplateA, TemplateB }.AsReadOnly());
 
         var permissionChecker = Substitute.For<IPermissionCheckerService>();
-        permissionChecker.IsAdmin().Returns(false);
+        permissionChecker.CanManageTemplates().Returns(false);
 
         var handler = new GetAccessibleTemplatesQueryHandler(
             templateRepo,

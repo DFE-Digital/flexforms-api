@@ -8,6 +8,7 @@ using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Users.Queries;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
@@ -20,6 +21,23 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.QueryHandlers.Users;
 
 public class GetAllUserPermissionsQueryHandlerTests
 {
+    private static ITenantMembershipService CreateMembershipService(TenantMembership? membership = null)
+    {
+        var service = Substitute.For<ITenantMembershipService>();
+        service.GetActiveMembershipAsync(Arg.Any<Guid>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns(membership);
+        return service;
+    }
+
+    private static IRolePermissionService CreateRolePermissionService(
+        IReadOnlyList<RolePermission>? permissions = null)
+    {
+        var service = Substitute.For<IRolePermissionService>();
+        service.GetByRoleIdAsync(Arg.Any<RoleId>(), Arg.Any<CancellationToken>())
+            .Returns(permissions ?? Array.Empty<RolePermission>());
+        return service;
+    }
+
     [Theory]
     [CustomAutoData(typeof(UserCustomization), typeof(PermissionCustomization))]
     public async Task Handle_UserWithPermissions_ShouldReturnAuthorizationData(
@@ -41,14 +59,20 @@ public class GetAllUserPermissionsQueryHandlerTests
         var role = new Role(user.RoleId, "TestRole");
         user.GetType().GetProperty("Role")!.SetValue(user, role);
 
-        // Add permissions to user
+        // Add permissions to user (including Template grants in the unified store)
         var permissions = fixture.Customize(permCustom).CreateMany<Permission>().ToList();
+        var templateId = Guid.NewGuid();
+        permissions.Add(new Permission(
+            new PermissionId(Guid.NewGuid()),
+            userId,
+            applicationId: null,
+            templateId.ToString(),
+            ResourceType.Template,
+            AccessType.Read,
+            DateTime.UtcNow,
+            userId));
         var permissionsBacking = typeof(User).GetField("_permissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
         permissionsBacking.SetValue(user, permissions);
-
-        var templatePermissions = fixture.CreateMany<TemplatePermission>().ToList();
-        var templatePermissionsBacking = typeof(User).GetField("_templatePermissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
-        templatePermissionsBacking.SetValue(user, templatePermissions);
 
         var userQueryable = new List<User> { user }.AsQueryable().BuildMock();
         userRepo.Query().Returns(userQueryable);
@@ -63,7 +87,12 @@ public class GetAllUserPermissionsQueryHandlerTests
                 return func();
             });
 
-        var handler = new GetAllUserPermissionsQueryHandler(userRepo, cacheService, tenantContextAccessor);
+        var handler = new GetAllUserPermissionsQueryHandler(
+            userRepo,
+            cacheService,
+            tenantContextAccessor,
+            CreateMembershipService(),
+            CreateRolePermissionService());
 
         // Act
         var result = await handler.Handle(new GetAllUserPermissionsQuery(userId), CancellationToken.None);
@@ -73,7 +102,6 @@ public class GetAllUserPermissionsQueryHandlerTests
         Assert.NotNull(result.Value);
         Assert.NotEmpty(result.Value.Permissions);
         Assert.NotEmpty(result.Value.Roles);
-        Assert.Equal(permissions.Count + templatePermissions.Count, result.Value.Permissions.Count());
         Assert.Single(result.Value.Roles);
         Assert.Equal("TestRole", result.Value.Roles.First());
         Assert.All(permissions, permission =>
@@ -84,14 +112,10 @@ public class GetAllUserPermissionsQueryHandlerTests
                 && p.AccessType == permission.AccessType);
             Assert.Equal(permission.ApplicationId?.Value, dto.ApplicationId);
         });
-        Assert.All(templatePermissions, templatePermission =>
-        {
-            var dto = result.Value.Permissions.First(p =>
-                p.ResourceType == ResourceType.Template
-                && p.ResourceKey == templatePermission.TemplateId.Value.ToString()
-                && p.AccessType == templatePermission.AccessType);
-            Assert.NotNull(dto);
-        });
+        Assert.Contains(result.Value.Permissions, p =>
+            p.ResourceType == ResourceType.Template
+            && p.ResourceKey == templateId.ToString()
+            && p.AccessType == AccessType.Read);
     }
 
     [Theory]
@@ -116,7 +140,12 @@ public class GetAllUserPermissionsQueryHandlerTests
                 return func();
             });
 
-        var handler = new GetAllUserPermissionsQueryHandler(userRepo, cacheService, tenantContextAccessor);
+        var handler = new GetAllUserPermissionsQueryHandler(
+            userRepo,
+            cacheService,
+            tenantContextAccessor,
+            CreateMembershipService(),
+            CreateRolePermissionService());
 
         // Act
         var result = await handler.Handle(new GetAllUserPermissionsQuery(userId), CancellationToken.None);
@@ -149,7 +178,12 @@ public class GetAllUserPermissionsQueryHandlerTests
                 return func();
             });
 
-        var handler = new GetAllUserPermissionsQueryHandler(userRepo, cacheService, tenantContextAccessor);
+        var handler = new GetAllUserPermissionsQueryHandler(
+            userRepo,
+            cacheService,
+            tenantContextAccessor,
+            CreateMembershipService(),
+            CreateRolePermissionService());
 
         // Act
         var result = await handler.Handle(new GetAllUserPermissionsQuery(userId), CancellationToken.None);
@@ -175,7 +209,12 @@ public class GetAllUserPermissionsQueryHandlerTests
             nameof(GetAllUserPermissionsQueryHandler))
             .Returns(Result<UserAuthorizationDto>.Success(cachedAuthorization));
 
-        var handler = new GetAllUserPermissionsQueryHandler(userRepo, cacheService, tenantContextAccessor);
+        var handler = new GetAllUserPermissionsQueryHandler(
+            userRepo,
+            cacheService,
+            tenantContextAccessor,
+            CreateMembershipService(),
+            CreateRolePermissionService());
 
         // Act
         var result = await handler.Handle(new GetAllUserPermissionsQuery(userId), CancellationToken.None);

@@ -19,6 +19,7 @@ using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 using GovUK.Dfe.FlexForms.Application.Common.Attributes;
 using GovUK.Dfe.FlexForms.Application.Common.Behaviours;
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 
 namespace GovUK.Dfe.FlexForms.Application.Applications.Commands;
 
@@ -35,6 +36,8 @@ public sealed class AddContributorCommandHandler(
     IPermissionCheckerService permissionCheckerService,
     IUserFactory userFactory,
     IUserCacheInvalidator userCacheInvalidator,
+    ITenantContextAccessor tenantContextAccessor,
+    ITenantMembershipService tenantMembershipService,
     IUnitOfWork unitOfWork) : IRequestHandler<AddContributorCommand, Result<UserDto>>
 {
     public async Task<Result<UserDto>> Handle(
@@ -46,6 +49,10 @@ public sealed class AddContributorCommandHandler(
             var httpContext = httpContextAccessor.HttpContext;
             if (httpContext?.User is not ClaimsPrincipal user || !user.Identity?.IsAuthenticated == true)
                 return Result<UserDto>.Forbid("Not authenticated");
+
+            var currentTenant = tenantContextAccessor.CurrentTenant;
+            if (currentTenant is null)
+                return Result<UserDto>.Failure("Tenant could not be resolved for the current request.");
 
             var principalId = user.FindFirstValue("appid") ?? user.FindFirstValue("azp");
 
@@ -88,32 +95,45 @@ public sealed class AddContributorCommandHandler(
             if (!isOwner && !isAdmin)
                 return Result<UserDto>.Forbid("Only the application owner or admin can add contributors");
 
-            // Check if contributor already exists
-            var existingContributor = await (new GetUserByEmailQueryObject(request.Email))
+            // Load permissions so idempotent grants work (including Template form access).
+            var existingContributor = await (new GetUserWithAllPermissionsByEmailQueryObject(request.Email))
                 .Apply(userRepo.Query())
                 .FirstOrDefaultAsync(cancellationToken);
 
             if (existingContributor != null)
             {
-                return await HandleExistingContributor(existingContributor, applicationId, application, dbUser, cancellationToken);
+                return await HandleExistingContributor(
+                    existingContributor,
+                    applicationId,
+                    application,
+                    dbUser,
+                    currentTenant.Id,
+                    cancellationToken);
             }
 
             // Create new contributor using factory with User role
             var contributorId = new UserId(Guid.NewGuid());
             var now = DateTime.UtcNow;
 
-        var contributor = userFactory.CreateContributor(
-            contributorId,
-            new RoleId(RoleConstants.UserRoleId),
-            request.Name,
-            request.Email,
-            dbUser.Id!,
-            applicationId,
-            application.ApplicationReference,
-            application.TemplateVersion!.TemplateId,
-            now);
+            var contributor = userFactory.CreateContributor(
+                contributorId,
+                new RoleId(RoleConstants.UserRoleId),
+                request.Name,
+                request.Email,
+                dbUser.Id!,
+                applicationId,
+                application.ApplicationReference,
+                application.TemplateVersion!.TemplateId,
+                now);
 
             await userRepo.AddAsync(contributor, cancellationToken);
+
+            // Required for token exchange on this tenant (same gate as self-registration).
+            await EnsureMembershipForCurrentTenantAsync(
+                currentTenant.Id,
+                contributor.Id!,
+                cancellationToken);
+
             await unitOfWork.CommitAsync(cancellationToken);
 
             await userCacheInvalidator.InvalidateForUserAsync(
@@ -145,6 +165,7 @@ public sealed class AddContributorCommandHandler(
         ApplicationId applicationId,
         Domain.Entities.Application application,
         User dbUser,
+        Guid tenantId,
         CancellationToken cancellationToken)
     {
         // Ensure self-service endpoints (e.g. GetMyPermissions) work for invited contributors
@@ -187,7 +208,7 @@ public sealed class AddContributorCommandHandler(
             applicationId,
             DateTime.UtcNow);
 
-        // Template permissions
+        // Template permissions for the application's form only (not all tenant forms).
         userFactory.AddTemplatePermissionToUser(
             existingContributor,
             application.TemplateVersion!.TemplateId.Value.ToString(),
@@ -204,6 +225,12 @@ public sealed class AddContributorCommandHandler(
             new[] { AccessType.Read, AccessType.Write },
             dbUser.Id!,
             DateTime.UtcNow));
+
+        // Existing invitees also need TenantMembership or exchange returns "not a member".
+        await EnsureMembershipForCurrentTenantAsync(
+            tenantId,
+            existingContributor.Id!,
+            cancellationToken);
 
         await unitOfWork.CommitAsync(cancellationToken);
 
@@ -226,6 +253,29 @@ public sealed class AddContributorCommandHandler(
         });
     }
 
+    /// <summary>
+    /// Ensures an active TenantMembership exists so the invitee can exchange tokens on this tenant.
+    /// Does not demote an existing higher role — only creates membership when none is active.
+    /// </summary>
+    private async Task EnsureMembershipForCurrentTenantAsync(
+        Guid tenantId,
+        UserId userId,
+        CancellationToken cancellationToken)
+    {
+        var existing = await tenantMembershipService.GetActiveMembershipAsync(
+            tenantId,
+            userId,
+            cancellationToken);
+        if (existing is not null)
+            return;
+
+        await tenantMembershipService.UpsertMembershipAsync(
+            tenantId,
+            userId,
+            RoleNames.User,
+            cancellationToken);
+    }
+
     private UserAuthorizationDto? CreateAuthorizationFromUser(User user)
     {
         if (user.Permissions == null || !user.Permissions.Any())
@@ -245,4 +295,4 @@ public sealed class AddContributorCommandHandler(
             Roles = new List<string> { user.Role?.Name ?? "User" }
         };
     }
-} 
+}

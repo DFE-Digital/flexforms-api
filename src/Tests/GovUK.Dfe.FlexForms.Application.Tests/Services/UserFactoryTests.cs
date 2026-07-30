@@ -141,11 +141,13 @@ public class UserFactoryTests
             grantedOn);
 
         // Assert
-        Assert.Equal(2, user.TemplatePermissions.Count);
-        Assert.Contains(user.TemplatePermissions, p => p.AccessType == AccessType.Read);
-        Assert.Contains(user.TemplatePermissions, p => p.AccessType == AccessType.Write);
-        Assert.All(user.TemplatePermissions, p => Assert.Equal(grantedBy, p.GrantedBy));
-        Assert.All(user.TemplatePermissions, p => Assert.Equal(grantedOn, p.GrantedOn));
+        var templateGrants = user.Permissions.Where(p => p.ResourceType == ResourceType.Template).ToList();
+        Assert.Equal(2, templateGrants.Count);
+        Assert.Contains(templateGrants, p => p.AccessType == AccessType.Read);
+        Assert.Contains(templateGrants, p => p.AccessType == AccessType.Write);
+        Assert.All(templateGrants, p => Assert.Equal(grantedBy, p.GrantedBy));
+        Assert.All(templateGrants, p => Assert.Equal(grantedOn, p.GrantedOn));
+        Assert.All(templateGrants, p => Assert.Equal(templateId, p.ResourceKey));
     }
 
     [Fact]
@@ -188,7 +190,7 @@ public class UserFactoryTests
             new[] { AccessType.Read },
             grantedBy));
 
-        Assert.Contains("TemplateId cannot be null or empty", exception.Message);
+        Assert.Contains("ResourceKey cannot be null or empty", exception.Message);
     }
 
     [Fact]
@@ -242,10 +244,14 @@ public class UserFactoryTests
             [templateId],
             grantedBy);
 
-        Assert.Contains(user.TemplatePermissions, tp =>
-            tp.TemplateId == templateId && tp.AccessType == AccessType.Write);
-        Assert.Contains(user.TemplatePermissions, tp =>
-            tp.TemplateId == templateId && tp.AccessType == AccessType.Read);
+        Assert.Contains(user.Permissions, p =>
+            p.ResourceType == ResourceType.Template
+            && p.ResourceKey == templateId.Value.ToString()
+            && p.AccessType == AccessType.Write);
+        Assert.Contains(user.Permissions, p =>
+            p.ResourceType == ResourceType.Template
+            && p.ResourceKey == templateId.Value.ToString()
+            && p.AccessType == AccessType.Read);
         Assert.DoesNotContain(user.Permissions, p =>
             p.ResourceType == ResourceType.Application
             && p.ResourceKey == PermissionConstants.AnyResourceKey);
@@ -263,8 +269,10 @@ public class UserFactoryTests
             "registered.user@example.com",
             templateId);
 
-        Assert.Contains(user.TemplatePermissions, tp =>
-            tp.TemplateId == templateId && tp.AccessType == AccessType.Write);
+        Assert.Contains(user.Permissions, p =>
+            p.ResourceType == ResourceType.Template
+            && p.ResourceKey == templateId.Value.ToString()
+            && p.AccessType == AccessType.Write);
         Assert.DoesNotContain(user.Permissions, p =>
             p.ResourceType == ResourceType.Application
             && p.ResourceKey == PermissionConstants.AnyResourceKey);
