@@ -117,10 +117,10 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             string? membershipRoleName;
             if (membership is null)
             {
-                var globalRoleName = dbUser.Role?.Name
+                var userGlobalRoleName = dbUser.Role?.Name
                     ?? RoleNames.FromRoleId(dbUser.RoleId.Value);
 
-                if (RoleNames.IsPlatformSuperAdminUser(globalRoleName, dbUser.RoleId.Value))
+                if (RoleNames.IsPlatformSuperAdminUser(userGlobalRoleName, dbUser.RoleId.Value))
                 {
                     membershipRoleName = RoleNames.SuperAdmin;
                     logger.LogInformation(
@@ -150,6 +150,13 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                 if (RoleNames.IsPlatformSuperAdminRoleId(membership.RoleId.Value))
                     membershipRoleName = RoleNames.SuperAdmin;
             }
+
+            // Platform SuperAdmin (Users.RoleId / global SuperAdmin row) always wins over a
+            // tenant Admin membership so operators keep SuperAdmin claims in every tenant.
+            var platformRoleName = dbUser.Role?.Name
+                ?? RoleNames.FromRoleId(dbUser.RoleId.Value);
+            if (RoleNames.IsPlatformSuperAdminUser(platformRoleName, dbUser.RoleId.Value))
+                membershipRoleName = RoleNames.SuperAdmin;
 
             if (string.IsNullOrWhiteSpace(membershipRoleName))
                 return Result<ExchangeTokenDto>.Conflict($"User {email} has no role assigned for this tenant");

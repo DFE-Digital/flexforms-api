@@ -56,6 +56,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
 
                         var roleGrants = new List<PermissionClaimMerger.Grant>();
                         string? membershipRoleName = null;
+                        RoleId? membershipRoleId = null;
                         var currentTenant = tenantContextAccessor.CurrentTenant;
 
                         if (currentTenant is not null && userWithPermissions.Id is not null)
@@ -66,6 +67,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                                 cancellationToken);
 
                             membershipRoleName = membership?.Role?.Name;
+                            membershipRoleId = membership?.RoleId;
 
                             if (membership?.RoleId is not null)
                             {
@@ -99,6 +101,21 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                             ?? userWithPermissions.Role?.Name
                             ?? RoleNames.FromRoleId(userWithPermissions.RoleId.Value)
                             ?? RoleNames.User;
+
+                        // Platform SuperAdmin on Users.RoleId / membership RoleId must surface as
+                        // SuperAdmin even when the tenant membership row is named Admin.
+                        if (membershipRoleId is not null
+                            && RoleNames.IsPlatformSuperAdminRoleId(membershipRoleId.Value))
+                        {
+                            roleName = RoleNames.SuperAdmin;
+                        }
+                        else if (RoleNames.IsPlatformSuperAdminUser(
+                                     userWithPermissions.Role?.Name
+                                     ?? RoleNames.FromRoleId(userWithPermissions.RoleId.Value),
+                                     userWithPermissions.RoleId.Value))
+                        {
+                            roleName = RoleNames.SuperAdmin;
+                        }
 
                         var userAuthzDto = new UserAuthorizationDto
                         {

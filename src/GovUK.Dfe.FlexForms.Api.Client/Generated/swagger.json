@@ -3500,6 +3500,77 @@
       }
     },
     "/v1/admin/tenants/{tenantId}/settings": {
+      "get": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Returns decrypted TenantConfig settings rows for the caller's own tenant.\nRestricted to interactive SuperAdmin users.",
+        "operationId": "TenantAdmin_GetTenantSettings",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTenantSettingsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - interactive SuperAdmin of own tenant required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Tenant not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      },
       "put": {
         "tags": [
           "TenantAdmin"
@@ -5588,6 +5659,51 @@
         "properties": {
           "message": {
             "type": "string"
+          }
+        }
+      },
+      "GetTenantSettingsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "settings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantSettingDto"
+            }
+          }
+        }
+      },
+      "TenantSettingDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "settingId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "category": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "settingsJson": {
+            "type": "string"
+          },
+          "isSecret": {
+            "type": "boolean"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

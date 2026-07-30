@@ -1,4 +1,5 @@
 using Asp.Versioning;
+using GovUK.Dfe.FlexForms.Application.TenantAdmin;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Commands;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Queries;
 using GovUK.Dfe.FlexForms.Infrastructure.Security;
@@ -88,6 +89,29 @@ public class TenantAdminController(ISender sender) : ControllerBase
         {
             StatusCode = StatusCodes.Status200OK
         };
+    }
+
+    /// <summary>
+    /// Returns decrypted TenantConfig settings rows for the caller's own tenant.
+    /// Restricted to interactive SuperAdmin users.
+    /// </summary>
+    [HttpGet("{tenantId:guid}/settings")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Tenant settings.", typeof(GetTenantSettingsResponse))]
+    [SwaggerResponse(401, "Unauthorized.", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Forbidden - interactive SuperAdmin of own tenant required.", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "Tenant not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    public async Task<IActionResult> GetTenantSettings(
+        Guid tenantId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetTenantSettingsQuery(tenantId), cancellationToken);
+
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
     }
 
     /// <summary>

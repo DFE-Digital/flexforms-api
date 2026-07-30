@@ -12,11 +12,16 @@ public class UpsertTenantSettingCommandHandlerTests
     private readonly ITenantSettingsWriter _writer = Substitute.For<ITenantSettingsWriter>();
     private readonly ITenantContextAccessor _tenantContext = Substitute.For<ITenantContextAccessor>();
     private readonly IPermissionCheckerService _permissionChecker = Substitute.For<IPermissionCheckerService>();
+    private readonly ITenantConfigurationProvider _configProvider = Substitute.For<ITenantConfigurationProvider>();
     private readonly UpsertTenantSettingCommandHandler _handler;
 
     public UpsertTenantSettingCommandHandlerTests()
     {
-        _handler = new UpsertTenantSettingCommandHandler(_writer, _tenantContext, _permissionChecker);
+        _handler = new UpsertTenantSettingCommandHandler(
+            _writer,
+            _tenantContext,
+            _permissionChecker,
+            _configProvider);
     }
 
     [Fact]
@@ -31,6 +36,7 @@ public class UpsertTenantSettingCommandHandlerTests
         Assert.False(result.IsSuccess);
         Assert.Equal(DomainErrorCode.Forbidden, result.ErrorCode);
         await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
+        await _configProvider.DidNotReceiveWithAnyArgs().RefreshAsync(default);
     }
 
     [Fact]
@@ -39,7 +45,7 @@ public class UpsertTenantSettingCommandHandlerTests
         var callerTenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
         var otherTenantId = Guid.Parse("22222222-2222-4222-8222-222222222222");
 
-        _permissionChecker.IsAdmin().Returns(true);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(CreateTenant(callerTenantId, "Transfers"));
 
         var result = await _handler.Handle(
@@ -49,10 +55,11 @@ public class UpsertTenantSettingCommandHandlerTests
         Assert.False(result.IsSuccess);
         Assert.Equal(DomainErrorCode.Forbidden, result.ErrorCode);
         await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
+        await _configProvider.DidNotReceiveWithAnyArgs().RefreshAsync(default);
     }
 
     [Fact]
-    public async Task Handle_ShouldUpsert_WhenAdminUpdatesOwnTenant()
+    public async Task Handle_ShouldUpsertAndRefresh_WhenAdminUpdatesOwnTenant()
     {
         var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
         _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
@@ -70,6 +77,7 @@ public class UpsertTenantSettingCommandHandlerTests
         Assert.True(result.Value!.WasCreated);
         await _writer.Received(1).UpsertSettingAsync(
             tenantId, "Layout", "Web", "{}", false, Arg.Any<CancellationToken>());
+        await _configProvider.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
     }
 
     private static TenantConfiguration CreateTenant(Guid id, string name) =>

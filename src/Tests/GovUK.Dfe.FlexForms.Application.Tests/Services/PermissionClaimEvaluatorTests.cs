@@ -250,6 +250,43 @@ public class PermissionClaimEvaluatorTests
         Assert.False(PermissionClaimEvaluator.IsInteractiveTenantAdmin(user));
     }
 
+    [Fact]
+    public void IsInteractivePlatformAdmin_ReturnsTrue_ForSuperAdminWithEmail()
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.Role, RoleNames.SuperAdmin),
+            new Claim(ClaimTypes.Email, "super@example.com")
+        ], "Test"));
+
+        Assert.True(PermissionClaimEvaluator.IsInteractivePlatformAdmin(user));
+    }
+
+    [Fact]
+    public void IsInteractivePlatformAdmin_ReturnsFalse_ForTenantAdmin()
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.Role, RoleNames.Admin),
+            new Claim(ClaimTypes.Email, "admin@example.com")
+        ], "Test"));
+
+        Assert.False(PermissionClaimEvaluator.IsInteractivePlatformAdmin(user));
+    }
+
+    [Fact]
+    public void IsInteractivePlatformAdmin_ReturnsFalse_ForServicePrincipalWithSuperAdminRole()
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.Role, RoleNames.SuperAdmin),
+            new Claim(TenantAuthClaimTypes.IsService, "true"),
+            new Claim(ClaimTypes.Email, "svc@apps.local")
+        ], "Test"));
+
+        Assert.False(PermissionClaimEvaluator.IsInteractivePlatformAdmin(user));
+    }
+
     private static User CreateAdminUser()
     {
         var user = new User(

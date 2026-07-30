@@ -126,6 +126,15 @@ public sealed class ClaimBasedPermissionCheckerService(IHttpContextAccessor http
     }
 
     /// <inheritdoc />
+    public bool IsInteractivePlatformAdmin()
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        if (user == null) return false;
+
+        return PermissionClaimEvaluator.IsInteractivePlatformAdmin(user);
+    }
+
+    /// <inheritdoc />
     public bool CanReadAllApplications()
     {
         var user = _httpContextAccessor.HttpContext?.User;

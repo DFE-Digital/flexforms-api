@@ -429,6 +429,15 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
+        /// Returns decrypted TenantConfig settings rows for the caller's own tenant.
+        /// <br/>Restricted to interactive SuperAdmin users.
+        /// </summary>
+        /// <returns>Tenant settings.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetTenantSettingsResponse> GetTenantSettingsAsync(System.Guid tenantId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
         /// Adds or updates a configuration section for the caller's own tenant only.
         /// <br/>Requires an interactive Admin user JWT; the route tenantId must
         /// <br/>match the resolved tenant context.

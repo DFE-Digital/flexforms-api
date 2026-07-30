@@ -19,7 +19,8 @@ public sealed record UpsertTenantSettingCommand(
 public sealed class UpsertTenantSettingCommandHandler(
     ITenantSettingsWriter settingsWriter,
     ITenantContextAccessor tenantContextAccessor,
-    IPermissionCheckerService permissionChecker)
+    IPermissionCheckerService permissionChecker,
+    ITenantConfigurationProvider tenantConfigProvider)
     : IRequestHandler<UpsertTenantSettingCommand, Result<UpsertTenantSettingResponse>>
 {
     public async Task<Result<UpsertTenantSettingResponse>> Handle(
@@ -55,6 +56,8 @@ public sealed class UpsertTenantSettingCommandHandler(
                 request.SettingsJson,
                 request.IsSecret,
                 cancellationToken);
+
+            await tenantConfigProvider.RefreshAsync(cancellationToken);
 
             var verb = result.WasCreated ? "created" : "updated";
 

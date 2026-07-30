@@ -78,6 +78,12 @@ public interface IPermissionCheckerService
     bool IsInteractiveTenantAdmin();
 
     /// <summary>
+    /// Checks if the current principal is an interactive SuperAdmin (platform admin) user JWT.
+    /// Returns false for machine identities and for tenant Admin without SuperAdmin.
+    /// </summary>
+    bool IsInteractivePlatformAdmin();
+
+    /// <summary>
     /// Checks if the current user can read all applications in the current tenant.
     /// </summary>
     /// <returns>True if the user can read all applications, false otherwise</returns>
