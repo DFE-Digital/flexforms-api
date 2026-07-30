@@ -534,6 +534,24 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
+        /// Returns a user's direct (user-level) permission grants within the current tenant.
+        /// <br/>Does not include permissions inherited from the user's role.
+        /// </summary>
+        /// <returns>User permissions.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.ObjectModel.ObservableCollection<UserPermissionDto>> GetUserPermissionsAsync(System.Guid userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Replaces a user's direct (user-level) permission grants within the current tenant.
+        /// <br/>Does not affect permissions inherited from the user's role.
+        /// </summary>
+        /// <returns>User permissions updated.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.ObjectModel.ObservableCollection<UserPermissionDto>> SetUserPermissionsAsync(System.Guid userId, SetUserPermissionsRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
         /// Replaces a user's form (template) access within the current tenant.
         /// </summary>
         /// <returns>User template access updated.</returns>
