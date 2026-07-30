@@ -1,6 +1,7 @@
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 namespace GovUK.Dfe.FlexForms.Application.HostConfig.Queries;
 
@@ -10,7 +11,7 @@ namespace GovUK.Dfe.FlexForms.Application.HostConfig.Queries;
 public sealed record GetHostConfigurationQuery(string Target)
     : IRequest<Result<HostConfigurationDto>>;
 
-public sealed class GetHostConfigurationQueryHandler(IHostConfigurationReader hostConfigurationReader)
+public sealed class GetHostConfigurationQueryHandler(IHostConfigurationReader hostConfigurationReader, ILogger<GetHostConfigurationQuery> _logger)
     : IRequestHandler<GetHostConfigurationQuery, Result<HostConfigurationDto>>
 {
     private static readonly HashSet<string> AllowedTargets =
@@ -27,6 +28,7 @@ public sealed class GetHostConfigurationQueryHandler(IHostConfigurationReader ho
                 $"Invalid target '{request.Target}'. Allowed values: Web, Api."));
         }
 
+        _logger.LogInformation("Hellow");
         var normalizedTarget = request.Target.Trim();
         var snapshot = hostConfigurationReader.GetConfiguration(normalizedTarget);
 

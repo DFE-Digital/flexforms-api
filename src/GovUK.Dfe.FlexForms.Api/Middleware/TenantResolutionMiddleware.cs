@@ -39,7 +39,7 @@ public class TenantResolutionMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var path = context.Request.Path.Value ?? "";
-
+        var conf = _tenantConfigurationProvider.GetAllTenants();
         // Bypass for infrastructure endpoints and CORS preflight
         if (context.Request.Method == "OPTIONS" ||
             BypassPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase)) ||

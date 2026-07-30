@@ -13,6 +13,7 @@ public sealed class HostConfigurationReader(IConfiguration configuration) : IHos
 
     public HostConfigurationSnapshot GetConfiguration(string target)
     {
+        Console.WriteLine($"Hello2");
         var configurationValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
 
         var globalSection = configuration.GetSection("GlobalConfiguration");

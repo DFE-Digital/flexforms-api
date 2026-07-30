@@ -36,6 +36,7 @@ public class HostConfigController(ISender sender) : ControllerBase
         [FromQuery] string target = "Web",
         CancellationToken cancellationToken = default)
     {
+        
         var result = await sender.Send(new GetHostConfigurationQuery(target), cancellationToken);
 
         if (!result.IsSuccess)
