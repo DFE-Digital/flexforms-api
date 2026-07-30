@@ -154,6 +154,7 @@ public class UsersController(ISender sender) : ControllerBase
     /// <summary>
     /// Replaces a user's direct (user-level) permission grants within the current tenant.
     /// Does not affect permissions inherited from the user's role.
+    /// Manage access cannot be granted at user level — assign it via a tenant role instead.
     /// </summary>
     [HttpPut("{userId:guid}/permissions")]
     [SwaggerResponse(200, "User permissions updated.", typeof(IReadOnlyCollection<UserPermissionDto>))]

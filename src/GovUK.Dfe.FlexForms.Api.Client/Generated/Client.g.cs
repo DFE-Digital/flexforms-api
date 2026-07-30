@@ -8574,6 +8574,7 @@ namespace GovUK.Dfe.FlexForms.Api.Client
         /// <summary>
         /// Replaces a user's direct (user-level) permission grants within the current tenant.
         /// <br/>Does not affect permissions inherited from the user's role.
+        /// <br/>Manage access cannot be granted at user level — assign it via a tenant role instead.
         /// </summary>
         /// <returns>User permissions updated.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>

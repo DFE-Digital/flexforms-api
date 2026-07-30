@@ -4298,7 +4298,7 @@
         "tags": [
           "Users"
         ],
-        "summary": "Replaces a user's direct (user-level) permission grants within the current tenant.\nDoes not affect permissions inherited from the user's role.",
+        "summary": "Replaces a user's direct (user-level) permission grants within the current tenant.\nDoes not affect permissions inherited from the user's role.\nManage access cannot be granted at user level — assign it via a tenant role instead.",
         "operationId": "Users_SetUserPermissions",
         "parameters": [
           {

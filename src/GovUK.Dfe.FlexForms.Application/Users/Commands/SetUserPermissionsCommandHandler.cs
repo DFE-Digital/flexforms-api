@@ -54,7 +54,10 @@ public sealed class SetUserPermissionsCommandValidator : AbstractValidator<SetUs
             {
                 try
                 {
-                    RolePermissionGrantRules.EnsureValid(grant.ResourceType, grant.ResourceKey, grant.AccessType);
+                    RolePermissionGrantRules.EnsureValidForUser(
+                        grant.ResourceType,
+                        grant.ResourceKey,
+                        grant.AccessType);
                 }
                 catch (ArgumentException ex)
                 {
@@ -115,7 +118,10 @@ public sealed class SetUserPermissionsCommandHandler(
 
             foreach (var grant in grants)
             {
-                RolePermissionGrantRules.EnsureValid(grant.ResourceType, grant.ResourceKey, grant.AccessType);
+                RolePermissionGrantRules.EnsureValidForUser(
+                    grant.ResourceType,
+                    grant.ResourceKey,
+                    grant.AccessType);
                 var existenceError = await EnsureResourceExistsAsync(
                     grant.ResourceType,
                     grant.ResourceKey,

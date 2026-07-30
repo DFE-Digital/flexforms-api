@@ -52,6 +52,29 @@ public class RolePermissionGrantRulesTests
     }
 
     [Theory]
+    [InlineData(ResourceType.User, "Any", AccessType.Manage)]
+    [InlineData(ResourceType.User, "user@example.com", AccessType.Manage)]
+    [InlineData(ResourceType.Template, "Any", AccessType.Manage)]
+    [InlineData(ResourceType.Template, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", AccessType.Manage)]
+    public void EnsureValidForUser_RejectsManage(ResourceType resourceType, string resourceKey, AccessType accessType)
+    {
+        var ex = Assert.Throws<ArgumentException>(() =>
+            RolePermissionGrantRules.EnsureValidForUser(resourceType, resourceKey, accessType));
+
+        Assert.Contains("individual user", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("accessType", ex.ParamName);
+    }
+
+    [Fact]
+    public void EnsureValidForUser_AllowsTemplateAnyWrite()
+    {
+        RolePermissionGrantRules.EnsureValidForUser(
+            ResourceType.Template,
+            PermissionConstants.AnyResourceKey,
+            AccessType.Write);
+    }
+
+    [Theory]
     [InlineData(ResourceType.Application, AccessType.Write)]
     [InlineData(ResourceType.ApplicationFiles, AccessType.Write)]
     [InlineData(ResourceType.User, AccessType.Read)]

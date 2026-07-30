@@ -45,6 +45,24 @@ public static class RolePermissionGrantRules
     }
 
     /// <summary>
+    /// Validates a direct (user-owned) permission grant.
+    /// Same shape rules as <see cref="EnsureValid"/>, but <see cref="AccessType.Manage"/>
+    /// is never allowed — Manage must be assigned via a tenant-scoped role.
+    /// </summary>
+    public static void EnsureValidForUser(ResourceType resourceType, string resourceKey, AccessType accessType)
+    {
+        if (accessType == AccessType.Manage)
+        {
+            throw new ArgumentException(
+                "Access type 'Manage' cannot be granted to an individual user. " +
+                "Assign Manage via a tenant role instead.",
+                nameof(accessType));
+        }
+
+        EnsureValid(resourceType, resourceKey, accessType);
+    }
+
+    /// <summary>
     /// Allowed tenant-wide <c>Any</c> grants:
     /// <list type="bullet">
     /// <item><description>Template — Write: create applications on any template</description></item>
