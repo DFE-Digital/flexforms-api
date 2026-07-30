@@ -3241,6 +3241,89 @@
         }
       }
     },
+    "/v1/Templates/{templateId}/grant-all-users": {
+      "post": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Grants Template Read/Write for this template to every active member of the current tenant.\nUsers who already have access are skipped. Requires template administration rights.",
+        "operationId": "Templates_GrantTemplateAccessToAllUsers",
+        "parameters": [
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template access granted to tenant users.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrantTemplateAccessToAllUsersResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - no valid user token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/Templates/{templateId}/versions": {
       "post": {
         "tags": [
@@ -5568,6 +5651,28 @@
         "properties": {
           "isLive": {
             "type": "boolean"
+          }
+        }
+      },
+      "GrantTemplateAccessToAllUsersResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "totalUsers": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "usersGranted": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "usersAlreadyHadAccess": {
+            "type": "integer",
+            "format": "int32"
           }
         }
       },

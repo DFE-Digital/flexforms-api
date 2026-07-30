@@ -388,6 +388,15 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
+        /// Grants Template Read/Write for this template to every active member of the current tenant.
+        /// <br/>Users who already have access are skipped. Requires template administration rights.
+        /// </summary>
+        /// <returns>Template access granted to tenant users.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GrantTemplateAccessToAllUsersResponse> GrantTemplateAccessToAllUsersAsync(System.Guid templateId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
         /// Creates a new schema version for the specified template.
         /// </summary>
         /// <returns>Template version created successfully.</returns>

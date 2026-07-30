@@ -161,6 +161,32 @@ public class TemplatesController(ISender sender) : ControllerBase
     }
 
     /// <summary>
+    /// Grants Template Read/Write for this template to every active member of the current tenant.
+    /// Users who already have access are skipped. Requires template administration rights.
+    /// </summary>
+    [HttpPost("{templateId}/grant-all-users")]
+    [Authorize(Policy = "CanCreateTemplate")]
+    [SwaggerResponse(200, "Template access granted to tenant users.", typeof(GrantTemplateAccessToAllUsersResponse))]
+    [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
+    [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Access denied.", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "Template not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    public async Task<IActionResult> GrantTemplateAccessToAllUsersAsync(
+        [FromRoute] Guid templateId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GrantTemplateAccessToAllUsersCommand(templateId),
+            cancellationToken);
+
+        return new ObjectResult(result)
+        {
+            StatusCode = StatusCodes.Status200OK
+        };
+    }
+
+    /// <summary>
     /// Creates a new schema version for the specified template.
     /// </summary>
     [HttpPost("{templateId}/versions")]
