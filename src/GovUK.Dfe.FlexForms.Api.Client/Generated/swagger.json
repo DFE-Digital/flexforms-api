@@ -3658,7 +3658,7 @@
         "tags": [
           "TenantAdmin"
         ],
-        "summary": "Adds or updates a configuration section for the caller's own tenant only.\nRequires an interactive SuperAdmin user JWT; the route tenantId must\nmatch the resolved tenant context.\nUses POST (not PUT) so Azure Front Door / WAF policies that restrict PUT do not block saves.",
+        "summary": "Adds or updates a configuration section for the caller's own tenant only.\nRequires an interactive SuperAdmin user JWT; the route tenantId must\nmatch the resolved tenant context.\nUses POST and Base64-encoded SettingsJson (same WAF-safe pattern as template schemas).",
         "operationId": "TenantAdmin_UpsertTenantSetting",
         "parameters": [
           {
@@ -3726,7 +3726,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - interactive Admin of own tenant required.",
+            "description": "Forbidden - interactive SuperAdmin of own tenant required.",
             "content": {
               "application/json": {
                 "schema": {

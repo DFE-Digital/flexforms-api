@@ -6787,8 +6787,9 @@ namespace GovUK.Dfe.FlexForms.Api.Client
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
         /// Adds or updates a configuration section for the caller's own tenant only.
-        /// <br/>Requires an interactive Admin user JWT; the route tenantId must
+        /// <br/>Requires an interactive SuperAdmin user JWT; the route tenantId must
         /// <br/>match the resolved tenant context.
+        /// <br/>Uses POST and Base64-encoded SettingsJson (same WAF-safe pattern as template schemas).
         /// </summary>
         /// <returns>Setting updated.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
@@ -6890,7 +6891,7 @@ namespace GovUK.Dfe.FlexForms.Api.Client
                             {
                                 throw new ExternalApplicationsException("Response was null which was not expected.", status_, objectResponse_.Text, headers_, null);
                             }
-                            throw new ExternalApplicationsException<ExceptionResponse>("Forbidden - interactive Admin of own tenant required.", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
+                            throw new ExternalApplicationsException<ExceptionResponse>("Forbidden - interactive SuperAdmin of own tenant required.", status_, objectResponse_.Text, headers_, objectResponse_.Object, null);
                         }
                         else
                         if (status_ == 404)
