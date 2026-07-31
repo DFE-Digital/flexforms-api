@@ -1,5 +1,6 @@
 using GovUK.Dfe.FlexForms.Application.Roles.Commands;
 using GovUK.Dfe.FlexForms.Domain.Common;
+using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
@@ -13,7 +14,8 @@ public sealed record ListTenantRolesQuery : IRequest<Result<IReadOnlyCollection<
 public sealed class ListTenantRolesQueryHandler(
     IPermissionCheckerService permissionCheckerService,
     ITenantContextAccessor tenantContextAccessor,
-    ITenantRoleService tenantRoleService)
+    ITenantRoleService tenantRoleService,
+    IUnitOfWork unitOfWork)
     : IRequestHandler<ListTenantRolesQuery, Result<IReadOnlyCollection<TenantRoleDto>>>
 {
     public async Task<Result<IReadOnlyCollection<TenantRoleDto>>> Handle(
@@ -26,6 +28,10 @@ public sealed class ListTenantRolesQueryHandler(
         var tenant = tenantContextAccessor.CurrentTenant;
         if (tenant is null)
             return Result<IReadOnlyCollection<TenantRoleDto>>.Forbid("Tenant context is required");
+
+        // New tenants only have SQL config rows — seed Admin/User before listing.
+        await tenantRoleService.EnsureSystemRolesAsync(tenant.Id, cancellationToken);
+        await unitOfWork.CommitAsync(cancellationToken);
 
         var roles = await tenantRoleService.ListAsync(tenant.Id, cancellationToken);
         return Result<IReadOnlyCollection<TenantRoleDto>>.Success(

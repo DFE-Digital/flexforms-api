@@ -153,10 +153,13 @@ public sealed class AssignUserRoleCommandHandler(
                     return Result<UserDto>.Failure($"At least one template ID is required for the {membershipRoleName} role");
 
                 // Tenant Admin must use the per-tenant Admin role row — never the global
-                // SuperAdmin RoleConstants.AdminRoleId (NULL TenantId).
+                // SuperAdmin RoleConstants.AdminRoleId (NULL TenantId). Seed system roles first
+                // so brand-new tenants always have Admin/User before assignment.
                 RoleId? tenantRoleId = null;
                 if (string.Equals(membershipRoleName, RoleNames.Admin, StringComparison.OrdinalIgnoreCase))
                 {
+                    await tenantRoleService.EnsureSystemRolesAsync(currentTenant.Id, cancellationToken);
+
                     var tenantAdminRole = await tenantRoleService.GetOrCreateTenantRoleAsync(
                         currentTenant.Id,
                         RoleNames.Admin,

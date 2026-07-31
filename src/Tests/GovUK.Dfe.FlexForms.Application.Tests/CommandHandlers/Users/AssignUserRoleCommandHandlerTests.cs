@@ -220,12 +220,14 @@ public class AssignUserRoleCommandHandlerTests
         provisioner.CreateUser(Arg.Any<RoleAssignmentRequest>()).Returns(createdUser);
         roleProvisionerRegistry.GetProvisioner(RoleNames.Admin).Returns(provisioner);
 
+        var tenantRoleService = CreateTenantRoleService();
         var handler = CreateHandler(
             userRepo,
             unitOfWork,
             permissionCheckerService,
             roleProvisionerRegistry,
-            httpContextAccessor);
+            httpContextAccessor,
+            tenantRoleService);
 
         var result = await handler.Handle(
             new AssignUserRoleCommand(email, name, RoleNames.Admin, null),
@@ -235,6 +237,7 @@ public class AssignUserRoleCommandHandlerTests
         Assert.Equal(createdUser.Id!.Value, result.Value!.UserId);
         Assert.Contains(RoleNames.Admin, result.Value.Authorization!.Roles!);
 
+        await tenantRoleService.Received().EnsureSystemRolesAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>());
         provisioner.Received(1).CreateUser(Arg.Is<RoleAssignmentRequest>(r =>
             r.TenantRoleId != null
             && !RoleNames.IsPlatformSuperAdminRoleId(r.TenantRoleId.Value)));

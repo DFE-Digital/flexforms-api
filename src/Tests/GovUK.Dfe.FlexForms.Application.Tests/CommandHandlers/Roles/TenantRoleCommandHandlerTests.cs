@@ -2,6 +2,7 @@ using FluentValidation;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.FlexForms.Application.Roles.Commands;
+using GovUK.Dfe.FlexForms.Application.Roles.Queries;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
@@ -127,5 +128,34 @@ public class TenantRoleCommandHandlerTests
         var validator = new CreateTenantRoleCommandValidator();
         var result = validator.Validate(new CreateTenantRoleCommand(""));
         Assert.False(result.IsValid);
+    }
+
+    [Fact]
+    public async Task List_ShouldEnsureSystemRoles_BeforeReturning()
+    {
+        var permissionChecker = Substitute.For<IPermissionCheckerService>();
+        permissionChecker.IsAdmin().Returns(true);
+        var (accessor, tenantId) = CreateTenantContext();
+        var roleService = Substitute.For<ITenantRoleService>();
+        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var roles = new List<Role>
+        {
+            Role.CreateForTenant(tenantId, "Admin", isSystem: true),
+            Role.CreateForTenant(tenantId, "User", isSystem: true)
+        };
+        roleService.ListAsync(tenantId, Arg.Any<CancellationToken>()).Returns(roles);
+
+        var handler = new ListTenantRolesQueryHandler(
+            permissionChecker,
+            accessor,
+            roleService,
+            unitOfWork);
+
+        var result = await handler.Handle(new ListTenantRolesQuery(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(2, result.Value!.Count);
+        await roleService.Received(1).EnsureSystemRolesAsync(tenantId, Arg.Any<CancellationToken>());
+        await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
     }
 }
