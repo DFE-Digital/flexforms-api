@@ -93,6 +93,47 @@ public class TemplatesController(ISender sender) : ControllerBase
     }
 
     /// <summary>
+    /// Lists schema versions for a template (newest first), without schema bodies.
+    /// </summary>
+    [HttpGet("{templateId}/versions")]
+    [SwaggerResponse(200, "Template versions.", typeof(IReadOnlyCollection<TemplateVersionSummaryDto>))]
+    [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Access denied.", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "Template not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize(Policy = "CanReadTemplate")]
+    public async Task<IActionResult> GetTemplateVersionsAsync(
+        [FromRoute] Guid templateId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetTemplateVersionsQuery(templateId), cancellationToken);
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Returns the schema for a specific template version number.
+    /// </summary>
+    // Catch-all so semantic versions like "4.0.2" are not truncated at dots.
+    [HttpGet("{templateId}/versions/{*versionNumber}")]
+    [SwaggerResponse(200, "The template schema for the requested version.", typeof(TemplateSchemaDto))]
+    [SwaggerResponse(400, "Request was invalid.", typeof(ExceptionResponse))]
+    [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Access denied.", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "Template version not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize(Policy = "CanReadTemplate")]
+    public async Task<IActionResult> GetTemplateSchemaByVersionAsync(
+        [FromRoute] Guid templateId,
+        [FromRoute] string versionNumber,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new GetTemplateSchemaByVersionQuery(templateId, versionNumber),
+            cancellationToken);
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
     /// Get custom application statuses for a template.
     /// </summary>
     [HttpGet("{templateId}/custom-statuses")]
