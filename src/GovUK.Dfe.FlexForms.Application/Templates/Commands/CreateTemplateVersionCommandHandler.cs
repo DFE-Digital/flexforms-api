@@ -31,7 +31,8 @@ public sealed class CreateTemplateVersionCommandHandler(
     IPermissionCheckerService permissionChecker,
     ITenantTemplateResolver tenantTemplateResolver,
     ITemplateFactory templateFactory,
-    IUnitOfWork unitOfWork)
+    IUnitOfWork unitOfWork,
+    ITemplateSchemaCacheInvalidator templateSchemaCacheInvalidator)
     : IRequestHandler<CreateTemplateVersionCommand, Result<TemplateSchemaDto>>
 {
     public async Task<Result<TemplateSchemaDto>> Handle(
@@ -104,6 +105,11 @@ public sealed class CreateTemplateVersionCommandHandler(
                 dbUser.Id!);
 
             await unitOfWork.CommitAsync(cancellationToken);
+
+            // Drop Redis latest-schema entries so Template Manager / dashboard load the new version.
+            await templateSchemaCacheInvalidator.InvalidateForTemplateAsync(
+                template.Id!.Value,
+                cancellationToken);
 
             return Result<TemplateSchemaDto>.Success(new TemplateSchemaDto
             {

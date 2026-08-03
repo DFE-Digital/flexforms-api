@@ -26,6 +26,7 @@ public sealed record GetApplicationsForUserQuery(
 public sealed class GetApplicationsForUserQueryHandler(
     IEaRepository<User> userRepo,
     IEaRepository<Domain.Entities.Application> appRepo,
+    IApplicationRepository applicationRepository,
     ICacheService<IRedisCacheType> cacheService,
     ITenantContextAccessor tenantContextAccessor,
     IUserAccessibleTemplateService userAccessibleTemplateService,
@@ -104,6 +105,7 @@ public sealed class GetApplicationsForUserQueryHandler(
                         request.IncludeSchema,
                         request.PageNumber,
                         request.PageSize,
+                        applicationRepository,
                         cancellationToken);
 
                     logger.LogInformation(

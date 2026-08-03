@@ -20,6 +20,28 @@ public sealed class ApplicationRepository(ExternalApplicationsContext dbContext)
             .OrderByDescending(r => r.CreatedOn)
             .FirstOrDefaultAsync(cancellationToken);
 
+    public async Task<IReadOnlyDictionary<ApplicationId, ApplicationResponse>> GetLatestResponsesAsync(
+        IReadOnlyCollection<ApplicationId> applicationIds,
+        CancellationToken cancellationToken)
+    {
+        if (applicationIds is null || applicationIds.Count == 0)
+            return new Dictionary<ApplicationId, ApplicationResponse>();
+
+        var ids = applicationIds.Distinct().ToList();
+
+        // Pull candidate rows for the page, then keep the newest per application in memory.
+        // Page sizes are small; this avoids N+1 while staying portable across providers.
+        var responses = await DbContext.ApplicationResponses
+            .AsNoTracking()
+            .Where(r => ids.Contains(r.ApplicationId))
+            .OrderByDescending(r => r.CreatedOn)
+            .ToListAsync(cancellationToken);
+
+        return responses
+            .GroupBy(r => r.ApplicationId)
+            .ToDictionary(g => g.Key, g => g.First());
+    }
+
     public async Task<(string ApplicationReference, ApplicationResponse Response)?> AppendResponseVersionAsync(
         ApplicationId applicationId,
         ApplicationResponse response,
