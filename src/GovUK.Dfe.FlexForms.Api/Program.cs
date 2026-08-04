@@ -117,6 +117,7 @@ namespace GovUK.Dfe.FlexForms.Api
             builder.Services.AddSingleton<ITenantSettingsEncryptor>(encryptor);
             builder.Services.AddScoped<ITenantConfigSeeder, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantConfigSeederService>();
             builder.Services.AddScoped<ITenantSettingsWriter, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantSettingsWriterService>();
+            builder.Services.AddScoped<ITenantDuplicator, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantDuplicatorService>();
             builder.Services.AddScoped<ITenantSettingsQuery, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantSettingsQueryService>();
             builder.Services.AddScoped<ITenantPrincipalResolver, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantPrincipalResolver>();
             builder.Services.AddScoped<ITenantSettingsReader, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantSettingsReader>();

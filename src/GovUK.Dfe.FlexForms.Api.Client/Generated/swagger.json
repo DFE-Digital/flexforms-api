@@ -3924,6 +3924,101 @@
         }
       }
     },
+    "/v1/admin/tenants/{tenantId}/duplicate": {
+      "post": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Duplicates the caller's own tenant into a new TenantConfig tenant.\nCopies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.\nPrincipals are not copied. Interactive SuperAdmin only.",
+        "operationId": "TenantAdmin_DuplicateTenant",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateTenantRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "201": {
+            "description": "Tenant duplicated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateTenantResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - interactive SuperAdmin of own tenant required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Source tenant not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/tenant-config": {
       "get": {
         "tags": [
@@ -6002,6 +6097,79 @@
           "updatedAtUtc": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "DuplicateTenantResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceTenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "newTenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "newTenantName": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "frontendOrigin": {
+            "type": "string"
+          },
+          "settingsCopied": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "DuplicateTenantRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "newTenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "newTenantName": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "frontendOrigin": {
+            "type": "string"
+          },
+          "authorizationApiSecretKey": {
+            "type": "string"
+          },
+          "internalServiceAuthSecretKey": {
+            "type": "string"
+          },
+          "internalServiceAuthServiceApiKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DuplicateTenantServiceApiKey"
+            }
+          }
+        }
+      },
+      "DuplicateTenantServiceApiKey": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "apiKey": {
+            "type": "string"
           }
         }
       },

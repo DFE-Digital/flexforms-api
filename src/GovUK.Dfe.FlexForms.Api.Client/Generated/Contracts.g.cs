@@ -472,6 +472,16 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<UpsertTenantSettingResponse> UpsertTenantSettingAsync(System.Guid tenantId, UpsertTenantSettingRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Duplicates the caller's own tenant into a new TenantConfig tenant.
+        /// <br/>Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
+        /// <br/>Principals are not copied. Interactive SuperAdmin only.
+        /// </summary>
+        /// <returns>Tenant duplicated.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<DuplicateTenantResponse> DuplicateTenantAsync(System.Guid tenantId, DuplicateTenantRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
