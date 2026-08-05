@@ -3922,6 +3922,53 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Deletes a tenant setting category. Interactive SuperAdmin only.",
+        "operationId": "TenantAdmin_DeleteTenantSetting",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "x-position": 2
+          },
+          {
+            "name": "target",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "x-position": 3
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Setting deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteTenantSettingResponse"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/admin/tenants/{tenantId}/duplicate": {
@@ -4166,6 +4213,126 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/GetTenantSettingAuditLogDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/settings/validate": {
+      "post": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Dry-run validation and diff for a proposed tenant setting change.",
+        "operationId": "TenantAdmin_ValidateTenantSetting",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateTenantSettingRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "Validation result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidateTenantSettingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/health": {
+      "get": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Tenant health checks for SuperAdmin Tenant Settings.",
+        "operationId": "TenantAdmin_GetTenantHealth",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tenant health.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantHealthDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/settings/cookbook": {
+      "get": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Category cookbook (examples and notes) for SuperAdmin UI.",
+        "operationId": "TenantAdmin_GetCategoryCookbook",
+        "responses": {
+          "200": {
+            "description": "Category cookbook.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTenantSettingCategoryCookbookResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/platform": {
+      "get": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Read-only platform tenant catalogue (SuperAdmin only).",
+        "operationId": "TenantAdmin_GetPlatformTenants",
+        "responses": {
+          "200": {
+            "description": "Platform tenants.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetPlatformTenantsResponse"
                 }
               }
             }
@@ -6560,6 +6727,216 @@
           },
           "wasSecret": {
             "type": "boolean"
+          }
+        }
+      },
+      "ValidateTenantSettingResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "isValid": {
+            "type": "boolean"
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "diffSummary": {
+            "type": "string",
+            "nullable": true
+          },
+          "currentSettingsJson": {
+            "type": "string",
+            "nullable": true
+          },
+          "proposedSettingsJson": {
+            "type": "string"
+          },
+          "settingExists": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ValidateTenantSettingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "settingsJson": {
+            "type": "string"
+          },
+          "isSecret": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DeleteTenantSettingResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "category": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "TenantHealthDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "overallStatus": {
+            "type": "string"
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantHealthCheckDto"
+            }
+          },
+          "effectiveConfiguration": {
+            "$ref": "#/components/schemas/TenantEffectiveConfigurationDto"
+          }
+        }
+      },
+      "TenantHealthCheckDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "GetTenantSettingCategoryCookbookResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantSettingCategoryCookbookEntryDto"
+            }
+          }
+        }
+      },
+      "TenantSettingCategoryCookbookEntryDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "typicalTargets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "isSecretCategory": {
+            "type": "boolean"
+          },
+          "requiresObjectRoot": {
+            "type": "boolean"
+          },
+          "exampleJson": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "GetPlatformTenantsResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "tenantCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastCatalogueRefreshUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "tenants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PlatformTenantSummaryDto"
+            }
+          }
+        }
+      },
+      "PlatformTenantSummaryDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "hostnames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "frontendOrigins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "interactiveAuthScheme": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

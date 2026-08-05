@@ -474,6 +474,14 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
+        /// Deletes a tenant setting category. Interactive SuperAdmin only.
+        /// </summary>
+        /// <returns>Setting deleted.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<DeleteTenantSettingResponse> DeleteTenantSettingAsync(System.Guid tenantId, string category = null, string target = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
         /// Duplicates the caller's own tenant into a new TenantConfig tenant.
         /// <br/>Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
         /// <br/>Principals are not copied. Interactive SuperAdmin only.
@@ -513,6 +521,38 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>Audit log.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<GetTenantSettingAuditLogDto> GetSettingAuditLogAsync(System.Guid tenantId, int? take = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Dry-run validation and diff for a proposed tenant setting change.
+        /// </summary>
+        /// <returns>Validation result.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ValidateTenantSettingResponse> ValidateTenantSettingAsync(System.Guid tenantId, ValidateTenantSettingRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Tenant health checks for SuperAdmin Tenant Settings.
+        /// </summary>
+        /// <returns>Tenant health.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TenantHealthDto> GetTenantHealthAsync(System.Guid tenantId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Category cookbook (examples and notes) for SuperAdmin UI.
+        /// </summary>
+        /// <returns>Category cookbook.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetTenantSettingCategoryCookbookResponse> GetCategoryCookbookAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Read-only platform tenant catalogue (SuperAdmin only).
+        /// </summary>
+        /// <returns>Platform tenants.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetPlatformTenantsResponse> GetPlatformTenantsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
     }
 

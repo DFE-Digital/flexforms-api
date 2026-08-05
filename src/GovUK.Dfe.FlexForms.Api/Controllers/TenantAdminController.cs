@@ -265,6 +265,101 @@ public class TenantAdminController(ISender sender) : ControllerBase
         return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
     }
 
+    /// <summary>
+    /// Dry-run validation and diff for a proposed tenant setting change.
+    /// </summary>
+    [HttpPost("{tenantId:guid}/settings/validate")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Validation result.", typeof(ValidateTenantSettingResponse))]
+    public async Task<IActionResult> ValidateTenantSetting(
+        Guid tenantId,
+        [FromBody] ValidateTenantSettingRequest body,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new ValidateTenantSettingCommand(
+                tenantId,
+                body.Category,
+                body.Target,
+                body.SettingsJson,
+                body.IsSecret),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Deletes a tenant setting category. Interactive SuperAdmin only.
+    /// </summary>
+    [HttpDelete("{tenantId:guid}/settings")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Setting deleted.", typeof(DeleteTenantSettingResponse))]
+    public async Task<IActionResult> DeleteTenantSetting(
+        Guid tenantId,
+        [FromQuery] string category,
+        [FromQuery] string target,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new DeleteTenantSettingCommand(tenantId, category, target),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Tenant health checks for SuperAdmin Tenant Settings.
+    /// </summary>
+    [HttpGet("{tenantId:guid}/health")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Tenant health.", typeof(TenantHealthDto))]
+    public async Task<IActionResult> GetTenantHealth(
+        Guid tenantId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetTenantHealthQuery(tenantId), cancellationToken);
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Category cookbook (examples and notes) for SuperAdmin UI.
+    /// </summary>
+    [HttpGet("settings/cookbook")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Category cookbook.", typeof(GetTenantSettingCategoryCookbookResponse))]
+    public async Task<IActionResult> GetCategoryCookbook(CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetTenantSettingCategoryCookbookQuery(), cancellationToken);
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Read-only platform tenant catalogue (SuperAdmin only).
+    /// </summary>
+    [HttpGet("platform")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Platform tenants.", typeof(GetPlatformTenantsResponse))]
+    public async Task<IActionResult> GetPlatformTenants(CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetPlatformTenantsQuery(), cancellationToken);
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
     private static IActionResult MapFailure<T>(Result<T> result)
     {
         var statusCode = result.ErrorCode switch

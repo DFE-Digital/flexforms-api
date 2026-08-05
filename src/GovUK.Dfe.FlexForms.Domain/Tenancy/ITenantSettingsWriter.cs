@@ -18,6 +18,15 @@ public interface ITenantSettingsWriter
         string settingsJson,
         bool isSecret,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a setting category for a tenant. Returns null when the row does not exist.
+    /// </summary>
+    Task<DeleteTenantSettingResult?> DeleteSettingAsync(
+        Guid tenantId,
+        string category,
+        string target,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>
@@ -28,3 +37,12 @@ public sealed record UpsertTenantSettingResult(
     bool WasCreated,
     string Category,
     string Target);
+
+/// <summary>
+/// Result of deleting a tenant setting.
+/// </summary>
+public sealed record DeleteTenantSettingResult(
+    Guid SettingId,
+    string Category,
+    string Target,
+    bool WasSecret);
