@@ -572,6 +572,14 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
+        /// Platform typed-event catalogue (CoreLibs Messaging.Contracts) with property schema.
+        /// </summary>
+        /// <returns>Event catalogue.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetEventCatalogueResponse> GetEventCatalogueAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
         /// Read-only platform tenant catalogue (SuperAdmin only).
         /// </summary>
         /// <returns>Platform tenants.</returns>

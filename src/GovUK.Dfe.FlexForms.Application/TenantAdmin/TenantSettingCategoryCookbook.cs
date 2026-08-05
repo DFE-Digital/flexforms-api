@@ -121,6 +121,22 @@ public static class TenantSettingCategoryCookbook
             example: """{"PageSize":50,"EnableApplicationFilters":false}""",
             notes: ["Non-secret", "Also editable via Organisation Settings"],
             requiresObject: true),
+
+        Entry(
+            "EventMappings",
+            "Per-template field mappings for typed and schema events (delegated to Tenant Admins).",
+            ["Web"],
+            example: """{"form-001":{"TransferApplicationSubmittedEvent":{"mappingId":"...","eventType":"TransferApplicationSubmittedEvent","fieldMappings":{}}}}""",
+            notes: ["Non-secret", "Also editable via Event mappings Admin page", "Disk EventMappings files remain as fallback"],
+            requiresObject: true),
+
+        Entry(
+            "SchemaEvents",
+            "Tenant-defined schema events (topic + JSON Schema) for messages not yet in CoreLibs.",
+            ["Web"],
+            example: """{"MyCustomSubmitted":{"topicName":"my-custom-submitted","version":"1.0","description":"...","jsonSchema":{"type":"object","properties":{}}}}""",
+            notes: ["Non-secret", "Use EventKind=Schema in ApplicationSubmission:PublishEvent:Events", "Promote successful schemas into CoreLibs when stable"],
+            requiresObject: true),
     ];
 
     private static TenantSettingCategoryCookbookEntryDto Entry(

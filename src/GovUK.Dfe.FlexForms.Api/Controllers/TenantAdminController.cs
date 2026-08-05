@@ -2,10 +2,9 @@ using Asp.Versioning;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Commands;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Queries;
+using GovUK.Dfe.FlexForms.Domain.Messaging;
 using GovUK.Dfe.FlexForms.Infrastructure.Security;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
-using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
-using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Http.Models;
@@ -377,6 +376,23 @@ public class TenantAdminController(ISender sender) : ControllerBase
     public async Task<IActionResult> GetCategoryCookbook(CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetTenantSettingCategoryCookbookQuery(), cancellationToken);
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Platform typed-event catalogue (CoreLibs Messaging.Contracts) with property schema.
+    /// </summary>
+    [HttpGet("event-catalogue")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Event catalogue.", typeof(GetEventCatalogueResponse))]
+    [SwaggerResponse(401, "Unauthorized.", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Forbidden - interactive Admin user required.", typeof(ExceptionResponse))]
+    public async Task<IActionResult> GetEventCatalogue(CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetEventCatalogueQuery(), cancellationToken);
         if (!result.IsSuccess)
             return MapFailure(result);
 

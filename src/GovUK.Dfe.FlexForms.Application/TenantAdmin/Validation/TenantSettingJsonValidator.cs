@@ -114,6 +114,7 @@ public static class TenantSettingJsonValidator
             "NotificationBanner" => true,
             "Dashboard" => true,
             "EventMappings" => true,
+            "SchemaEvents" => true,
             _ => false
         };
 
@@ -232,9 +233,41 @@ public static class TenantSettingJsonValidator
                 ValidateEventMappings(root, errors);
                 break;
 
+            case "SchemaEvents":
+                ValidateSchemaEvents(root, errors);
+                break;
+
             default:
                 // Unknown categories: any JSON object/array/scalar is accepted.
                 break;
+        }
+    }
+
+    private static void ValidateSchemaEvents(JsonElement root, List<string> errors)
+    {
+        foreach (var schemaProperty in root.EnumerateObject())
+        {
+            if (schemaProperty.Value.ValueKind != JsonValueKind.Object)
+            {
+                errors.Add($"SchemaEvents['{schemaProperty.Name}'] must be an object.");
+                continue;
+            }
+
+            var schema = schemaProperty.Value;
+            if (GetString(schema, "topicName") is null && GetString(schema, "TopicName") is null)
+            {
+                errors.Add($"SchemaEvents['{schemaProperty.Name}'].topicName is required.");
+            }
+
+            if (!schema.TryGetProperty("jsonSchema", out var jsonSchema)
+                && !schema.TryGetProperty("JsonSchema", out jsonSchema))
+            {
+                errors.Add($"SchemaEvents['{schemaProperty.Name}'].jsonSchema is required.");
+            }
+            else if (jsonSchema.ValueKind != JsonValueKind.Object)
+            {
+                errors.Add($"SchemaEvents['{schemaProperty.Name}'].jsonSchema must be a JSON Schema object.");
+            }
         }
     }
 

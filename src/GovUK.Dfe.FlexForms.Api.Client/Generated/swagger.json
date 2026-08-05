@@ -4448,6 +4448,47 @@
         }
       }
     },
+    "/v1/admin/tenants/event-catalogue": {
+      "get": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Platform typed-event catalogue (CoreLibs Messaging.Contracts) with property schema.",
+        "operationId": "TenantAdmin_GetEventCatalogue",
+        "responses": {
+          "200": {
+            "description": "Event catalogue.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetEventCatalogueResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - interactive Admin user required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/admin/tenants/platform": {
       "get": {
         "tags": [
@@ -7071,6 +7112,72 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          }
+        }
+      },
+      "GetEventCatalogueResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventCatalogueItemDto"
+            }
+          }
+        }
+      },
+      "EventCatalogueItemDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "eventTypeName": {
+            "type": "string"
+          },
+          "topicName": {
+            "type": "string",
+            "nullable": true
+          },
+          "clrTypeName": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "version": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EventCataloguePropertyDto"
+            }
+          }
+        }
+      },
+      "EventCataloguePropertyDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "clrType": {
+            "type": "string"
+          },
+          "isNullable": {
+            "type": "boolean"
+          },
+          "properties": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/EventCataloguePropertyDto"
             }
           }
         }
