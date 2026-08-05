@@ -44,6 +44,7 @@ public class ExternalApplicationsContext : DbContext
     public DbSet<TemplatePermission> TemplatePermissions { get; set; } = null!;
     public DbSet<File> Files { get; set; } = null!;
     public DbSet<CustomApplicationStatus> CustomApplicationStatuses { get; set; } = null!;
+    public DbSet<TenantAccessAudit> TenantAccessAudits { get; set; } = null!;
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -78,8 +79,27 @@ public class ExternalApplicationsContext : DbContext
         modelBuilder.Entity<TaskAssignmentLabel>(ConfigureTaskAssignmentLabel);
         modelBuilder.Entity<File>(ConfigureFile);
         modelBuilder.Entity<CustomApplicationStatus>(b => ConfigureCustomApplicationStatus(b, useTemporal));
+        modelBuilder.Entity<TenantAccessAudit>(ConfigureTenantAccessAudit);
 
         base.OnModelCreating(modelBuilder);
+    }
+
+    private static void ConfigureTenantAccessAudit(EntityTypeBuilder<TenantAccessAudit> b)
+    {
+        b.ToTable("TenantAccessAudits", DefaultSchema);
+        b.HasKey(e => e.Id);
+        b.Property(e => e.Id).ValueGeneratedNever();
+        b.Property(e => e.TenantId).IsRequired();
+        b.Property(e => e.SubjectEmail).HasMaxLength(320).IsRequired();
+        b.Property(e => e.Action).HasMaxLength(64).IsRequired();
+        b.Property(e => e.RoleName).HasMaxLength(128);
+        b.Property(e => e.ActorEmail).HasMaxLength(320).IsRequired();
+        b.Property(e => e.Details).HasMaxLength(1024);
+        b.Property(e => e.OccurredAtUtc).IsRequired();
+        b.HasIndex(e => new { e.TenantId, e.OccurredAtUtc })
+            .HasDatabaseName("IX_TenantAccessAudits_TenantId_OccurredAtUtc");
+        b.HasIndex(e => new { e.TenantId, e.SubjectEmail })
+            .HasDatabaseName("IX_TenantAccessAudits_TenantId_SubjectEmail");
     }
 
     private static void ConfigureCustomApplicationStatus(EntityTypeBuilder<CustomApplicationStatus> b, bool useTemporal)

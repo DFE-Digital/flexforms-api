@@ -97,6 +97,30 @@ public static class TenantSettingCategoryCookbook
             example: """{"Providers":[]}""",
             notes: ["Forced secret category"],
             requiresObject: false),
+
+        Entry(
+            "ApplicationTerminology",
+            "Display terms for 'application' (delegated to Tenant Admins).",
+            ["Web"],
+            example: """{"Singular":"application","Plural":"applications"}""",
+            notes: ["Non-secret", "Also editable via Organisation Settings"],
+            requiresObject: true),
+
+        Entry(
+            "NotificationBanner",
+            "Site-wide GOV.UK notification banner (delegated to Tenant Admins).",
+            ["Web"],
+            example: """{"Enabled":false,"Heading":"Important","Message":""}""",
+            notes: ["Non-secret", "Also editable via Organisation Settings"],
+            requiresObject: true),
+
+        Entry(
+            "Dashboard",
+            "Application listing page size and filters (delegated to Tenant Admins).",
+            ["Web"],
+            example: """{"PageSize":50,"EnableApplicationFilters":false}""",
+            notes: ["Non-secret", "Also editable via Organisation Settings"],
+            requiresObject: true),
     ];
 
     private static TenantSettingCategoryCookbookEntryDto Entry(

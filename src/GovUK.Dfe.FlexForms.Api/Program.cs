@@ -23,6 +23,7 @@ using System.Text.Json.Serialization;
 using System.Linq;
 using GovUK.Dfe.FlexForms.Api.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Caching;
 using GovUK.Dfe.FlexForms.Infrastructure.Caching;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
@@ -128,6 +129,8 @@ namespace GovUK.Dfe.FlexForms.Api
             builder.Services.AddSingleton<IHostConfigurationReader, GovUK.Dfe.FlexForms.Infrastructure.Services.HostConfigurationReader>();
             builder.Services.AddScoped<ITenantSettingAuditWriter, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantSettingAuditWriter>();
             builder.Services.AddScoped<ITenantSettingAuditQuery, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantSettingAuditQueryService>();
+            builder.Services.AddScoped<ITenantAccessAuditWriter, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantAccessAuditWriter>();
+            builder.Services.AddScoped<ITenantAccessAuditQuery, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantAccessAuditQueryService>();
             builder.Services.AddScoped<ITenantConfigurationPromotion, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantConfigurationPromotionService>();
 
             builder.Services.AddHealthChecks()

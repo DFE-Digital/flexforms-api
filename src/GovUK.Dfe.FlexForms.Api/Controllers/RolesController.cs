@@ -42,6 +42,24 @@ public class RolesController(ISender sender) : ControllerBase
         return Map(result);
     }
 
+    /// <summary>
+    /// Creates a custom role from a Caseworker or Reviewer permission preset.
+    /// </summary>
+    [HttpPost("from-template")]
+    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
+    [SwaggerResponse(200, "Role created from template.", typeof(TenantRoleDto))]
+    [SwaggerResponse(400, "Invalid request.", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Forbidden.", typeof(ExceptionResponse))]
+    public async Task<ActionResult<TenantRoleDto>> CreateFromTemplateAsync(
+        [FromBody] CreateTenantRoleFromTemplateRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new CreateTenantRoleFromTemplateCommand(request.TemplateKey),
+            cancellationToken);
+        return Map(result);
+    }
+
     [HttpPut("{roleId:guid}")]
     [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
     [SwaggerResponse(200, "Role renamed.", typeof(TenantRoleDto))]

@@ -245,12 +245,40 @@ public sealed class DatabaseTenantAuthProviderRegistry : ITenantAuthProviderRegi
 
                     if (!string.IsNullOrEmpty(provider.ApiKeyHash))
                     {
-                        byApiKey[provider.ApiKeyHash] = provider;
+                        if (byApiKey.TryGetValue(provider.ApiKeyHash, out var existingByKey)
+                            && existingByKey.TenantId != provider.TenantId)
+                        {
+                            _logger.LogError(
+                                "Duplicate ApiKeyHash detected across tenants during registry rebuild: " +
+                                "tenants {ExistingTenantId} and {NewTenantId}. Keeping first registration; " +
+                                "the second tenant's API key will not authenticate until the collision is fixed.",
+                                existingByKey.TenantId,
+                                provider.TenantId);
+                        }
+                        else
+                        {
+                            byApiKey[provider.ApiKeyHash] = provider;
+                        }
                     }
 
                     if (!string.IsNullOrEmpty(provider.CertificateThumbprint))
                     {
-                        byThumb[NormalizeThumbprint(provider.CertificateThumbprint)] = provider;
+                        var thumb = NormalizeThumbprint(provider.CertificateThumbprint);
+                        if (byThumb.TryGetValue(thumb, out var existingByThumb)
+                            && existingByThumb.TenantId != provider.TenantId)
+                        {
+                            _logger.LogError(
+                                "Duplicate certificate thumbprint detected across tenants during registry rebuild: " +
+                                "tenants {ExistingTenantId} and {NewTenantId} (thumbprint {Thumbprint}). " +
+                                "Keeping first registration; the second tenant's cert will not authenticate until fixed.",
+                                existingByThumb.TenantId,
+                                provider.TenantId,
+                                thumb);
+                        }
+                        else
+                        {
+                            byThumb[thumb] = provider;
+                        }
                     }
                 }
             }

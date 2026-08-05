@@ -308,6 +308,14 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         System.Threading.Tasks.Task<TenantRoleDto> CreateAsync(CreateTenantRoleRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Creates a custom role from a Caseworker or Reviewer permission preset.
+        /// </summary>
+        /// <returns>Role created from template.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TenantRoleDto> CreateFromTemplateAsync(CreateTenantRoleFromTemplateRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>Role renamed.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<TenantRoleDto> RenameAsync(System.Guid roleId, RenameTenantRoleRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
@@ -451,6 +459,22 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>Seeding complete.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<SeedTenantsResponse> SeedFromAppSettingsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Returns non-secret organisation settings (terminology, banner, dashboard) for Tenant Admins.
+        /// </summary>
+        /// <returns>Organisation settings.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetTenantSettingsResponse> GetSafeTenantSettingsAsync(System.Guid tenantId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Upserts a delegated non-secret organisation setting (Tenant Admin or SuperAdmin).
+        /// </summary>
+        /// <returns>Setting upserted.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<UpsertTenantSettingResponse> UpsertSafeTenantSettingAsync(System.Guid tenantId, UpsertTenantSettingRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
@@ -640,6 +664,15 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>Role assigned successfully.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<UserDto> AssignUserRoleAsync(AssignUserRoleRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Returns the audit trail of user/role changes for the current tenant
+        /// <br/>(e.g. who granted Admin access).
+        /// </summary>
+        /// <returns>Access audit log.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetTenantAccessAuditLogDto> GetAccessAuditLogAsync(int? take = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>

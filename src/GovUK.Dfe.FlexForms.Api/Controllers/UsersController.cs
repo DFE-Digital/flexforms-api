@@ -97,6 +97,32 @@ public class UsersController(ISender sender) : ControllerBase
     }
 
     /// <summary>
+    /// Returns the audit trail of user/role changes for the current tenant
+    /// (e.g. who granted Admin access).
+    /// </summary>
+    [HttpGet("access-audit")]
+    [SwaggerResponse(200, "Access audit log.", typeof(GetTenantAccessAuditLogDto))]
+    [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Forbidden - only administrators can view the access audit trail", typeof(ExceptionResponse))]
+    [Authorize(Policy = "CanManageUsers")]
+    public async Task<ActionResult<GetTenantAccessAuditLogDto>> GetAccessAuditLogAsync(
+        [FromQuery] int take = 100,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await sender.Send(new GetTenantAccessAuditLogQuery(take), cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            if (result.ErrorCode == DomainErrorCode.Forbidden)
+                return StatusCode(StatusCodes.Status403Forbidden, new ExceptionResponse { Message = result.Error });
+
+            return BadRequest(new ExceptionResponse { Message = result.Error });
+        }
+
+        return Ok(result.Value);
+    }
+
+    /// <summary>
     /// Lists users who have form access within the current tenant.
     /// </summary>
     [HttpGet("tenant")]

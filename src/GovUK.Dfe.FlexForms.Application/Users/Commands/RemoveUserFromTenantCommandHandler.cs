@@ -33,7 +33,8 @@ public sealed class RemoveUserFromTenantCommandHandler(
     ITenantContextAccessor tenantContextAccessor,
     ITenantMembershipService tenantMembershipService,
     IPermissionCheckerService permissionCheckerService,
-    IHttpContextAccessor httpContextAccessor)
+    IHttpContextAccessor httpContextAccessor,
+    ITenantAccessAuditWriter accessAuditWriter)
     : IRequestHandler<RemoveUserFromTenantCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(
@@ -81,6 +82,31 @@ public sealed class RemoveUserFromTenantCommandHandler(
             cancellationToken);
 
         await unitOfWork.CommitAsync(cancellationToken);
+
+        var actorEmail = actingEmail
+            ?? httpContextAccessor.HttpContext?.User?.Identity?.Name
+            ?? "unknown";
+
+        UserId? actorUserId = null;
+        if (!string.IsNullOrWhiteSpace(actingEmail))
+        {
+            var actor = await new GetUserByEmailQueryObject(actingEmail)
+                .Apply(userRepository.Query().AsNoTracking())
+                .FirstOrDefaultAsync(cancellationToken);
+            actorUserId = actor?.Id;
+        }
+
+        await accessAuditWriter.AppendAsync(
+            currentTenant.Id,
+            userId,
+            user.Email,
+            "MembershipDeactivated",
+            roleName: null,
+            actorUserId,
+            actorEmail,
+            "User removed from tenant",
+            cancellationToken);
+
         return Result<bool>.Success(true);
     }
 }

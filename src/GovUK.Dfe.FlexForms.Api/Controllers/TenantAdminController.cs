@@ -94,6 +94,44 @@ public class TenantAdminController(ISender sender) : ControllerBase
     }
 
     /// <summary>
+    /// Returns non-secret organisation settings (terminology, banner, dashboard) for Tenant Admins.
+    /// </summary>
+    [HttpGet("{tenantId:guid}/safe-settings")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Organisation settings.", typeof(GetTenantSettingsResponse))]
+    public async Task<IActionResult> GetSafeTenantSettings(
+        Guid tenantId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetSafeTenantSettingsQuery(tenantId), cancellationToken);
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Upserts a delegated non-secret organisation setting (Tenant Admin or SuperAdmin).
+    /// </summary>
+    [HttpPut("{tenantId:guid}/safe-settings")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Setting upserted.", typeof(UpsertTenantSettingResponse))]
+    public async Task<IActionResult> UpsertSafeTenantSetting(
+        Guid tenantId,
+        [FromBody] UpsertTenantSettingRequest body,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new UpsertSafeTenantSettingCommand(tenantId, body.Category, body.SettingsJson),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
     /// Returns decrypted TenantConfig settings rows for the caller's own tenant.
     /// Restricted to interactive SuperAdmin users.
     /// </summary>

@@ -2672,6 +2672,59 @@
         }
       }
     },
+    "/v1/Roles/from-template": {
+      "post": {
+        "tags": [
+          "Roles"
+        ],
+        "summary": "Creates a custom role from a Caseworker or Reviewer permission preset.",
+        "operationId": "Roles_CreateFromTemplate",
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantRoleFromTemplateRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 1
+        },
+        "responses": {
+          "200": {
+            "description": "Role created from template.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantRoleDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/Roles/{roleId}": {
       "put": {
         "tags": [
@@ -3741,6 +3794,82 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/safe-settings": {
+      "get": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Returns non-secret organisation settings (terminology, banner, dashboard) for Tenant Admins.",
+        "operationId": "TenantAdmin_GetSafeTenantSettings",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Organisation settings.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTenantSettingsResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Upserts a delegated non-secret organisation setting (Tenant Admin or SuperAdmin).",
+        "operationId": "TenantAdmin_UpsertSafeTenantSetting",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertTenantSettingRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "Setting upserted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UpsertTenantSettingResponse"
                 }
               }
             }
@@ -4890,6 +5019,59 @@
           },
           "500": {
             "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/Users/access-audit": {
+      "get": {
+        "tags": [
+          "Users"
+        ],
+        "summary": "Returns the audit trail of user/role changes for the current tenant\n(e.g. who granted Admin access).",
+        "operationId": "Users_GetAccessAuditLog",
+        "parameters": [
+          {
+            "name": "take",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Access audit log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTenantAccessAuditLogDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - no valid user token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - only administrators can view the access audit trail",
             "content": {
               "application/json": {
                 "schema": {
@@ -6079,6 +6261,15 @@
           }
         }
       },
+      "CreateTenantRoleFromTemplateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "templateKey": {
+            "type": "string"
+          }
+        }
+      },
       "RenameTenantRoleRequest": {
         "type": "object",
         "additionalProperties": false,
@@ -6421,6 +6612,46 @@
           }
         }
       },
+      "UpsertTenantSettingResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "settingId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "wasCreated": {
+            "type": "boolean"
+          },
+          "category": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "UpsertTenantSettingRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "settingsJson": {
+            "type": "string"
+          },
+          "isSecret": {
+            "type": "boolean"
+          }
+        }
+      },
       "DuplicateTenantResponse": {
         "type": "object",
         "additionalProperties": false,
@@ -6491,46 +6722,6 @@
           },
           "apiKey": {
             "type": "string"
-          }
-        }
-      },
-      "UpsertTenantSettingResponse": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "settingId": {
-            "type": "string",
-            "format": "guid"
-          },
-          "wasCreated": {
-            "type": "boolean"
-          },
-          "category": {
-            "type": "string"
-          },
-          "target": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          }
-        }
-      },
-      "UpsertTenantSettingRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "category": {
-            "type": "string"
-          },
-          "target": {
-            "type": "string"
-          },
-          "settingsJson": {
-            "type": "string"
-          },
-          "isSecret": {
-            "type": "boolean"
           }
         }
       },
@@ -7157,6 +7348,67 @@
               "type": "string",
               "format": "guid"
             }
+          }
+        }
+      },
+      "GetTenantAccessAuditLogDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantAccessAuditEntryDto"
+            }
+          }
+        }
+      },
+      "TenantAccessAuditEntryDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "tenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "subjectUserId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "subjectEmail": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "roleName": {
+            "type": "string",
+            "nullable": true
+          },
+          "actorUserId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "actorEmail": {
+            "type": "string"
+          },
+          "details": {
+            "type": "string",
+            "nullable": true
+          },
+          "occurredAtUtc": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },

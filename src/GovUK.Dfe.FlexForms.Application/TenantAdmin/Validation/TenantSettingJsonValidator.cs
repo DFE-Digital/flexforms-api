@@ -110,6 +110,9 @@ public static class TenantSettingJsonValidator
             "Authorization" => true,
             "ConnectionStrings" => true,
             "InternalServiceAuth" => true,
+            "ApplicationTerminology" => true,
+            "NotificationBanner" => true,
+            "Dashboard" => true,
             _ => false
         };
 
@@ -200,6 +203,27 @@ public static class TenantSettingJsonValidator
                     RequireStringIfPresent(root, "SecretKey", errors);
                     RequireStringIfPresent(root, "Issuer", errors);
                     RequireStringIfPresent(root, "Audience", errors);
+                }
+                break;
+
+            case "ApplicationTerminology":
+                RequireStringIfPresent(root, "Singular", errors);
+                RequireStringIfPresent(root, "Plural", errors);
+                break;
+
+            case "NotificationBanner":
+                if (root.TryGetProperty("Enabled", out _) && GetBool(root, "Enabled") is null)
+                    errors.Add("Enabled must be true or false.");
+                break;
+
+            case "Dashboard":
+                if (root.TryGetProperty("PageSize", out var pageSize)
+                    && (pageSize.ValueKind != JsonValueKind.Number
+                        || !pageSize.TryGetInt32(out var size)
+                        || size < 1
+                        || size > 500))
+                {
+                    errors.Add("PageSize must be an integer between 1 and 500.");
                 }
                 break;
 
