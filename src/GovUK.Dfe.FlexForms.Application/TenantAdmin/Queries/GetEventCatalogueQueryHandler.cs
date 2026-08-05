@@ -1,6 +1,5 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Messaging;
-using GovUK.Dfe.FlexForms.Domain.Messaging;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using MediatR;
 

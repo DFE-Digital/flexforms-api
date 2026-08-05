@@ -2,7 +2,6 @@ using Asp.Versioning;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Commands;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Queries;
-using GovUK.Dfe.FlexForms.Domain.Messaging;
 using GovUK.Dfe.FlexForms.Infrastructure.Security;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
