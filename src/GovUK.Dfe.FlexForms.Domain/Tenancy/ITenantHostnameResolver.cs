@@ -9,6 +9,13 @@ public interface ITenantHostnameResolver
     /// Looks up an active tenant by hostname (case-insensitive).
     /// </summary>
     Task<TenantHostnameResolution?> ResolveAsync(string hostname, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Lists hostnames registered for a tenant.
+    /// </summary>
+    Task<IReadOnlyList<string>> ListHostnamesForTenantAsync(
+        Guid tenantId,
+        CancellationToken cancellationToken = default);
 }
 
 /// <summary>

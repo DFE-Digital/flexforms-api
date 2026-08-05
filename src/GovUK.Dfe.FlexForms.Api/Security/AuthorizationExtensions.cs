@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.Tokens;
@@ -504,6 +505,22 @@ namespace GovUK.Dfe.FlexForms.Api.Security
             if (provider is null)
             {
                 ctx.Fail("Unknown client certificate.");
+                return Task.CompletedTask;
+            }
+
+            var tenantAccessor = ctx.HttpContext.RequestServices.GetService<ITenantContextAccessor>();
+            var currentTenant = tenantAccessor?.CurrentTenant;
+            if (currentTenant is not null && provider.TenantId != currentTenant.Id)
+            {
+                var logger = ctx.HttpContext.RequestServices.GetService<ILogger<Program>>();
+                logger?.LogWarning(
+                    "Client certificate belongs to tenant {ProviderTenantId} but request resolved to {ResolvedTenantId} ({ResolvedTenantName}).",
+                    provider.TenantId,
+                    currentTenant.Id,
+                    currentTenant.Name);
+
+                ctx.Fail(
+                    $"Client certificate tenant '{provider.TenantId}' does not match the resolved tenant '{currentTenant.Name}' ({currentTenant.Id}).");
                 return Task.CompletedTask;
             }
 

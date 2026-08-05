@@ -1,9 +1,11 @@
-using System.Text;
-using FluentValidation;
-using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.FlexForms.Application.TenantAdmin.Validation;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using MediatR;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.AspNetCore.Http;
 
 namespace GovUK.Dfe.FlexForms.Application.TenantAdmin.Commands;
 
@@ -25,7 +27,9 @@ public sealed class UpsertTenantSettingCommandHandler(
     ITenantSettingsWriter settingsWriter,
     ITenantContextAccessor tenantContextAccessor,
     IPermissionCheckerService permissionChecker,
-    ITenantConfigurationProvider tenantConfigProvider)
+    ITenantConfigurationProvider tenantConfigProvider,
+    ITenantSettingAuditWriter auditWriter,
+    IHttpContextAccessor httpContextAccessor)
     : IRequestHandler<UpsertTenantSettingCommand, Result<UpsertTenantSettingResponse>>
 {
     public async Task<Result<UpsertTenantSettingResponse>> Handle(
@@ -70,6 +74,20 @@ public sealed class UpsertTenantSettingCommandHandler(
                 "Settings JSON is required.");
         }
 
+        var validationErrors = TenantSettingJsonValidator.Validate(
+            request.Category,
+            request.Target,
+            decodedSettingsJson);
+
+        if (validationErrors.Count > 0)
+        {
+            return Result<UpsertTenantSettingResponse>.Validation(
+                string.Join(" ", validationErrors));
+        }
+
+        var effectiveIsSecret = request.IsSecret
+            || TenantSettingsSecretCategories.ShouldEncrypt(request.Category);
+
         try
         {
             var result = await settingsWriter.UpsertSettingAsync(
@@ -77,7 +95,16 @@ public sealed class UpsertTenantSettingCommandHandler(
                 request.Category,
                 request.Target,
                 decodedSettingsJson,
-                request.IsSecret,
+                effectiveIsSecret,
+                cancellationToken);
+
+            await auditWriter.AppendAsync(
+                request.TenantId,
+                request.Category,
+                request.Target,
+                result.WasCreated ? "Created" : "Updated",
+                ResolveActorEmail(),
+                effectiveIsSecret,
                 cancellationToken);
 
             await tenantConfigProvider.RefreshAsync(cancellationToken);
@@ -96,5 +123,14 @@ public sealed class UpsertTenantSettingCommandHandler(
         {
             return Result<UpsertTenantSettingResponse>.NotFound(ex.Message);
         }
+    }
+
+    private string ResolveActorEmail()
+    {
+        var user = httpContextAccessor.HttpContext?.User;
+        return user?.FindFirst(ClaimTypes.Email)?.Value
+               ?? user?.FindFirst("email")?.Value
+               ?? user?.Identity?.Name
+               ?? "unknown";
     }
 }

@@ -17,6 +17,7 @@ public class TenantConfigDbContext(DbContextOptions<TenantConfigDbContext> optio
     public DbSet<TenantHostnameEntity> TenantHostnames { get; set; } = null!;
     public DbSet<TenantFrontendOriginEntity> TenantFrontendOrigins { get; set; } = null!;
     public DbSet<TenantPrincipalEntity> TenantPrincipals { get; set; } = null!;
+    public DbSet<TenantSettingAuditEntity> TenantSettingAudits { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -28,6 +29,7 @@ public class TenantConfigDbContext(DbContextOptions<TenantConfigDbContext> optio
         ConfigureTenantHostnameEntity(modelBuilder);
         ConfigureTenantFrontendOriginEntity(modelBuilder);
         ConfigureTenantPrincipalEntity(modelBuilder);
+        ConfigureTenantSettingAuditEntity(modelBuilder);
     }
 
     private static void ConfigureTenantEntity(ModelBuilder modelBuilder)
@@ -77,7 +79,12 @@ public class TenantConfigDbContext(DbContextOptions<TenantConfigDbContext> optio
     {
         modelBuilder.Entity<TenantSettingEntity>(entity =>
         {
-            entity.ToTable("TenantSettings");
+            entity.ToTable("TenantSettings", Schema, tb => tb.IsTemporal(ttb =>
+            {
+                ttb.HasPeriodStart("PeriodStart");
+                ttb.HasPeriodEnd("PeriodEnd");
+                ttb.UseHistoryTable("History_TenantSettings", Schema);
+            }));
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Id).ValueGeneratedNever();
 
@@ -163,6 +170,42 @@ public class TenantConfigDbContext(DbContextOptions<TenantConfigDbContext> optio
 
             entity.HasIndex(e => e.PrincipalObjectId).IsUnique();
             entity.HasIndex(e => e.TenantId);
+        });
+    }
+
+    private static void ConfigureTenantSettingAuditEntity(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TenantSettingAuditEntity>(entity =>
+        {
+            entity.ToTable("TenantSettingAudits");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
+
+            entity.Property(e => e.Category)
+                .IsRequired()
+                .HasMaxLength(50);
+
+            entity.Property(e => e.Target)
+                .IsRequired()
+                .HasMaxLength(10);
+
+            entity.Property(e => e.Action)
+                .IsRequired()
+                .HasMaxLength(20);
+
+            entity.Property(e => e.ActorEmail)
+                .IsRequired()
+                .HasMaxLength(256);
+
+            entity.Property(e => e.ChangedAtUtc).IsRequired();
+            entity.Property(e => e.WasSecret).IsRequired();
+
+            entity.HasIndex(e => new { e.TenantId, e.ChangedAtUtc });
+
+            entity.HasOne(e => e.Tenant)
+                .WithMany()
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

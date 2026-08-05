@@ -20,7 +20,7 @@ public class DatabaseTenantConfigurationProvider(
     ITenantSettingsEncryptor? encryptor = null,
     string targetApplication = "Api",
     int refreshIntervalSeconds = 60,
-    ITenantConfigurationChangedNotifier? changeNotifier = null) : ITenantConfigurationProvider, IHostedService, IDisposable
+    ITenantConfigurationChangedNotifier? changeNotifier = null) : ITenantConfigurationProvider, ITenantConfigurationRefreshState, IHostedService, IDisposable
 {
     private volatile IReadOnlyDictionary<Guid, TenantConfiguration> _tenantsById =
         new Dictionary<Guid, TenantConfiguration>();
@@ -28,10 +28,16 @@ public class DatabaseTenantConfigurationProvider(
     private volatile IReadOnlyDictionary<string, TenantConfiguration> _tenantsByOrigin =
         new Dictionary<string, TenantConfiguration>(StringComparer.OrdinalIgnoreCase);
 
+    private DateTimeOffset? _lastRefreshedUtc;
+
     private Timer? _refreshTimer;
     private bool _disposed;
 
     public string Source => "Database";
+
+    public DateTimeOffset? LastRefreshedUtc => _lastRefreshedUtc;
+
+    public int ActiveTenantCount => _tenantsById.Count;
 
     /// <inheritdoc />
     public TenantConfiguration? GetTenant(Guid id)
@@ -119,6 +125,7 @@ public class DatabaseTenantConfigurationProvider(
 
             _tenantsById = newTenantsById;
             _tenantsByOrigin = newTenantsByOrigin;
+            _lastRefreshedUtc = DateTimeOffset.UtcNow;
 
             logger.LogInformation(
                 "Tenant configuration refreshed. Loaded {TenantCount} active tenants for target '{Target}'",

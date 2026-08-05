@@ -4019,6 +4019,160 @@
         }
       }
     },
+    "/v1/admin/tenants/{tenantId}/effective-config": {
+      "get": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Returns the effective runtime configuration for the caller's tenant (auth scheme, hostnames, cache metadata).",
+        "operationId": "TenantAdmin_GetEffectiveConfiguration",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Effective tenant configuration.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TenantEffectiveConfigurationDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/export": {
+      "get": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Exports tenant settings for promotion to another environment (secrets redacted).",
+        "operationId": "TenantAdmin_ExportConfiguration",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Export bundle.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportTenantConfigurationDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/import": {
+      "post": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Imports a promotion bundle into the caller's tenant.",
+        "operationId": "TenantAdmin_ImportConfiguration",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportTenantConfigurationDto"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "Import result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportTenantConfigurationResultDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/settings/audit": {
+      "get": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Returns recent tenant setting change audit entries.",
+        "operationId": "TenantAdmin_GetSettingAuditLog",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "take",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 100
+            },
+            "x-position": 2
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit log.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetTenantSettingAuditLogDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/tenant-config": {
       "get": {
         "tags": [
@@ -6209,6 +6363,202 @@
             "type": "string"
           },
           "isSecret": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TenantEffectiveConfigurationDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "configSource": {
+            "type": "string"
+          },
+          "lastCatalogueRefreshUtc": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "activeTenantCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "interactiveAuthScheme": {
+            "type": "string",
+            "nullable": true
+          },
+          "testAuthenticationEnabled": {
+            "type": "boolean"
+          },
+          "entraSsoEnabled": {
+            "type": "boolean"
+          },
+          "dfESignInConfigured": {
+            "type": "boolean"
+          },
+          "registeredAuthProviderCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hostnames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "frontendOrigins": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ExportTenantConfigurationDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "tenantName": {
+            "type": "string"
+          },
+          "exportedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "settings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantSettingExportDto"
+            }
+          }
+        }
+      },
+      "TenantSettingExportDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "settingsJson": {
+            "type": "string"
+          },
+          "isSecret": {
+            "type": "boolean"
+          },
+          "secretRedacted": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ImportTenantConfigurationResultDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "appliedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skippedCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "ImportTenantConfigurationDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "settings": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantSettingImportItemDto"
+            }
+          },
+          "skipSecretPlaceholders": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TenantSettingImportItemDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "settingsJson": {
+            "type": "string"
+          },
+          "isSecret": {
+            "type": "boolean"
+          }
+        }
+      },
+      "GetTenantSettingAuditLogDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TenantSettingAuditEntryDto"
+            }
+          }
+        }
+      },
+      "TenantSettingAuditEntryDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "guid"
+          },
+          "category": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "actorEmail": {
+            "type": "string"
+          },
+          "changedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "wasSecret": {
             "type": "boolean"
           }
         }

@@ -6,6 +6,8 @@ using GovUK.Dfe.FlexForms.Infrastructure.Security;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Http.Models;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -191,6 +193,76 @@ public class TenantAdminController(ISender sender) : ControllerBase
             : StatusCodes.Status200OK;
 
         return new ObjectResult(result) { StatusCode = statusCode };
+    }
+
+    /// <summary>
+    /// Returns the effective runtime configuration for the caller's tenant (auth scheme, hostnames, cache metadata).
+    /// </summary>
+    [HttpGet("{tenantId:guid}/effective-config")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Effective tenant configuration.", typeof(TenantEffectiveConfigurationDto))]
+    public async Task<IActionResult> GetEffectiveConfiguration(
+        Guid tenantId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetTenantEffectiveConfigurationQuery(tenantId), cancellationToken);
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Exports tenant settings for promotion to another environment (secrets redacted).
+    /// </summary>
+    [HttpGet("{tenantId:guid}/export")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Export bundle.", typeof(ExportTenantConfigurationDto))]
+    public async Task<IActionResult> ExportConfiguration(
+        Guid tenantId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new ExportTenantConfigurationQuery(tenantId), cancellationToken);
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Imports a promotion bundle into the caller's tenant.
+    /// </summary>
+    [HttpPost("{tenantId:guid}/import")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Import result.", typeof(ImportTenantConfigurationResultDto))]
+    public async Task<IActionResult> ImportConfiguration(
+        Guid tenantId,
+        [FromBody] ImportTenantConfigurationDto body,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new ImportTenantConfigurationCommand(tenantId, body), cancellationToken);
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Returns recent tenant setting change audit entries.
+    /// </summary>
+    [HttpGet("{tenantId:guid}/settings/audit")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Audit log.", typeof(GetTenantSettingAuditLogDto))]
+    public async Task<IActionResult> GetSettingAuditLog(
+        Guid tenantId,
+        [FromQuery] int take = 100,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await sender.Send(new GetTenantSettingAuditLogQuery(tenantId, take), cancellationToken);
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
     }
 
     private static IActionResult MapFailure<T>(Result<T> result)

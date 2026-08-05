@@ -4,6 +4,7 @@ using GovUK.Dfe.FlexForms.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations.TenantConfig
 {
     [DbContext(typeof(TenantConfigDbContext))]
-    partial class TenantConfigDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260805090444_AddTenantSettingAudits")]
+    partial class AddTenantSettingAudits
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -200,16 +203,6 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations.TenantConfig
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
-                    b.Property<DateTime>("PeriodEnd")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("datetime2")
-                        .HasColumnName("PeriodEnd");
-
-                    b.Property<DateTime>("PeriodStart")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("datetime2")
-                        .HasColumnName("PeriodStart");
-
                     b.Property<string>("Settings")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
@@ -231,17 +224,6 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations.TenantConfig
                         .IsUnique();
 
                     b.ToTable("TenantSettings", "tenantconfig");
-
-                    b.ToTable(tb => tb.IsTemporal(ttb =>
-                            {
-                                ttb.UseHistoryTable("History_TenantSettings", "tenantconfig");
-                                ttb
-                                    .HasPeriodStart("PeriodStart")
-                                    .HasColumnName("PeriodStart");
-                                ttb
-                                    .HasPeriodEnd("PeriodEnd")
-                                    .HasColumnName("PeriodEnd");
-                            }));
                 });
 
             modelBuilder.Entity("GovUK.Dfe.FlexForms.Domain.Tenancy.Entities.TenantFrontendOriginEntity", b =>

@@ -4,6 +4,7 @@ using GovUK.Dfe.FlexForms.Infrastructure.Database;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations.TenantConfig
 {
     [DbContext(typeof(TenantConfigDbContext))]
-    partial class TenantConfigDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260805093038_EnableTemporalOnTenantSettings")]
+    partial class EnableTemporalOnTenantSettings
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

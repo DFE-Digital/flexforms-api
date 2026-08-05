@@ -482,6 +482,38 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<DuplicateTenantResponse> DuplicateTenantAsync(System.Guid tenantId, DuplicateTenantRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Returns the effective runtime configuration for the caller's tenant (auth scheme, hostnames, cache metadata).
+        /// </summary>
+        /// <returns>Effective tenant configuration.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TenantEffectiveConfigurationDto> GetEffectiveConfigurationAsync(System.Guid tenantId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Exports tenant settings for promotion to another environment (secrets redacted).
+        /// </summary>
+        /// <returns>Export bundle.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ExportTenantConfigurationDto> ExportConfigurationAsync(System.Guid tenantId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Imports a promotion bundle into the caller's tenant.
+        /// </summary>
+        /// <returns>Import result.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ImportTenantConfigurationResultDto> ImportConfigurationAsync(System.Guid tenantId, ImportTenantConfigurationDto body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Returns recent tenant setting change audit entries.
+        /// </summary>
+        /// <returns>Audit log.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetTenantSettingAuditLogDto> GetSettingAuditLogAsync(System.Guid tenantId, int? take = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
