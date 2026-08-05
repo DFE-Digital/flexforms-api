@@ -144,11 +144,19 @@ public sealed class RegisterUserCommandHandler(
 
 
 
+            var testOptsForValidation = TestSubjectTokenDetector.ForTokenValidation(
+
+                tenantTestAuthOptions,
+
+                request.SubjectToken);
+
+
+
             // Validate external token and extract claims
 
             var externalUser = await externalValidator
 
-                .ValidateIdTokenAsync(request.SubjectToken, false, false, internalAuthOptions: null, tenantTestAuthOptions, cancellationToken);
+                .ValidateIdTokenAsync(request.SubjectToken, false, false, internalAuthOptions: null, testOptsForValidation, cancellationToken);
 
 
 
@@ -164,7 +172,11 @@ public sealed class RegisterUserCommandHandler(
 
 
 
-            var useTestAuth = tenantTestAuthOptions?.Enabled == true;
+            var useTestAuth = TestSubjectTokenDetector.IsActiveTestSubjectToken(
+
+                tenantTestAuthOptions,
+
+                request.SubjectToken);
 
             if (!useTestAuth
 

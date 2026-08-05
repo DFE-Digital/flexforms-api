@@ -3057,6 +3057,277 @@
         }
       }
     },
+    "/v1/Templates/{templateId}/versions": {
+      "get": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Lists schema versions for a template (newest first), without schema bodies.",
+        "operationId": "Templates_GetTemplateVersions",
+        "parameters": [
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template versions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateVersionSummaryDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - no valid user token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Creates a new schema version for the specified template.",
+        "operationId": "Templates_CreateTemplateVersion",
+        "parameters": [
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTemplateVersionRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "201": {
+            "description": "Template version created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateSchemaDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - no valid user token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/Templates/{templateId}/versions/{versionNumber}": {
+      "get": {
+        "tags": [
+          "Templates"
+        ],
+        "summary": "Returns the schema for a specific template version number.",
+        "operationId": "Templates_GetTemplateSchemaByVersion",
+        "parameters": [
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "versionNumber",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "x-position": 2
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The template schema for the requested version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TemplateSchemaDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request was invalid.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - no valid user token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Access denied.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template version not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/Templates/{templateId}/custom-statuses": {
       "get": {
         "tags": [
@@ -3324,111 +3595,6 @@
         }
       }
     },
-    "/v1/Templates/{templateId}/versions": {
-      "post": {
-        "tags": [
-          "Templates"
-        ],
-        "summary": "Creates a new schema version for the specified template.",
-        "operationId": "Templates_CreateTemplateVersion",
-        "parameters": [
-          {
-            "name": "templateId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "guid"
-            },
-            "x-position": 1
-          }
-        ],
-        "requestBody": {
-          "x-name": "request",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateTemplateVersionRequest"
-              }
-            }
-          },
-          "required": true,
-          "x-position": 2
-        },
-        "responses": {
-          "201": {
-            "description": "Template version created successfully.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TemplateSchemaDto"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request data.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - no valid user token",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Access denied.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Template not found.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Too Many Requests.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ExceptionResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/v1/admin/tenants/refresh": {
       "post": {
         "tags": [
@@ -3654,11 +3820,11 @@
           }
         }
       },
-      "put": {
+      "post": {
         "tags": [
           "TenantAdmin"
         ],
-        "summary": "Adds or updates a configuration section for the caller's own tenant only.\nRequires an interactive Admin user JWT; the route tenantId must\nmatch the resolved tenant context.",
+        "summary": "Adds or updates a configuration section for the caller's own tenant only.\nRequires an interactive SuperAdmin user JWT; the route tenantId must\nmatch the resolved tenant context.\nUses POST and Base64-encoded SettingsJson (same WAF-safe pattern as template schemas).",
         "operationId": "TenantAdmin_UpsertTenantSetting",
         "parameters": [
           {
@@ -3726,7 +3892,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - interactive Admin of own tenant required.",
+            "description": "Forbidden - interactive SuperAdmin of own tenant required.",
             "content": {
               "application/json": {
                 "schema": {
@@ -3737,6 +3903,101 @@
           },
           "404": {
             "description": "Tenant not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/duplicate": {
+      "post": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Duplicates the caller's own tenant into a new TenantConfig tenant.\nCopies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.\nPrincipals are not copied. Interactive SuperAdmin only.",
+        "operationId": "TenantAdmin_DuplicateTenant",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DuplicateTenantRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "201": {
+            "description": "Tenant duplicated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DuplicateTenantResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - interactive SuperAdmin of own tenant required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Source tenant not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5598,6 +5859,33 @@
           }
         }
       },
+      "TemplateVersionSummaryDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "templateId",
+          "templateVersionId",
+          "versionNumber",
+          "createdOn"
+        ],
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "templateVersionId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "versionNumber": {
+            "type": "string"
+          },
+          "createdOn": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "CustomApplicationStatusDto": {
         "type": "object",
         "additionalProperties": false,
@@ -5809,6 +6097,79 @@
           "updatedAtUtc": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "DuplicateTenantResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceTenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "newTenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "newTenantName": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "frontendOrigin": {
+            "type": "string"
+          },
+          "settingsCopied": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "DuplicateTenantRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "newTenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "newTenantName": {
+            "type": "string"
+          },
+          "hostname": {
+            "type": "string"
+          },
+          "frontendOrigin": {
+            "type": "string"
+          },
+          "authorizationApiSecretKey": {
+            "type": "string"
+          },
+          "internalServiceAuthSecretKey": {
+            "type": "string"
+          },
+          "internalServiceAuthServiceApiKeys": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DuplicateTenantServiceApiKey"
+            }
+          }
+        }
+      },
+      "DuplicateTenantServiceApiKey": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "apiKey": {
+            "type": "string"
           }
         }
       },

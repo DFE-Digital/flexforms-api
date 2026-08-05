@@ -163,7 +163,12 @@ public class TenantResolutionMiddlewareTests
     [InlineData("/swagger")]
     [InlineData("/swagger/index.html")]
     [InlineData("/health")]
+    [InlineData("/healthz")]
+    [InlineData("/liveness")]
+    [InlineData("/readiness")]
+    [InlineData("/robots.txt")]
     [InlineData("/_something")]
+    [InlineData("/")]
     public async Task InvokeAsync_ShouldBypassTenantResolution_ForInfrastructurePaths(string path)
     {
         // Arrange
@@ -173,6 +178,7 @@ public class TenantResolutionMiddlewareTests
             _tenantConfigProvider, _logger);
 
         var context = CreateHttpContext();
+        context.Request.Method = "GET";
         context.Request.Path = path;
 
         // Act

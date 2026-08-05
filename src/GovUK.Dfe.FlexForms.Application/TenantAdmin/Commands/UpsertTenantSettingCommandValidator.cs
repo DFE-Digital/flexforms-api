@@ -26,6 +26,24 @@ internal class UpsertTenantSettingCommandValidator : AbstractValidator<UpsertTen
 
         RuleFor(x => x.SettingsJson)
             .NotEmpty()
-            .WithMessage("Settings JSON is required.");
+            .WithMessage("Settings JSON is required.")
+            .Must(BeValidBase64)
+            .WithMessage("SettingsJson must be a valid Base64 encoded string.");
+    }
+
+    private static bool BeValidBase64(string base64)
+    {
+        if (string.IsNullOrWhiteSpace(base64))
+            return false;
+
+        try
+        {
+            Convert.FromBase64String(base64);
+            return true;
+        }
+        catch (FormatException)
+        {
+            return false;
+        }
     }
 }

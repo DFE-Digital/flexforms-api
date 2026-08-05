@@ -24,6 +24,8 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.Templates
         private readonly ITenantTemplateResolver _tenantTemplateResolver = Substitute.For<ITenantTemplateResolver>();
         private readonly ITemplateFactory _templateFactory = Substitute.For<ITemplateFactory>();
         private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+        private readonly ITemplateSchemaCacheInvalidator _templateSchemaCacheInvalidator =
+            Substitute.For<ITemplateSchemaCacheInvalidator>();
         private readonly CreateTemplateVersionCommandHandler _handler;
         
         private readonly User _testUser;
@@ -37,7 +39,14 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.Templates
                 .Returns(true);
 
             _handler = new CreateTemplateVersionCommandHandler(
-                _templateRepo, _userRepo, _httpContextAccessor, _permissionChecker, _tenantTemplateResolver, _templateFactory, _unitOfWork);
+                _templateRepo,
+                _userRepo,
+                _httpContextAccessor,
+                _permissionChecker,
+                _tenantTemplateResolver,
+                _templateFactory,
+                _unitOfWork,
+                _templateSchemaCacheInvalidator);
             
             _testUser = new User(new UserId(Guid.NewGuid()), new RoleId(Guid.NewGuid()), "Test", "test@test.com", DateTime.UtcNow, null, null, null);
             
@@ -75,6 +84,9 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.Templates
             Assert.True(result.IsSuccess);
             Assert.Equal(newVersion.Id.Value, result.Value.TemplateVersionId);
             await _unitOfWork.Received(1).CommitAsync(CancellationToken.None);
+            await _templateSchemaCacheInvalidator.Received(1).InvalidateForTemplateAsync(
+                _testTemplate.Id!.Value,
+                Arg.Any<CancellationToken>());
         }
         
         [Fact]

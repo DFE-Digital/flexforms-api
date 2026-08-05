@@ -14,8 +14,13 @@ public class TenantSettingsDataProtectionExtensionsTests
     [InlineData("Local")]
     public void AddTenantSettingsDataProtection_Local_UsesLocalKeysEvenWhenUseAzureTrue(string environmentName)
     {
+        // Local ignores UseAzure unless UseStorageSas opts into Azure with a SAS blob URL.
         var services = new ServiceCollection();
-        var configuration = BuildConfiguration(useAzure: true, blobUri: "https://example.blob.core.windows.net/keys/k.xml", keyVaultKeyId: "https://example.vault.azure.net/keys/k");
+        var configuration = BuildConfiguration(
+            useAzure: true,
+            useStorageSas: false,
+            blobUri: "https://example.blob.core.windows.net/keys/k.xml",
+            keyVaultKeyId: "https://example.vault.azure.net/keys/k");
         var environment = new TestHostEnvironment(environmentName);
 
         var builder = services.AddTenantSettingsDataProtection(configuration, environment);
@@ -35,10 +40,8 @@ public class TenantSettingsDataProtectionExtensionsTests
     [InlineData("Production")]
     public void AddTenantSettingsDataProtection_NonLocalWithUseAzureFalse_UsesLocalKeys(string environmentName)
     {
-        // Deployed environments (including the Azure "Test" environment) and integration test hosts
-        // that set UseAzure=false must use the local key ring by flag, not by environment name.
         var services = new ServiceCollection();
-        var configuration = BuildConfiguration(useAzure: false, blobUri: "", keyVaultKeyId: "");
+        var configuration = BuildConfiguration(useAzure: false, useStorageSas: false, blobUri: "", keyVaultKeyId: "");
         var environment = new TestHostEnvironment(environmentName);
 
         services.AddTenantSettingsDataProtection(configuration, environment);
@@ -53,10 +56,12 @@ public class TenantSettingsDataProtectionExtensionsTests
     [Fact]
     public void AddTenantSettingsDataProtection_TestEnvironmentWithUseAzureTrue_RequiresAzureConfig()
     {
-        // Guards the Azure "Test" environment: UseAzure=true must NOT fall back to local keys,
-        // so missing Azure config must throw rather than silently using local protection.
         var services = new ServiceCollection();
-        var configuration = BuildConfiguration(useAzure: true, blobUri: "", keyVaultKeyId: "https://example.vault.azure.net/keys/k");
+        var configuration = BuildConfiguration(
+            useAzure: true,
+            useStorageSas: false,
+            blobUri: "",
+            keyVaultKeyId: "https://example.vault.azure.net/keys/k");
         var environment = new TestHostEnvironment("Test");
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -69,7 +74,11 @@ public class TenantSettingsDataProtectionExtensionsTests
     public void AddTenantSettingsDataProtection_UseAzureTrueMissingBlobUri_Throws()
     {
         var services = new ServiceCollection();
-        var configuration = BuildConfiguration(useAzure: true, blobUri: "", keyVaultKeyId: "https://example.vault.azure.net/keys/k");
+        var configuration = BuildConfiguration(
+            useAzure: true,
+            useStorageSas: false,
+            blobUri: "",
+            keyVaultKeyId: "https://example.vault.azure.net/keys/k");
         var environment = new TestHostEnvironment("Production");
 
         var ex = Assert.Throws<InvalidOperationException>(() =>
@@ -82,7 +91,7 @@ public class TenantSettingsDataProtectionExtensionsTests
     public void AddTenantSettingsDataProtection_UseAzureFalseInProduction_UsesLocalKeys()
     {
         var services = new ServiceCollection();
-        var configuration = BuildConfiguration(useAzure: false, blobUri: "", keyVaultKeyId: "");
+        var configuration = BuildConfiguration(useAzure: false, useStorageSas: false, blobUri: "", keyVaultKeyId: "");
         var environment = new TestHostEnvironment("Production");
 
         services.AddTenantSettingsDataProtection(configuration, environment);
@@ -97,6 +106,7 @@ public class TenantSettingsDataProtectionExtensionsTests
         var services = new ServiceCollection();
         var configuration = BuildConfiguration(
             useAzure: true,
+            useStorageSas: false,
             blobUri: "https://example.blob.core.windows.net/keys/k.xml",
             keyVaultKeyId: "");
         var environment = new TestHostEnvironment("Production");
@@ -107,11 +117,51 @@ public class TenantSettingsDataProtectionExtensionsTests
         Assert.Contains("KeyVaultKeyId", ex.Message, StringComparison.Ordinal);
     }
 
-    private static IConfiguration BuildConfiguration(bool useAzure, string blobUri, string keyVaultKeyId) =>
+    [Fact]
+    public void AddTenantSettingsDataProtection_UseStorageSasWithoutQueryString_Throws()
+    {
+        var services = new ServiceCollection();
+        var configuration = BuildConfiguration(
+            useAzure: true,
+            useStorageSas: true,
+            blobUri: "https://example.blob.core.windows.net/keys/k.xml",
+            keyVaultKeyId: "https://example.vault.azure.net/keys/k");
+        var environment = new TestHostEnvironment("Production");
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            services.AddTenantSettingsDataProtection(configuration, environment));
+
+        Assert.Contains("SAS", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void AddTenantSettingsDataProtection_LocalWithUseStorageSasMissingSas_Throws()
+    {
+        // Opting into Azure on Local via UseStorageSas must still validate the SAS URL.
+        var services = new ServiceCollection();
+        var configuration = BuildConfiguration(
+            useAzure: true,
+            useStorageSas: true,
+            blobUri: "https://example.blob.core.windows.net/keys/k.xml",
+            keyVaultKeyId: "https://example.vault.azure.net/keys/k");
+        var environment = new TestHostEnvironment("Local");
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            services.AddTenantSettingsDataProtection(configuration, environment));
+
+        Assert.Contains("SAS", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static IConfiguration BuildConfiguration(
+        bool useAzure,
+        bool useStorageSas,
+        string blobUri,
+        string keyVaultKeyId) =>
         new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["DataProtection:UseAzure"] = useAzure.ToString(),
+                ["DataProtection:UseStorageSas"] = useStorageSas.ToString(),
                 ["DataProtection:ApplicationName"] = "GovUK.Dfe.FlexForms.Api.Tests",
                 ["DataProtection:BlobUri"] = blobUri,
                 ["DataProtection:KeyVaultKeyId"] = keyVaultKeyId

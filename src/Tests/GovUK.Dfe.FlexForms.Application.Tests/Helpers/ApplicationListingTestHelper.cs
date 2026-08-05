@@ -8,6 +8,7 @@ using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 
 namespace GovUK.Dfe.FlexForms.Application.Tests.Helpers;
 
@@ -100,6 +101,15 @@ internal static class ApplicationListingTestHelper
             .Returns(call => call.Arg<Func<Task<Result<PagedResult<ApplicationDto>>>>>()());
     }
 
+    internal static IApplicationRepository CreateApplicationRepository()
+    {
+        var repository = Substitute.For<IApplicationRepository>();
+        repository
+            .GetLatestResponsesAsync(Arg.Any<IReadOnlyCollection<ApplicationId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<ApplicationId, ApplicationResponse>());
+        return repository;
+    }
+
     internal static GetApplicationsForUserQueryHandler CreateGetApplicationsForUserQueryHandler(
         IEaRepository<User> userRepo,
         IEaRepository<Domain.Entities.Application> appRepo,
@@ -113,6 +123,7 @@ internal static class ApplicationListingTestHelper
         return new GetApplicationsForUserQueryHandler(
             userRepo,
             appRepo,
+            CreateApplicationRepository(),
             cache,
             tenantContextAccessor,
             accessibleTemplateService,
@@ -133,6 +144,7 @@ internal static class ApplicationListingTestHelper
         return new GetApplicationsForUserByExternalProviderIdQueryHandler(
             userRepo,
             appRepo,
+            CreateApplicationRepository(),
             cache,
             tenantContextAccessor,
             accessibleTemplateService);

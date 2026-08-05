@@ -361,6 +361,30 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
+        /// Lists schema versions for a template (newest first), without schema bodies.
+        /// </summary>
+        /// <returns>Template versions.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<System.Collections.ObjectModel.ObservableCollection<TemplateVersionSummaryDto>> GetTemplateVersionsAsync(System.Guid templateId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Creates a new schema version for the specified template.
+        /// </summary>
+        /// <returns>Template version created successfully.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TemplateSchemaDto> CreateTemplateVersionAsync(System.Guid templateId, CreateTemplateVersionRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Returns the schema for a specific template version number.
+        /// </summary>
+        /// <returns>The template schema for the requested version.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TemplateSchemaDto> GetTemplateSchemaByVersionAsync(System.Guid templateId, string versionNumber, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
         /// Get custom application statuses for a template.
         /// </summary>
         /// <returns>Custom statuses returned.</returns>
@@ -394,14 +418,6 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>Template access granted to tenant users.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<GrantTemplateAccessToAllUsersResponse> GrantTemplateAccessToAllUsersAsync(System.Guid templateId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <summary>
-        /// Creates a new schema version for the specified template.
-        /// </summary>
-        /// <returns>Template version created successfully.</returns>
-        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<TemplateSchemaDto> CreateTemplateVersionAsync(System.Guid templateId, CreateTemplateVersionRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
     }
 
@@ -448,12 +464,23 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
         /// Adds or updates a configuration section for the caller's own tenant only.
-        /// <br/>Requires an interactive Admin user JWT; the route tenantId must
+        /// <br/>Requires an interactive SuperAdmin user JWT; the route tenantId must
         /// <br/>match the resolved tenant context.
+        /// <br/>Uses POST and Base64-encoded SettingsJson (same WAF-safe pattern as template schemas).
         /// </summary>
         /// <returns>Setting updated.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<UpsertTenantSettingResponse> UpsertTenantSettingAsync(System.Guid tenantId, UpsertTenantSettingRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Duplicates the caller's own tenant into a new TenantConfig tenant.
+        /// <br/>Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
+        /// <br/>Principals are not copied. Interactive SuperAdmin only.
+        /// </summary>
+        /// <returns>Tenant duplicated.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<DuplicateTenantResponse> DuplicateTenantAsync(System.Guid tenantId, DuplicateTenantRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
     }
 

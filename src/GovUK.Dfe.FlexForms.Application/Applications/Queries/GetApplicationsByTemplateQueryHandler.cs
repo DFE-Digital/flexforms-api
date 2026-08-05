@@ -35,6 +35,7 @@ public sealed class GetApplicationsByTemplateQueryHandler(
     IHttpContextAccessor httpContextAccessor,
     IEaRepository<User> userRepo,
     IEaRepository<Domain.Entities.Application> appRepo,
+    IApplicationRepository applicationRepository,
     ICacheService<IRedisCacheType> cacheService,
     ITenantContextAccessor tenantContextAccessor,
     ITenantTemplateResolver tenantTemplateResolver)
@@ -97,6 +98,7 @@ public sealed class GetApplicationsByTemplateQueryHandler(
                         request.IncludeSchema,
                         request.PageNumber,
                         request.PageSize,
+                        applicationRepository,
                         cancellationToken);
 
                     return Result<PagedResult<ApplicationDto>>.Success(pagedResult);

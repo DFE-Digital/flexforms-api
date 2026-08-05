@@ -83,6 +83,7 @@ internal static class ApplicationListingQueryBuilder
         bool includeSchema,
         int? pageNumber,
         int? pageSize,
+        IApplicationRepository applicationRepository,
         CancellationToken cancellationToken)
     {
         query = query.OrderByDescending(a => a.CreatedOn);
@@ -98,7 +99,16 @@ internal static class ApplicationListingQueryBuilder
         var apps = await query.ToListAsync(cancellationToken);
         var count = totalCount ?? apps.Count;
 
-        var dtoList = apps.Select(a => MapToDto(a, includeSchema)).ToList().AsReadOnly();
+        var applicationIds = apps
+            .Where(a => a.Id is not null)
+            .Select(a => a.Id!)
+            .ToList();
+
+        var latestResponses = applicationIds.Count == 0
+            ? new Dictionary<ApplicationId, Domain.Entities.ApplicationResponse>()
+            : await applicationRepository.GetLatestResponsesAsync(applicationIds, cancellationToken);
+
+        var dtoList = apps.Select(a => MapToDto(a, includeSchema, latestResponses)).ToList().AsReadOnly();
         var effectivePageSize = pageSize ?? count;
         var effectivePage = pageNumber ?? 1;
         var totalPages = effectivePageSize > 0
@@ -125,8 +135,26 @@ internal static class ApplicationListingQueryBuilder
             TotalPages = 0
         };
 
-    private static ApplicationDto MapToDto(Domain.Entities.Application a, bool includeSchema) =>
-        new()
+    private static ApplicationDto MapToDto(
+        Domain.Entities.Application a,
+        bool includeSchema,
+        IReadOnlyDictionary<ApplicationId, Domain.Entities.ApplicationResponse> latestResponses)
+    {
+        ApplicationResponseDetailsDto? latestResponse = null;
+        if (a.Id is not null && latestResponses.TryGetValue(a.Id, out var response))
+        {
+            latestResponse = new ApplicationResponseDetailsDto
+            {
+                ResponseId = response.Id!.Value,
+                ResponseBody = response.ResponseBody,
+                CreatedOn = response.CreatedOn,
+                CreatedBy = response.CreatedBy.Value,
+                LastModifiedOn = response.LastModifiedOn,
+                LastModifiedBy = response.LastModifiedBy?.Value
+            };
+        }
+
+        return new ApplicationDto
         {
             ApplicationId = a.Id!.Value,
             ApplicationReference = a.ApplicationReference,
@@ -135,6 +163,7 @@ internal static class ApplicationListingQueryBuilder
             DateSubmitted = a.Status == ApplicationStatus.Submitted ? a.LastModifiedOn : null,
             Status = a.Status,
             TemplateName = a.TemplateVersion?.Template?.Name ?? string.Empty,
+            LatestResponse = latestResponse,
             TemplateSchema = includeSchema && a.TemplateVersion != null
                 ? new TemplateSchemaDto
                 {
@@ -145,4 +174,5 @@ internal static class ApplicationListingQueryBuilder
                 }
                 : null
         };
+    }
 }

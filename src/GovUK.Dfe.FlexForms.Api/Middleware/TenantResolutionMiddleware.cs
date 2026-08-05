@@ -12,8 +12,12 @@ public class TenantResolutionMiddleware
     {
         "/swagger",
         "/health",
-        "/_",
+        "/healthz",
+        "/liveness",
+        "/readiness",
+        "/robots.txt",
         "/favicon.ico",
+        "/_",
         "/v1/tenant-config",
         "/v1/host-config"
     };
@@ -21,6 +25,13 @@ public class TenantResolutionMiddleware
     private static bool IsPlatformTenantConfigPath(string path) =>
         path.StartsWith("/v1/tenant-config/tenants/", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/v1/tenant-config/resolve", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Azure App Service Always On / front-door style probes often hit the site root with no tenant header.
+    /// </summary>
+    private static bool IsRootProbe(HttpContext context, string path) =>
+        (HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method))
+        && (string.IsNullOrEmpty(path) || path == "/");
 
     private readonly RequestDelegate _next;
     private readonly ITenantConfigurationProvider _tenantConfigurationProvider;
@@ -39,9 +50,10 @@ public class TenantResolutionMiddleware
     public async Task InvokeAsync(HttpContext context)
     {
         var path = context.Request.Path.Value ?? "";
-        var conf = _tenantConfigurationProvider.GetAllTenants();
-        // Bypass for infrastructure endpoints and CORS preflight
+
+        // Bypass for infrastructure endpoints, root probes, and CORS preflight
         if (context.Request.Method == "OPTIONS" ||
+            IsRootProbe(context, path) ||
             BypassPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase)) ||
             IsPlatformTenantConfigPath(path))
         {
@@ -68,7 +80,25 @@ public class TenantResolutionMiddleware
         }
         catch (InvalidTenantException ex)
         {
-            _logger.LogWarning(ex, "Tenant resolution failed");
+            // Do not log the exception object — these are expected client/probe failures and
+            // LogWarning(ex, ...) floods App Insights / container logs with stack traces.
+            if (ex.IsMissingTenantContext)
+            {
+                _logger.LogDebug(
+                    "Tenant resolution skipped: no {Header} or matching Origin on {Method} {Path}",
+                    TenantIdHeader,
+                    context.Request.Method,
+                    path);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "Tenant resolution failed for {Method} {Path}: {Reason}",
+                    context.Request.Method,
+                    path,
+                    ex.Message);
+            }
+
             await RespondInvalidTenant(context, ex.Message);
         }
     }
@@ -81,7 +111,9 @@ public class TenantResolutionMiddleware
             var tenantFromHeader = _tenantConfigurationProvider.GetTenant(tenantIdFromHeader);
             if (tenantFromHeader is null)
             {
-                throw new InvalidTenantException($"Tenant '{tenantIdFromHeader}' is not configured.");
+                throw new InvalidTenantException(
+                    $"Tenant '{tenantIdFromHeader}' is not configured.",
+                    isMissingTenantContext: false);
             }
 
             return (tenantFromHeader, tenantIdFromHeader);
@@ -98,7 +130,9 @@ public class TenantResolutionMiddleware
             }
         }
 
-        throw new InvalidTenantException("Missing or invalid tenant id header.");
+        throw new InvalidTenantException(
+            "Missing or invalid tenant id header.",
+            isMissingTenantContext: true);
     }
 
     private static async Task RespondInvalidTenant(HttpContext context, string message)
@@ -109,10 +143,8 @@ public class TenantResolutionMiddleware
         await context.Response.WriteAsync(response);
     }
 
-    private class InvalidTenantException : Exception
+    private sealed class InvalidTenantException(string message, bool isMissingTenantContext) : Exception(message)
     {
-        public InvalidTenantException(string message) : base(message)
-        {
-        }
+        public bool IsMissingTenantContext { get; } = isMissingTenantContext;
     }
 }

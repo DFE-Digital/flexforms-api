@@ -14,12 +14,17 @@ namespace GovUK.Dfe.FlexForms.Api.Security.Schemes;
 /// success, the matched <see cref="TenantAuthProvider"/> is projected into a principal by
 /// <see cref="TenantAuthPrincipalFactory"/> so this handler does not need to know which claims
 /// a tenant principal carries.
+/// <para>
+/// When a tenant has been resolved for the request, the provider's <see cref="TenantAuthProvider.TenantId"/>
+/// must match <see cref="ITenantContextAccessor.CurrentTenant"/> — same fail-closed rule as TenantBearer.
+/// </para>
 /// </summary>
 public sealed class ApiKeyAuthenticationHandler(
     IOptionsMonitor<ApiKeyAuthenticationOptions> options,
     ILoggerFactory loggerFactory,
     UrlEncoder encoder,
-    ITenantAuthProviderRegistry registry)
+    ITenantAuthProviderRegistry registry,
+    ITenantContextAccessor tenantContextAccessor)
     : AuthenticationHandler<ApiKeyAuthenticationOptions>(options, loggerFactory, encoder)
 {
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
@@ -41,6 +46,19 @@ public sealed class ApiKeyAuthenticationHandler(
         if (provider is null)
         {
             return Task.FromResult(AuthenticateResult.Fail("Unknown API key."));
+        }
+
+        var currentTenant = tenantContextAccessor.CurrentTenant;
+        if (currentTenant is not null && provider.TenantId != currentTenant.Id)
+        {
+            Logger.LogWarning(
+                "API key belongs to tenant {ProviderTenantId} but request resolved to {ResolvedTenantId} ({ResolvedTenantName}).",
+                provider.TenantId,
+                currentTenant.Id,
+                currentTenant.Name);
+
+            return Task.FromResult(AuthenticateResult.Fail(
+                $"API key tenant '{provider.TenantId}' does not match the resolved tenant '{currentTenant.Name}' ({currentTenant.Id})."));
         }
 
         TenantAuthPrincipalFactory.StashProvider(Context, provider);

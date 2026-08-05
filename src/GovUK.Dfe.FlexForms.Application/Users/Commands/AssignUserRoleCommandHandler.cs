@@ -128,7 +128,7 @@ public sealed class AssignUserRoleCommandHandler(
             currentRoleName ??= existingUser.Role?.Name
                 ?? RoleNames.FromRoleId(existingUser.RoleId.Value);
 
-            if (RoleNames.IsSuperAdmin(currentRoleName))
+            if (RoleNames.IsPlatformSuperAdminUser(currentRoleName, existingUser.RoleId.Value))
             {
                 return Result<UserDto>.Forbid(
                     "Cannot change a platform SuperAdmin membership through tenant role assignment");
@@ -152,12 +152,38 @@ public sealed class AssignUserRoleCommandHandler(
                 if (provisioner.RequiresTemplateIds && templateIds.Count == 0)
                     return Result<UserDto>.Failure($"At least one template ID is required for the {membershipRoleName} role");
 
+                // Tenant Admin must use the per-tenant Admin role row — never the global
+                // SuperAdmin RoleConstants.AdminRoleId (NULL TenantId). Seed system roles first
+                // so brand-new tenants always have Admin/User before assignment.
+                RoleId? tenantRoleId = null;
+                if (string.Equals(membershipRoleName, RoleNames.Admin, StringComparison.OrdinalIgnoreCase))
+                {
+                    await tenantRoleService.EnsureSystemRolesAsync(currentTenant.Id, cancellationToken);
+
+                    var tenantAdminRole = await tenantRoleService.GetOrCreateTenantRoleAsync(
+                        currentTenant.Id,
+                        RoleNames.Admin,
+                        cancellationToken);
+
+                    if (tenantAdminRole.Id is null)
+                        return Result<UserDto>.Failure("Tenant Admin role was created without an identifier");
+
+                    if (RoleNames.IsPlatformSuperAdminRoleId(tenantAdminRole.Id.Value))
+                    {
+                        return Result<UserDto>.Failure(
+                            "Resolved Admin role is the platform SuperAdmin role; expected a tenant-scoped Admin role.");
+                    }
+
+                    tenantRoleId = tenantAdminRole.Id;
+                }
+
                 var assignmentRequest = new RoleAssignmentRequest(
                     name,
                     email,
                     templateIds,
                     grantedById,
-                    now);
+                    now,
+                    tenantRoleId);
 
                 if (existingUser is null)
                 {
@@ -226,11 +252,18 @@ public sealed class AssignUserRoleCommandHandler(
         if (user.Id is null)
             return Result<UserDto>.Failure("User was created without an identifier");
 
-        await tenantMembershipService.UpsertMembershipAsync(
+        var upsertedMembership = await tenantMembershipService.UpsertMembershipAsync(
             currentTenant.Id,
             user.Id,
             membershipRoleName,
             cancellationToken);
+
+        // Keep Users.RoleId aligned with the tenant membership role for Admin assignments.
+        if (string.Equals(membershipRoleName, RoleNames.Admin, StringComparison.OrdinalIgnoreCase)
+            && !RoleNames.IsPlatformSuperAdminRoleId(upsertedMembership.RoleId.Value))
+        {
+            user.AssignRole(upsertedMembership.RoleId);
+        }
 
         await unitOfWork.CommitAsync(cancellationToken);
 

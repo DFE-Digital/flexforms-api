@@ -32,6 +32,9 @@ public sealed class TenantMembershipService(
         string roleName,
         CancellationToken cancellationToken = default)
     {
+        // First access / membership for a tenant often only asks for User — still seed Admin+User.
+        await tenantRoleService.EnsureSystemRolesAsync(tenantId, cancellationToken);
+
         var role = await tenantRoleService.GetOrCreateTenantRoleAsync(tenantId, roleName, cancellationToken);
         var now = DateTime.UtcNow;
 

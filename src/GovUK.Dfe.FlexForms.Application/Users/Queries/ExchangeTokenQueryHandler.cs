@@ -62,8 +62,14 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                     .Bind(tenantTestAuthOptions);
             }
 
+            // Test Auth may stay Enabled while interactive login is DSI/Entra — only force
+            // HMAC test validation when the subject token looks like a test JWT.
+            var testOptsForValidation = TestSubjectTokenDetector.ForTokenValidation(
+                tenantTestAuthOptions,
+                req.SubjectToken);
+
             var externalUser = await externalValidator
-                .ValidateIdTokenAsync(req.SubjectToken, false, validInternalAuthReq, tenantInternalAuthOptions, tenantTestAuthOptions, ct);
+                .ValidateIdTokenAsync(req.SubjectToken, false, validInternalAuthReq, tenantInternalAuthOptions, testOptsForValidation, ct);
 
             var email = externalUser.FindFirst(ClaimTypes.Email)?.Value;
 
@@ -83,7 +89,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             // Shared EA DB hardening: ID token audience must belong to THIS tenant's OIDC apps.
             // Skip for internal/test auth paths (no real OIDC audience).
             var useTestOrInternalAuth = validInternalAuthReq
-                || tenantTestAuthOptions?.Enabled == true;
+                || TestSubjectTokenDetector.IsActiveTestSubjectToken(tenantTestAuthOptions, req.SubjectToken);
             if (!useTestOrInternalAuth
                 && !tenantOidcAudienceBinder.TokenMatchesTenant(currentTenant, ReadTokenAudiences(req.SubjectToken)))
             {

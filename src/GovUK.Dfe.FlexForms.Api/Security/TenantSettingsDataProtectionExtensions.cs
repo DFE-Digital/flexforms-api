@@ -10,15 +10,11 @@ public static class TenantSettingsDataProtectionExtensions
 {
     /// <summary>
     /// Configures Data Protection for TenantSettings encryption.
-    /// The Local environment always uses the default local key ring. All other environments
-    /// (including the deployed Azure "Test" environment) follow <see cref="DataProtectionSettings.UseAzure"/>.
-    /// Integration test hosts force local keys by setting DataProtection:UseAzure=false rather than
-    /// relying on an environment name.
+    /// When Azure is not used, registers the default local key ring.
+    /// When Azure is used, persists keys to Blob Storage (managed identity, or SAS when
+    /// <see cref="DataProtectionSettings.UseStorageSas"/> is true) and protects them with
+    /// Key Vault via <see cref="DefaultAzureCredential"/> (managed identity / Azure CLI).
     /// </summary>
-    /// <param name="services">The service collection to configure.</param>
-    /// <param name="configuration">Application configuration.</param>
-    /// <param name="environment">Hosting environment (only "Local" forces local keys).</param>
-    /// <returns>The Data Protection builder for further chaining if needed.</returns>
     public static IDataProtectionBuilder AddTenantSettingsDataProtection(
         this IServiceCollection services,
         IConfiguration configuration,
@@ -29,8 +25,8 @@ public static class TenantSettingsDataProtectionExtensions
             .Get<DataProtectionSettings>()
             ?? new DataProtectionSettings();
 
-        // Local/Development: default key ring only (no SetApplicationName) so existing
-        // locally encrypted TenantSettings remain decryptable.
+        // Local/Development without Azure opt-in: default key ring only (no SetApplicationName)
+        // so existing locally encrypted TenantSettings remain decryptable.
         var builder = services.AddDataProtection();
 
         if (ShouldUseLocalKeyRing(environment, settings))
@@ -54,25 +50,82 @@ public static class TenantSettingsDataProtectionExtensions
                 "DataProtection:KeyVaultKeyId is required when DataProtection:UseAzure is true.");
         }
 
-        var credential = new DefaultAzureCredential();
+        if (!Uri.TryCreate(settings.BlobUri, UriKind.Absolute, out var blobUri))
+        {
+            throw new InvalidOperationException(
+                "DataProtection:BlobUri must be an absolute URI.");
+        }
 
-        return builder
-            .PersistKeysToAzureBlobStorage(new Uri(settings.BlobUri), credential)
-            .ProtectKeysWithAzureKeyVault(new Uri(settings.KeyVaultKeyId), credential);
+        if (!Uri.TryCreate(settings.KeyVaultKeyId, UriKind.Absolute, out var keyVaultKeyUri))
+        {
+            throw new InvalidOperationException(
+                "DataProtection:KeyVaultKeyId must be an absolute URI.");
+        }
+
+        // Key Vault: managed identity in Azure; Azure CLI / VS login locally (never probe IMDS when using SAS).
+        var credential = CreateKeyVaultCredential(environment, settings);
+
+        if (settings.UseStorageSas)
+        {
+            if (string.IsNullOrWhiteSpace(blobUri.Query) || blobUri.Query.Length <= 1)
+            {
+                throw new InvalidOperationException(
+                    "DataProtection:BlobUri must include a SAS query string when DataProtection:UseStorageSas is true. " +
+                    "Example: https://account.blob.core.windows.net/container/api-keys.xml?sp=rw&st=...&sig=...");
+            }
+
+            // Uri-only overload authenticates with the SAS embedded in BlobUri — no storage MI.
+            builder.PersistKeysToAzureBlobStorage(blobUri);
+        }
+        else
+        {
+            builder.PersistKeysToAzureBlobStorage(blobUri, credential);
+        }
+
+        return builder.ProtectKeysWithAzureKeyVault(keyVaultKeyUri, credential);
+    }
+
+    /// <summary>
+    /// Builds the credential used for Key Vault (and for blob when not using SAS).
+    /// When <see cref="DataProtectionSettings.UseStorageSas"/> is set (typical local Azure opt-in),
+    /// managed identity / IMDS is excluded so DefaultAzureCredential uses Azure CLI or Visual Studio login.
+    /// </summary>
+    private static DefaultAzureCredential CreateKeyVaultCredential(
+        IHostEnvironment environment,
+        DataProtectionSettings settings)
+    {
+        var useDeveloperCredentials =
+            settings.UseStorageSas || environment.IsEnvironment("Local");
+
+        if (!useDeveloperCredentials)
+            return new DefaultAzureCredential();
+
+        return new DefaultAzureCredential(new DefaultAzureCredentialOptions
+        {
+            // Avoid IMDS probes (169.254.169.254) that fail slowly / hard on developer machines.
+            ExcludeManagedIdentityCredential = true,
+            ExcludeWorkloadIdentityCredential = true,
+            ExcludeEnvironmentCredential = false,
+            ExcludeAzureCliCredential = false,
+            ExcludeVisualStudioCredential = false,
+            ExcludeAzurePowerShellCredential = false,
+            ExcludeInteractiveBrowserCredential = true
+        });
     }
 
     private static bool ShouldUseLocalKeyRing(
         IHostEnvironment environment,
         DataProtectionSettings settings)
     {
-        // Local (launch profiles) never require Azure.
-        // NOTE: do NOT special-case "Test" by environment name - there is a deployed Azure
-        // environment named "Test" that must use Azure DP. Integration test hosts (which run as
-        // ASPNETCORE_ENVIRONMENT/UseEnvironment "Test") instead set DataProtection:UseAzure=false,
-        // so they fall through to the local key ring via the UseAzure flag below.
-        if (environment.IsEnvironment("Local"))
+        if (!settings.UseAzure)
             return true;
 
-        return !settings.UseAzure;
+        // Local launch profiles often inherit UseAzure=true from appsettings.json.
+        // Keep the local key ring unless the developer explicitly opts into Azure blob access
+        // via UseStorageSas (SAS URL in BlobUri + Key Vault via DefaultAzureCredential).
+        if (environment.IsEnvironment("Local") && !settings.UseStorageSas)
+            return true;
+
+        return false;
     }
 }

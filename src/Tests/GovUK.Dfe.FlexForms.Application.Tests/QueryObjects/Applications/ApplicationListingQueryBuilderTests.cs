@@ -9,6 +9,7 @@ using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using MockQueryable;
 using NSubstitute;
+using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 
 namespace GovUK.Dfe.FlexForms.Application.Tests.QueryObjects.Applications;
 
@@ -24,11 +25,17 @@ public class ApplicationListingQueryBuilderTests
 
         var query = new List<Domain.Entities.Application> { oldest, middle, newest }.AsQueryable().BuildMock();
 
+        var applicationRepository = Substitute.For<IApplicationRepository>();
+        applicationRepository
+            .GetLatestResponsesAsync(Arg.Any<IReadOnlyCollection<ApplicationId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<ApplicationId, ApplicationResponse>());
+
         var pageOne = await ApplicationListingQueryBuilder.MapPagedResultAsync(
             query,
             includeSchema: false,
             pageNumber: 1,
             pageSize: 1,
+            applicationRepository,
             CancellationToken.None);
 
         var pageTwo = await ApplicationListingQueryBuilder.MapPagedResultAsync(
@@ -36,6 +43,7 @@ public class ApplicationListingQueryBuilderTests
             includeSchema: false,
             pageNumber: 2,
             pageSize: 1,
+            applicationRepository,
             CancellationToken.None);
 
         Assert.Equal(newest.ApplicationReference, pageOne.Items.Single().ApplicationReference);

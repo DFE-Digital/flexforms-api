@@ -115,17 +115,58 @@ public class TenantAdminController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-    /// Adds or updates a configuration section for the caller's own tenant only.
-    /// Requires an interactive Admin user JWT; the route <paramref name="tenantId"/> must
-    /// match the resolved tenant context.
+    /// Duplicates the caller's own tenant into a new TenantConfig tenant.
+    /// Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
+    /// Principals are not copied. Interactive SuperAdmin only.
     /// </summary>
-    [HttpPut("{tenantId:guid}/settings")]
+    [HttpPost("{tenantId:guid}/duplicate")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(201, "Tenant duplicated.", typeof(DuplicateTenantResponse))]
+    [SwaggerResponse(400, "Validation error.", typeof(ExceptionResponse))]
+    [SwaggerResponse(401, "Unauthorized.", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Forbidden - interactive SuperAdmin of own tenant required.", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "Source tenant not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    public async Task<IActionResult> DuplicateTenant(
+        Guid tenantId,
+        [FromBody] DuplicateTenantRequest body,
+        CancellationToken cancellationToken)
+    {
+        var serviceApiKeys = (body.InternalServiceAuthServiceApiKeys ?? [])
+            .Select(s => (s.Email, s.ApiKey))
+            .ToList();
+
+        var result = await sender.Send(
+            new DuplicateTenantCommand(
+                tenantId,
+                body.NewTenantId,
+                body.NewTenantName,
+                body.Hostname,
+                body.FrontendOrigin,
+                body.AuthorizationApiSecretKey,
+                body.InternalServiceAuthSecretKey,
+                serviceApiKeys),
+            cancellationToken);
+
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status201Created };
+    }
+
+    /// <summary>
+    /// Adds or updates a configuration section for the caller's own tenant only.
+    /// Requires an interactive SuperAdmin user JWT; the route <paramref name="tenantId"/> must
+    /// match the resolved tenant context.
+    /// Uses POST and Base64-encoded SettingsJson (same WAF-safe pattern as template schemas).
+    /// </summary>
+    [HttpPost("{tenantId:guid}/settings")]
     [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
     [SwaggerResponse(200, "Setting updated.", typeof(UpsertTenantSettingResponse))]
     [SwaggerResponse(201, "Setting created.", typeof(UpsertTenantSettingResponse))]
     [SwaggerResponse(400, "Validation error.", typeof(ExceptionResponse))]
     [SwaggerResponse(401, "Unauthorized.", typeof(ExceptionResponse))]
-    [SwaggerResponse(403, "Forbidden - interactive Admin of own tenant required.", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Forbidden - interactive SuperAdmin of own tenant required.", typeof(ExceptionResponse))]
     [SwaggerResponse(404, "Tenant not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
     public async Task<IActionResult> UpsertTenantSetting(
@@ -162,6 +203,16 @@ public class TenantAdminController(ISender sender) : ControllerBase
             _ => StatusCodes.Status400BadRequest
         };
 
-        return new ObjectResult(result) { StatusCode = statusCode };
+        // Return ExceptionResponse directly so API clients can deserialize 4xx bodies
+        // (and so we do not rely solely on ResultToExceptionFilter).
+        return new ObjectResult(new ExceptionResponse
+        {
+            StatusCode = statusCode,
+            Message = result.Error ?? "Request failed",
+            ExceptionType = result.ErrorCode?.ToString() ?? "Error"
+        })
+        {
+            StatusCode = statusCode
+        };
     }
 }

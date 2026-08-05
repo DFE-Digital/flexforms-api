@@ -67,6 +67,7 @@ namespace Microsoft.Extensions.DependencyInjection
             });
             services.AddScoped<IPermissionCheckerService, ClaimBasedPermissionCheckerService>();
             services.AddScoped<IUserCacheInvalidator, UserCacheInvalidator>();
+            services.AddScoped<ITemplateSchemaCacheInvalidator, TemplateSchemaCacheInvalidator>();
             services.AddScoped<IAuthenticatedUserService, AuthenticatedUserService>();
             services.AddScoped<IApplicationCreationService, ApplicationCreationService>();
             services.AddScoped<ITenantRoleService, TenantRoleService>();

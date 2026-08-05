@@ -52,6 +52,16 @@
     },
     {
       "Controller": "TemplatesController",
+      "Action": "GetTemplateVersionsAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanReadTemplate"
+    },
+    {
+      "Controller": "TemplatesController",
+      "Action": "GetTemplateSchemaByVersionAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanReadTemplate"
+    },
+    {
+      "Controller": "TemplatesController",
       "Action": "CreateTemplateVersionAsync",
       "ExpectedSecurity": "Authorize: Policy=CanWriteTemplate"
     },
@@ -234,6 +244,16 @@
       "Controller": "TenantAdminController",
       "Action": "SeedFromAppSettings",
       "ExpectedSecurity": "Authorize: Policy=PlatformTenantConfig"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "GetTenantSettings",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "DuplicateTenant",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
     },
     {
       "Controller": "TenantAdminController",
