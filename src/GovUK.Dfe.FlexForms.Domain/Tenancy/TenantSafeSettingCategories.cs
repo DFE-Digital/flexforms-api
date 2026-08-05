@@ -9,6 +9,7 @@ public static class TenantSafeSettingCategories
     public const string ApplicationTerminology = "ApplicationTerminology";
     public const string NotificationBanner = "NotificationBanner";
     public const string Dashboard = "Dashboard";
+    public const string EventMappings = "EventMappings";
 
     /// <summary>Target used for all delegated safe settings (Web app options).</summary>
     public const string DefaultTarget = "Web";
@@ -17,7 +18,8 @@ public static class TenantSafeSettingCategories
     {
         ApplicationTerminology,
         NotificationBanner,
-        Dashboard
+        Dashboard,
+        EventMappings
     };
 
     public static bool IsSafe(string? category) =>

@@ -113,6 +113,7 @@ public static class TenantSettingJsonValidator
             "ApplicationTerminology" => true,
             "NotificationBanner" => true,
             "Dashboard" => true,
+            "EventMappings" => true,
             _ => false
         };
 
@@ -227,9 +228,64 @@ public static class TenantSettingJsonValidator
                 }
                 break;
 
+            case "EventMappings":
+                ValidateEventMappings(root, errors);
+                break;
+
             default:
                 // Unknown categories: any JSON object/array/scalar is accepted.
                 break;
+        }
+    }
+
+    private static void ValidateEventMappings(JsonElement root, List<string> errors)
+    {
+        foreach (var templateProperty in root.EnumerateObject())
+        {
+            // Reserved host keys (e.g. BasePath) may appear if someone copies appsettings shape.
+            if (string.Equals(templateProperty.Name, "BasePath", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (templateProperty.Value.ValueKind != JsonValueKind.Object)
+            {
+                errors.Add($"EventMappings['{templateProperty.Name}'] must be an object keyed by event type name.");
+                continue;
+            }
+
+            foreach (var eventProperty in templateProperty.Value.EnumerateObject())
+            {
+                if (eventProperty.Value.ValueKind != JsonValueKind.Object)
+                {
+                    errors.Add(
+                        $"EventMappings['{templateProperty.Name}']['{eventProperty.Name}'] must be a mapping object.");
+                    continue;
+                }
+
+                var mapping = eventProperty.Value;
+                if (GetString(mapping, "mappingId") is null && GetString(mapping, "MappingId") is null)
+                {
+                    errors.Add(
+                        $"EventMappings['{templateProperty.Name}']['{eventProperty.Name}'].mappingId is required.");
+                }
+
+                if (GetString(mapping, "eventType") is null && GetString(mapping, "EventType") is null)
+                {
+                    errors.Add(
+                        $"EventMappings['{templateProperty.Name}']['{eventProperty.Name}'].eventType is required.");
+                }
+
+                if (!mapping.TryGetProperty("fieldMappings", out var fieldMappings)
+                    && !mapping.TryGetProperty("FieldMappings", out fieldMappings))
+                {
+                    errors.Add(
+                        $"EventMappings['{templateProperty.Name}']['{eventProperty.Name}'].fieldMappings is required.");
+                }
+                else if (fieldMappings.ValueKind != JsonValueKind.Object)
+                {
+                    errors.Add(
+                        $"EventMappings['{templateProperty.Name}']['{eventProperty.Name}'].fieldMappings must be an object.");
+                }
+            }
         }
     }
 
