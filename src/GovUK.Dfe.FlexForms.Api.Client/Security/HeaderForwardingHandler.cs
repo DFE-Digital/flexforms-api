@@ -28,12 +28,18 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security
         public const string TenantIdHeaderName = "X-Tenant-ID";
 
         /// <summary>
+        /// Correlation header expected by API <c>CorrelationIdMiddleware</c>.
+        /// </summary>
+        public const string CorrelationIdHeaderName = "x-correlationId";
+
+        /// <summary>
         /// Default headers that should be forwarded from incoming requests to API calls if not configured
         /// </summary>
         private static readonly string[] DefaultHeadersToForward = new[]
         {
             "x-service-email",
-            "x-service-api-key"
+            "x-service-api-key",
+            CorrelationIdHeaderName
         };
 
         /// <summary>
@@ -97,23 +103,37 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security
 
             if (httpContext != null)
             {
+                EnsureCorrelationIdHeader(httpContext);
+
                 var headersForwarded = 0;
+
+                // Always forward correlation id (even if HeadersToForward omits it).
+                if (httpContext.Request.Headers.TryGetValue(CorrelationIdHeaderName, out var correlationValue)
+                    && !string.IsNullOrEmpty(correlationValue.ToString()))
+                {
+                    if (request.Headers.Contains(CorrelationIdHeaderName))
+                        request.Headers.Remove(CorrelationIdHeaderName);
+
+                    request.Headers.Add(CorrelationIdHeaderName, correlationValue.ToString());
+                    headersForwarded++;
+                }
 
                 // Forward each configured header if present in the incoming request
                 foreach (var headerName in GetHeadersToForward())
                 {
+                    if (string.Equals(headerName, CorrelationIdHeaderName, StringComparison.OrdinalIgnoreCase))
+                        continue;
+
                     if (httpContext.Request.Headers.TryGetValue(headerName, out var headerValue))
                     {
                         var value = headerValue.ToString();
                         if (!string.IsNullOrEmpty(value))
                         {
-                            // Remove existing header if present (avoid duplicates)
                             if (request.Headers.Contains(headerName))
                             {
                                 request.Headers.Remove(headerName);
                             }
 
-                            // Add the forwarded header
                             request.Headers.Add(headerName, value);
                             headersForwarded++;
 
@@ -127,14 +147,32 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security
 
                 if (headersForwarded > 0)
                 {
-                    _logger.LogInformation(
+                    _logger.LogDebug(
                         "Forwarded {Count} header(s) to API request: {RequestUri}",
                         headersForwarded,
                         request.RequestUri);
                 }
             }
+            else if (!request.Headers.Contains(CorrelationIdHeaderName))
+            {
+                // Background / no HttpContext: still send a correlation id for API tracing.
+                request.Headers.Add(CorrelationIdHeaderName, Guid.NewGuid().ToString());
+            }
 
             return await base.SendAsync(request, cancellationToken);
+        }
+
+        private static void EnsureCorrelationIdHeader(HttpContext httpContext)
+        {
+            if (httpContext.Request.Headers.TryGetValue(CorrelationIdHeaderName, out var existing)
+                && Guid.TryParse(existing.ToString(), out _))
+            {
+                return;
+            }
+
+            var correlationId = Guid.NewGuid().ToString();
+            httpContext.Request.Headers[CorrelationIdHeaderName] = correlationId;
+            httpContext.Response.Headers[CorrelationIdHeaderName] = correlationId;
         }
     }
 }

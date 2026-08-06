@@ -30,10 +30,10 @@ public sealed class UserCacheInvalidator(
 
         if (!string.IsNullOrWhiteSpace(email))
         {
-            var normalizedEmail = email.Trim();
+            var normalizedEmail = email.Trim().ToLowerInvariant();
             var userClaimsKey = TenantCacheKeyHelper.CreateTenantScopedKey(
                 tenantContextAccessor,
-                $"UserClaims_{CacheKeyHelper.GenerateHashedCacheKey(normalizedEmail.ToLowerInvariant())}");
+                $"UserClaims_{CacheKeyHelper.GenerateHashedCacheKey(normalizedEmail)}");
             cacheService.Remove(userClaimsKey);
 
             var emailListingPattern = TenantCacheKeyHelper.CreateTenantScopedKey(
@@ -42,7 +42,9 @@ public sealed class UserCacheInvalidator(
             await advancedRedisCacheService.RemoveByPatternAsync(emailListingPattern);
 
             // Drop cached OBO JWTs so the next API call re-exchanges with the current role.
-            await InvalidateInternalTokensAsync(normalizedEmail);
+            await InvalidateInternalTokensAsync(email.Trim());
+            if (!string.Equals(email.Trim(), normalizedEmail, StringComparison.Ordinal))
+                await InvalidateInternalTokensAsync(normalizedEmail);
         }
 
         var userIdHash = CacheKeyHelper.GenerateHashedCacheKey(userId.Value.ToString());
@@ -55,11 +57,18 @@ public sealed class UserCacheInvalidator(
             tenantContextAccessor,
             $"Template_Permissions_ByUiD_{userIdHash}"));
 
+        // Admin/template listings are principal-scoped; clear tenant template lists so create/update
+        // and permission changes are visible immediately.
+        await advancedRedisCacheService.RemoveByPatternAsync(
+            TenantCacheKeyHelper.CreateTenantScopedKey(
+                tenantContextAccessor,
+                "Applications_ByTemplate_*"));
+
         if (!string.IsNullOrWhiteSpace(externalProviderId))
         {
             var externalIdListingPattern = TenantCacheKeyHelper.CreateTenantScopedKey(
                 tenantContextAccessor,
-                $"Applications_ForUserExternal_{CacheKeyHelper.GenerateHashedCacheKey(externalProviderId)}*");
+                $"Applications_ForUserExternal_{CacheKeyHelper.GenerateHashedCacheKey(externalProviderId.Trim())}*");
             await advancedRedisCacheService.RemoveByPatternAsync(externalIdListingPattern);
 
             await InvalidateInternalTokensAsync(externalProviderId.Trim());

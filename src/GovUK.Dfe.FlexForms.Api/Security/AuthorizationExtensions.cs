@@ -83,6 +83,8 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                             return AuthConstants.ApiKey;
                         if (context.Connection.ClientCertificate is not null)
                             return AuthConstants.Mtls;
+                        if (EndpointRequiresPlatformBearerOnly(context))
+                            return AuthConstants.PlatformBearer;
                         return AuthConstants.TenantBearer;
                     };
                 })
@@ -130,102 +132,88 @@ namespace GovUK.Dfe.FlexForms.Api.Security
             services.AddTransient<Microsoft.AspNetCore.Authentication.IClaimsTransformation, TenantClaimsTransformation>();
 
 
-            // set-up and define User and Template Permission policies
+            // Permission policies rely on the default CompositeScheme result from UseAuthentication.
+            // Do not AddAuthenticationSchemes(CompositeScheme) here — that forces PolicyEvaluator to
+            // AuthenticateAsync again and re-run claims enrichment on every authorized request.
             var policyCustomizations = new Dictionary<string, Action<AuthorizationPolicyBuilder>>
             {
                 ["CanReadTemplate"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.TemplatePermissionRequirement(AccessType.Read.ToString()));
                 },
                 ["CanWriteTemplate"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.TemplatePermissionRequirement(AccessType.Write.ToString()));
                 },
                 ["CanReadUser"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.UserPermissionRequirement(AccessType.Read.ToString()));
                 },
                 ["CanReadApplication"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.ApplicationPermissionRequirement(AccessType.Read.ToString()));
                 },
                 ["CanUpdateApplication"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.ApplicationPermissionRequirement(AccessType.Write.ToString()));
                 },
                 ["CanDeleteApplication"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.ApplicationPermissionRequirement(AccessType.Delete.ToString()));
                 },
                 ["CanReadAnyApplication"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.ApplicationListPermissionRequirement(AccessType.Read.ToString()));
                 },
                 ["CanCreateAnyApplication"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.AnyTemplatePermissionRequirement(AccessType.Write.ToString()));
                 },
                 ["CanListTemplates"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.AnyTemplatePermissionRequirement(AccessType.Read.ToString()));
                 },
                 ["CanCreateTemplate"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.TemplateManagePermissionRequirement());
                 },
                 ["CanManageUsers"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.UserManagePermissionRequirement());
                 },
                 ["CanReadApplicationFiles"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.ApplicationFilesPermissionRequirement(AccessType.Read.ToString()));
                 },
                 ["CanWriteApplicationFiles"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.ApplicationFilesPermissionRequirement(AccessType.Write.ToString()));
                 },
                 ["CanDeleteApplicationFiles"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.ApplicationFilesPermissionRequirement(AccessType.Delete.ToString()));
                 },
                 ["CanReadNotifications"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.NotificationsPermissionRequirement(AccessType.Read.ToString()));
                 },
                 ["CanWriteNotifications"] = pb =>
                 {
-                    pb.AddAuthenticationSchemes(AuthConstants.CompositeScheme);
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.NotificationsPermissionRequirement(AccessType.Write.ToString()));
                 }
@@ -253,15 +241,14 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                 // SaaS: provider-agnostic service-callers policy. Replaces SvcCanReadWrite. Any
                 // TenantAuthProvider with IsServicePrincipal == true satisfies this policy, so
                 // Entra apps, API-key callers and mTLS callers all pass the same gate.
+                // No explicit scheme: reuse UseAuthentication's CompositeScheme principal.
                 options.AddPolicy("ServiceCallers", p =>
-                        p.AddAuthenticationSchemes(AuthConstants.CompositeScheme)
-                            .RequireAuthenticatedUser()
+                        p.RequireAuthenticatedUser()
                             .AddRequirements(new Handlers.ServicePrincipalRequirement()));
 
                 // Interactive tenant Admin only (user JWT). Rejects client-credentials / API key / mTLS.
                 options.AddPolicy(AuthConstants.TenantAdminUserPolicy, p =>
-                        p.AddAuthenticationSchemes(AuthConstants.CompositeScheme)
-                            .RequireAuthenticatedUser()
+                        p.RequireAuthenticatedUser()
                             .AddRequirements(new Handlers.TenantAdminUserRequirement()));
 
                 options.AddPolicy(PlatformConstants.PlatformHostPolicy, p =>
@@ -275,10 +262,11 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                         .AddRequirements(new Handlers.PlatformTenantConfigRoleRequirement()));
             });
 
+            // Null scheme: config policies use HttpContext.User from UseAuthentication (no second JWT validate).
             services.AddApplicationAuthorization(
                 baseConfig,
                 policyCustomizations: policyCustomizations,
-                apiAuthenticationScheme: AuthConstants.CompositeScheme,
+                apiAuthenticationScheme: null,
                 configureResourcePolicies: null);
 
             services.AddSingleton<IAuthorizationMiddlewareResultHandler, AuthorizationFailureResponseHandler>();
@@ -491,6 +479,39 @@ namespace GovUK.Dfe.FlexForms.Api.Security
             var appid = principal.FindFirst("appid")?.Value;
             if (!string.IsNullOrEmpty(appid)) return appid;
             return principal.FindFirst("http://schemas.microsoft.com/identity/claims/appid")?.Value;
+        }
+
+        /// <summary>
+        /// True when the matched endpoint only authorizes via PlatformBearer policies, so the
+        /// default CompositeScheme should forward there instead of validating TenantBearer first.
+        /// </summary>
+        private static bool EndpointRequiresPlatformBearerOnly(HttpContext context)
+        {
+            var endpoint = context.GetEndpoint();
+            if (endpoint is null)
+                return false;
+
+            var authorizeData = endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>();
+            if (authorizeData.Count == 0)
+                return false;
+
+            var sawPlatformPolicy = false;
+            foreach (var data in authorizeData)
+            {
+                if (string.IsNullOrWhiteSpace(data.Policy))
+                    return false;
+
+                if (string.Equals(data.Policy, PlatformConstants.PlatformHostPolicy, StringComparison.Ordinal)
+                    || string.Equals(data.Policy, PlatformConstants.PlatformTenantConfigPolicy, StringComparison.Ordinal))
+                {
+                    sawPlatformPolicy = true;
+                    continue;
+                }
+
+                return false;
+            }
+
+            return sawPlatformPolicy;
         }
 
         /// <summary>

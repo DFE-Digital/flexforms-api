@@ -5,6 +5,7 @@ using GovUK.Dfe.FlexForms.Api.Security;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.JsonWebTokens;
 using MockQueryable.NSubstitute;
@@ -15,10 +16,14 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Security.ClaimProviders;
 
 public class TemplatePermissionsClaimProviderTests
 {
+    private static TemplatePermissionsClaimProvider CreateProvider(
+        ILogger<TemplatePermissionsClaimProvider> logger,
+        IEaRepository<User> userRepo) =>
+        new(logger, userRepo, Substitute.For<IHttpContextAccessor>());
+
     [Fact]
     public async Task GetClaimsAsync_ShouldReturnEmpty_WhenIssuerInvalid()
     {
-        // Arrange
         var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
             new Claim(JwtRegisteredClaimNames.Iss, "https://example.com"),
@@ -27,19 +32,16 @@ public class TemplatePermissionsClaimProviderTests
         var logger = Substitute.For<ILogger<TemplatePermissionsClaimProvider>>();
         var userRepo = Substitute.For<IEaRepository<User>>();
 
-        var provider = new TemplatePermissionsClaimProvider(logger, userRepo);
+        var provider = CreateProvider(logger, userRepo);
 
-        // Act
         var result = await provider.GetClaimsAsync(principal);
 
-        // Assert
         Assert.Empty(result);
     }
 
     [Fact]
     public async Task GetClaimsAsync_ShouldReturnEmpty_WhenAppIdMissing()
     {
-        // Arrange
         var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
             new Claim(JwtRegisteredClaimNames.Iss, "https://sts.windows.net/abc")
@@ -47,19 +49,16 @@ public class TemplatePermissionsClaimProviderTests
         var userRepo = Substitute.For<IEaRepository<User>>();
 
         var logger = Substitute.For<ILogger<TemplatePermissionsClaimProvider>>();
-        var provider = new TemplatePermissionsClaimProvider(logger, userRepo);
+        var provider = CreateProvider(logger, userRepo);
 
-        // Act
         var result = await provider.GetClaimsAsync(principal);
 
-        // Assert
         Assert.Empty(result);
     }
 
     [Fact]
     public async Task GetClaimsAsync_ShouldReturnEmpty_WhenUserNotFound()
     {
-        // Arrange
         var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
             new Claim(JwtRegisteredClaimNames.Iss, "https://sts.windows.net/abc"),
@@ -67,23 +66,19 @@ public class TemplatePermissionsClaimProviderTests
         }));
         var userRepo = Substitute.For<IEaRepository<User>>();
 
-        var users = Array.Empty<User>().AsQueryable().BuildMockDbSet();
-        userRepo.Query().Returns(users);
+        userRepo.Query().Returns(Array.Empty<User>().AsQueryable().BuildMockDbSet());
 
         var logger = Substitute.For<ILogger<TemplatePermissionsClaimProvider>>();
-        var provider = new TemplatePermissionsClaimProvider(logger, userRepo);
+        var provider = CreateProvider(logger, userRepo);
 
-        // Act
         var result = await provider.GetClaimsAsync(principal);
 
-        // Assert
         Assert.Empty(result);
     }
 
     [Fact]
     public async Task GetClaimsAsync_ShouldReturnEmpty_WhenNoPermissions()
     {
-        // Arrange
         var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
             new Claim(JwtRegisteredClaimNames.Iss, "https://sts.windows.net/abc"),
@@ -102,25 +97,20 @@ public class TemplatePermissionsClaimProviderTests
             createdBy: null,
             lastModifiedOn: null,
             lastModifiedBy: null,
-            externalProviderId: "cid"
-        );
-        var users = new[] { user }.AsQueryable().BuildMockDbSet();
-        userRepo.Query().Returns(users);
+            externalProviderId: "cid");
+        userRepo.Query().Returns(new[] { user }.AsQueryable().BuildMockDbSet());
 
         var logger = Substitute.For<ILogger<TemplatePermissionsClaimProvider>>();
-        var provider = new TemplatePermissionsClaimProvider(logger, userRepo);
+        var provider = CreateProvider(logger, userRepo);
 
-        // Act
         var result = await provider.GetClaimsAsync(principal);
 
-        // Assert
         Assert.Empty(result);
     }
 
     [Theory, AutoData]
     public async Task GetClaimsAsync_ShouldReturnClaims_WhenPermissionsReturned(Guid templateId)
     {
-        // Arrange
         var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
         {
             new Claim(JwtRegisteredClaimNames.Iss, "https://sts.windows.net/abc"),
@@ -150,18 +140,14 @@ public class TemplatePermissionsClaimProviderTests
             lastModifiedOn: null,
             lastModifiedBy: null,
             externalProviderId: "cid",
-            initialPermissions: [templatePermission]
-        );
-        var users = new[] { user }.AsQueryable().BuildMockDbSet();
-        userRepo.Query().Returns(users);
+            initialPermissions: [templatePermission]);
+        userRepo.Query().Returns(new[] { user }.AsQueryable().BuildMockDbSet());
 
         var logger = Substitute.For<ILogger<TemplatePermissionsClaimProvider>>();
-        var provider = new TemplatePermissionsClaimProvider(logger, userRepo);
+        var provider = CreateProvider(logger, userRepo);
 
-        // Act
         var result = (await provider.GetClaimsAsync(principal)).ToList();
 
-        // Assert
         Assert.Single(result);
         Assert.Equal("permission", result[0].Type);
         Assert.Equal($"Template:{templateId}:Read", result[0].Value);

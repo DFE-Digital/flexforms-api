@@ -25,8 +25,10 @@ public class UserCacheInvalidatorTests
         await invalidator.InvalidateForUserAsync(email, "external-id", userId);
 
         cacheService.Received(3).Remove(Arg.Any<string>());
-        // Email listing + external listing + internal-token pattern (email) + internal-token pattern (external id)
-        await advancedRedisCacheService.Received(4).RemoveByPatternAsync(Arg.Any<string>());
+        // Email listing + ByTemplate + external listing + internal-token pattern (email) +
+        // internal-token pattern (email lower) + internal-token pattern (external id)
+        await advancedRedisCacheService.Received(6).RemoveByPatternAsync(Arg.Any<string>());
+        await advancedRedisCacheService.Received().RemoveByPatternAsync(Arg.Is<string>(p => p.Contains("Applications_ByTemplate_")));
         await advancedRedisCacheService.Received().RemoveAsync(Arg.Is<string>(k => k.Contains("FlexForms:InternalToken:")));
     }
 
@@ -44,6 +46,7 @@ public class UserCacheInvalidatorTests
         await invalidator.InvalidateForUserAsync("user@example.com", null, new UserId(Guid.NewGuid()));
 
         await advancedRedisCacheService.Received(1).RemoveByPatternAsync(Arg.Is<string>(p => p.Contains("Applications_ForUser_")));
+        await advancedRedisCacheService.Received(1).RemoveByPatternAsync(Arg.Is<string>(p => p.Contains("Applications_ByTemplate_")));
         await advancedRedisCacheService.Received().RemoveByPatternAsync(Arg.Is<string>(p => p.Contains("FlexForms:InternalToken:")));
     }
 

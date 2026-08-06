@@ -46,7 +46,8 @@ public static class CoreLibsHostConfiguration
             }
         }
 
-        // Host appsettings CacheSettings (except KeyPrefix already forced above)
+        // Host appsettings CacheSettings (except KeyPrefix already forced above).
+        // Host Durations win over legacy tenant/EAT values (e.g. 1s listing TTLs).
         var hostRedisDuration = root["CacheSettings:Redis:DefaultDurationInSeconds"];
         if (!string.IsNullOrWhiteSpace(hostRedisDuration))
             overlay["CacheSettings:Redis:DefaultDurationInSeconds"] = hostRedisDuration;
@@ -54,6 +55,12 @@ public static class CoreLibsHostConfiguration
         var hostDb = root["CacheSettings:Redis:Database"];
         if (!string.IsNullOrWhiteSpace(hostDb))
             overlay["CacheSettings:Redis:Database"] = hostDb;
+
+        foreach (var duration in root.GetSection("CacheSettings:Redis:Durations").GetChildren())
+        {
+            if (!string.IsNullOrWhiteSpace(duration.Key) && !string.IsNullOrWhiteSpace(duration.Value))
+                overlay[$"CacheSettings:Redis:Durations:{duration.Key}"] = duration.Value;
+        }
 
         return new ConfigurationBuilder()
             .AddConfiguration(primary)
