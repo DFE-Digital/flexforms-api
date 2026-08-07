@@ -5,12 +5,14 @@ using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
 using GovUK.Dfe.FlexForms.Application.Common.EventHandlers;
 using GovUK.Dfe.FlexForms.Application.Options;
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.CoreLibs.FileStorage.Interfaces;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Helpers;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Interfaces;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 
@@ -22,6 +24,7 @@ public sealed class FileUploadedDomainEventHandler(
     ITenantContextAccessor tenantContextAccessor,
     IAzureSpecificOperations azureSpecificOperations,
     IApplicationRepository applicationRepository,
+    IEaRepository<User> userRepository,
     IEventTriggerDispatcher eventTriggerDispatcher)
     : BaseEventHandler<Domain.Events.FileUploadedDomainEvent>(logger)
 {
@@ -85,7 +88,7 @@ public sealed class FileUploadedDomainEventHandler(
             .AddCustomProperty("serviceName", $"extapi-{tenant.Name}")
             .Build();
 
-        // Publish to Azure Service Bus via MassTransit
+        // Publish to Azure Service Bus via MassTransit — hardcoded platform guarantee.
         await publishEndpoint.PublishAsync(
             fileUploadedEvent, 
             messageProperties, 
@@ -95,7 +98,7 @@ public sealed class FileUploadedDomainEventHandler(
             "Published ScanRequestedEvent to service bus - File: {FileName}",
             file.OriginalFileName);
 
-        await DispatchConfiguredEventsAsync(notification, cancellationToken);
+        await DispatchConfiguredEventsAsync(notification, sasUri, cancellationToken);
     }
 
     /// <summary>
@@ -104,6 +107,7 @@ public sealed class FileUploadedDomainEventHandler(
     /// </summary>
     private async Task DispatchConfiguredEventsAsync(
         Domain.Events.FileUploadedDomainEvent notification,
+        string fileUri,
         CancellationToken cancellationToken)
     {
         var file = notification.File;
@@ -129,12 +133,31 @@ public sealed class FileUploadedDomainEventHandler(
 
             var formData = ApplicationFormDataParser.Parse(latestResponse?.ResponseBody);
 
+            var uploaderEmail = await ResolveUploaderEmailAsync(file, cancellationToken);
+
+            var platformMetadata = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            {
+                [PlatformEventMetadataKeys.ApplicationId] = file.ApplicationId.Value.ToString(),
+                [PlatformEventMetadataKeys.ApplicationReference] = application!.ApplicationReference,
+                [PlatformEventMetadataKeys.FileId] = file.Id?.Value.ToString(),
+                [PlatformEventMetadataKeys.FileName] = file.FileName,
+                [PlatformEventMetadataKeys.OriginalFileName] = file.OriginalFileName,
+                [PlatformEventMetadataKeys.FilePath] = file.Path,
+                [PlatformEventMetadataKeys.FileUri] = fileUri,
+                [PlatformEventMetadataKeys.FileHash] = notification.FileHash,
+                [PlatformEventMetadataKeys.FileSize] = file.FileSize,
+                [PlatformEventMetadataKeys.UploaderUserId] = file.UploadedBy.Value.ToString(),
+                [PlatformEventMetadataKeys.UploaderEmail] = uploaderEmail,
+                [PlatformEventMetadataKeys.UploadedOn] = file.UploadedOn
+            };
+
             await eventTriggerDispatcher.DispatchAsync(
                 EventTriggerType.FileUploaded,
                 file.ApplicationId.Value,
-                application!.ApplicationReference,
+                application.ApplicationReference,
                 templateId,
                 formData,
+                platformMetadata,
                 cancellationToken);
         }
         catch (Exception ex)
@@ -143,6 +166,31 @@ public sealed class FileUploadedDomainEventHandler(
                 ex,
                 "Error dispatching FileUploaded events for application {ApplicationId}",
                 file.ApplicationId.Value);
+        }
+    }
+
+    private async Task<string?> ResolveUploaderEmailAsync(
+        Domain.Entities.File file,
+        CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrWhiteSpace(file.UploadedByUser?.Email))
+            return file.UploadedByUser.Email;
+
+        try
+        {
+            var user = await new GetUserByIdQueryObject(file.UploadedBy)
+                .Apply(userRepository.Query().AsNoTracking())
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return user?.Email;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Could not resolve uploader email for user {UserId}",
+                file.UploadedBy.Value);
+            return null;
         }
     }
 }

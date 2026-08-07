@@ -93,12 +93,23 @@ public sealed class ApplicationSubmittedEventHandler(
 
             var formData = ApplicationFormDataParser.Parse(latestResponse?.ResponseBody);
 
+            var platformMetadata = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            {
+                [PlatformEventMetadataKeys.ApplicationId] = notification.ApplicationId.Value.ToString(),
+                [PlatformEventMetadataKeys.ApplicationReference] = notification.ApplicationReference,
+                [PlatformEventMetadataKeys.SubmittedByUserId] = notification.SubmittedBy.Value.ToString(),
+                [PlatformEventMetadataKeys.SubmittedByEmail] = notification.UserEmail,
+                [PlatformEventMetadataKeys.SubmittedByFullName] = notification.UserFullName,
+                [PlatformEventMetadataKeys.SubmittedOn] = notification.SubmittedOn
+            };
+
             await eventTriggerDispatcher.DispatchAsync(
                 EventTriggerType.ApplicationSubmitted,
                 notification.ApplicationId.Value,
                 notification.ApplicationReference,
                 notification.TemplateId.Value.ToString(),
                 formData,
+                platformMetadata,
                 cancellationToken);
         }
         catch (Exception ex)

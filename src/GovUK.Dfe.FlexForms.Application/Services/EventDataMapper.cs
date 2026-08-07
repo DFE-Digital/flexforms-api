@@ -18,6 +18,7 @@ public sealed class EventDataMapper(
         string mappingId,
         Guid applicationId,
         string applicationReference,
+        IReadOnlyDictionary<string, object?>? platformMetadata = null,
         CancellationToken cancellationToken = default) where TEvent : class
     {
         var eventType = typeof(TEvent).Name;
@@ -28,6 +29,7 @@ public sealed class EventDataMapper(
             mappingId,
             applicationId,
             applicationReference,
+            platformMetadata,
             cancellationToken);
 
         var json = JsonSerializer.Serialize(eventData);
@@ -54,6 +56,7 @@ public sealed class EventDataMapper(
         string mappingId,
         Guid applicationId,
         string applicationReference,
+        IReadOnlyDictionary<string, object?>? platformMetadata = null,
         CancellationToken cancellationToken = default)
     {
         var eventData = await BuildEventDataAsync(
@@ -63,6 +66,7 @@ public sealed class EventDataMapper(
             mappingId,
             applicationId,
             applicationReference,
+            platformMetadata,
             cancellationToken);
 
         return eventData.ToDictionary(
@@ -78,6 +82,7 @@ public sealed class EventDataMapper(
         string mappingId,
         Guid applicationId,
         string applicationReference,
+        IReadOnlyDictionary<string, object?>? platformMetadata,
         CancellationToken cancellationToken)
     {
         logger.LogDebug(
@@ -100,7 +105,12 @@ public sealed class EventDataMapper(
         {
             try
             {
-                var value = ExtractValue(fieldMapping, formData, applicationId, applicationReference);
+                var value = ExtractValue(
+                    fieldMapping,
+                    formData,
+                    applicationId,
+                    applicationReference,
+                    platformMetadata);
 
                 if (value == null || (value is string str && string.IsNullOrEmpty(str)))
                 {
@@ -132,7 +142,8 @@ public sealed class EventDataMapper(
         FieldMapping fieldMapping,
         Dictionary<string, object> formData,
         Guid applicationId,
-        string applicationReference)
+        string applicationReference,
+        IReadOnlyDictionary<string, object?>? platformMetadata)
     {
         return fieldMapping.SourceType switch
         {
@@ -143,7 +154,7 @@ public sealed class EventDataMapper(
                 GetComplexFieldProperty(fieldMapping.SourceFieldId!, fieldMapping.NestedPath!, formData),
 
             FieldMappingSourceType.Collection =>
-                GetCollectionValues(fieldMapping.CollectionMapping!, formData),
+                GetCollectionValues(fieldMapping.CollectionMapping!, formData, platformMetadata),
 
             FieldMappingSourceType.Computed =>
                 ComputeValue(
@@ -157,7 +168,12 @@ public sealed class EventDataMapper(
                 ResolveStaticValue(fieldMapping.TransformationType, fieldMapping.DefaultValue),
 
             FieldMappingSourceType.Metadata =>
-                GetMetadataValue(fieldMapping.SourceFieldId!, applicationId, applicationReference, fieldMapping.DefaultValue),
+                GetMetadataValue(
+                    fieldMapping.SourceFieldId!,
+                    applicationId,
+                    applicationReference,
+                    platformMetadata,
+                    fieldMapping.DefaultValue),
 
             _ => fieldMapping.DefaultValue ?? string.Empty
         };
@@ -271,7 +287,10 @@ public sealed class EventDataMapper(
     /// <summary>
     /// Gets values from a collection flow (multi-collection or derived).
     /// </summary>
-    private object GetCollectionValues(CollectionMapping collectionMapping, Dictionary<string, object> formData)
+    private object GetCollectionValues(
+        CollectionMapping collectionMapping,
+        Dictionary<string, object> formData,
+        IReadOnlyDictionary<string, object?>? platformMetadata)
     {
         if (!formData.TryGetValue(collectionMapping.SourceCollectionFieldId, out var collectionValue))
         {
@@ -326,7 +345,12 @@ public sealed class EventDataMapper(
 
                     foreach (var (propertyName, itemMapping) in collectionMapping.ItemMappings)
                     {
-                        var value = ExtractValue(itemMapping, mergedData, Guid.Empty, string.Empty);
+                        var value = ExtractValue(
+                            itemMapping,
+                            mergedData,
+                            Guid.Empty,
+                            string.Empty,
+                            platformMetadata);
 
                         // Omit empty optional properties so the deserializer can apply defaults.
                         if (value == null || (value is string str && string.IsNullOrEmpty(str)))
@@ -472,19 +496,50 @@ public sealed class EventDataMapper(
     }
 
     /// <summary>
-    /// Gets metadata values (applicationId, applicationReference).
+    /// Resolves platform Metadata keys. Prefers the trigger-supplied context bag, then
+    /// falls back to application identity always available on every dispatch.
     /// </summary>
     private static object GetMetadataValue(
         string metadataKey,
         Guid applicationId,
         string applicationReference,
+        IReadOnlyDictionary<string, object?>? platformMetadata,
         object? defaultValue)
     {
-        return metadataKey switch
+        if (platformMetadata is not null
+            && TryGetIgnoreCase(platformMetadata, metadataKey, out var fromContext)
+            && fromContext is not null
+            && !(fromContext is string s && string.IsNullOrEmpty(s)))
         {
-            "applicationId" => applicationId.ToString(),
-            "applicationReference" => applicationReference,
+            return fromContext;
+        }
+
+        return metadataKey.ToLowerInvariant() switch
+        {
+            "applicationid" => applicationId.ToString(),
+            "applicationreference" => applicationReference,
             _ => defaultValue ?? string.Empty
         };
+    }
+
+    private static bool TryGetIgnoreCase(
+        IReadOnlyDictionary<string, object?> source,
+        string key,
+        out object? value)
+    {
+        if (source.TryGetValue(key, out value))
+            return true;
+
+        foreach (var kvp in source)
+        {
+            if (string.Equals(kvp.Key, key, StringComparison.OrdinalIgnoreCase))
+            {
+                value = kvp.Value;
+                return true;
+            }
+        }
+
+        value = null;
+        return false;
     }
 }

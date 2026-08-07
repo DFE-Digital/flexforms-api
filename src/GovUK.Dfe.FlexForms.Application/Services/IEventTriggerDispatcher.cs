@@ -16,6 +16,10 @@ public interface IEventTriggerDispatcher
     /// <param name="applicationReference">Human-readable application reference.</param>
     /// <param name="templateId">Template id used to resolve EventMappings.</param>
     /// <param name="formData">Latest accumulated form data for the application.</param>
+    /// <param name="platformMetadata">
+    /// Optional platform context for Metadata mappings
+    /// (see <see cref="Options.PlatformEventMetadataKeys"/>).
+    /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
     Task DispatchAsync(
         string triggerName,
@@ -23,5 +27,6 @@ public interface IEventTriggerDispatcher
         string applicationReference,
         string templateId,
         Dictionary<string, object> formData,
+        IReadOnlyDictionary<string, object?>? platformMetadata = null,
         CancellationToken cancellationToken = default);
 }

@@ -44,6 +44,7 @@ public sealed class EventTriggerDispatcher(
         string applicationReference,
         string templateId,
         Dictionary<string, object> formData,
+        IReadOnlyDictionary<string, object?>? platformMetadata = null,
         CancellationToken cancellationToken = default)
     {
         var tenant = tenantContextAccessor.CurrentTenant;
@@ -67,6 +68,9 @@ public sealed class EventTriggerDispatcher(
         }
 
         var serviceName = $"extapi-{tenant.Name}";
+
+        // Ensure application identity is always present for Metadata mappings.
+        var metadata = MergeApplicationIdentity(platformMetadata, applicationId, applicationReference);
 
         foreach (var entry in entries)
         {
@@ -102,6 +106,7 @@ public sealed class EventTriggerDispatcher(
                         applicationReference,
                         templateId,
                         formData,
+                        metadata,
                         cancellationToken);
                 }
                 else
@@ -113,6 +118,7 @@ public sealed class EventTriggerDispatcher(
                         applicationReference,
                         templateId,
                         formData,
+                        metadata,
                         cancellationToken);
                 }
             }
@@ -127,6 +133,23 @@ public sealed class EventTriggerDispatcher(
                     applicationId);
             }
         }
+    }
+
+    private static IReadOnlyDictionary<string, object?> MergeApplicationIdentity(
+        IReadOnlyDictionary<string, object?>? platformMetadata,
+        Guid applicationId,
+        string applicationReference)
+    {
+        var merged = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+        if (platformMetadata is not null)
+        {
+            foreach (var kvp in platformMetadata)
+                merged[kvp.Key] = kvp.Value;
+        }
+
+        merged.TryAdd(PlatformEventMetadataKeys.ApplicationId, applicationId.ToString());
+        merged.TryAdd(PlatformEventMetadataKeys.ApplicationReference, applicationReference);
+        return merged;
     }
 
     /// <summary>
@@ -196,6 +219,7 @@ public sealed class EventTriggerDispatcher(
         string applicationReference,
         string templateId,
         Dictionary<string, object> formData,
+        IReadOnlyDictionary<string, object?> platformMetadata,
         CancellationToken cancellationToken)
     {
         var eventType = eventTypeRegistry.GetEventType(entry.EventType);
@@ -213,6 +237,7 @@ public sealed class EventTriggerDispatcher(
             entry.MappingId,
             applicationId,
             applicationReference,
+            platformMetadata,
             cancellationToken);
 
         if (eventData == null)
@@ -244,6 +269,7 @@ public sealed class EventTriggerDispatcher(
         string applicationReference,
         string templateId,
         Dictionary<string, object> formData,
+        IReadOnlyDictionary<string, object?> platformMetadata,
         CancellationToken cancellationToken)
     {
         var definition = schemaEventDefinitionProvider.GetDefinition(entry.EventType);
@@ -263,6 +289,7 @@ public sealed class EventTriggerDispatcher(
             entry.MappingId,
             applicationId,
             applicationReference,
+            platformMetadata,
             cancellationToken);
 
         var envelope = new SchemaEventEnvelope
@@ -329,12 +356,21 @@ public sealed class EventTriggerDispatcher(
         string mappingId,
         Guid applicationId,
         string applicationReference,
+        IReadOnlyDictionary<string, object?> platformMetadata,
         CancellationToken cancellationToken)
     {
         var genericMethod = MapToEventAsyncMethod.MakeGenericMethod(eventType);
         var invoked = genericMethod.Invoke(
             mapper,
-            [formData, templateId, mappingId, applicationId, applicationReference, cancellationToken]);
+            [
+                formData,
+                templateId,
+                mappingId,
+                applicationId,
+                applicationReference,
+                platformMetadata,
+                cancellationToken
+            ]);
 
         if (invoked is not Task awaitable)
             return null;

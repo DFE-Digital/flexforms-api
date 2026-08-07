@@ -127,15 +127,26 @@ public sealed class EventMappingProvider(
 
         try
         {
-            return JsonSerializer.Deserialize<EventFieldMapping>(json, SerializerOptions);
+            var mapping = JsonSerializer.Deserialize<EventFieldMapping>(json, SerializerOptions);
+            if (mapping is null)
+            {
+                logger.LogWarning(
+                    "EventMappings config for template {TemplateId} and event {EventType} deserialized to null. Raw JSON: {Json}",
+                    templateId,
+                    eventType,
+                    json);
+            }
+
+            return mapping;
         }
         catch (JsonException ex)
         {
             logger.LogWarning(
                 ex,
-                "Failed to deserialize EventMappings config for template {TemplateId} and event {EventType}",
+                "Failed to deserialize EventMappings config for template {TemplateId} and event {EventType}. Raw JSON: {Json}",
                 templateId,
-                eventType);
+                eventType,
+                json);
             return null;
         }
     }

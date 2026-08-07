@@ -206,6 +206,23 @@ public class DatabaseTenantConfigurationProvider(
                 }
                 break;
 
+            case JsonValueKind.Null:
+            case JsonValueKind.Undefined:
+                // Preserve JSON null (do not coerce to ""). Empty strings break round-trip
+                // deserialize of EventMappings (e.g. sourceFieldIds: List<string>).
+                result.Add(new KeyValuePair<string, string?>(prefix, null));
+                break;
+
+            case JsonValueKind.String:
+                result.Add(new KeyValuePair<string, string?>(prefix, element.GetString()));
+                break;
+
+            case JsonValueKind.Number:
+            case JsonValueKind.True:
+            case JsonValueKind.False:
+                result.Add(new KeyValuePair<string, string?>(prefix, element.ToString()));
+                break;
+
             default:
                 result.Add(new KeyValuePair<string, string?>(prefix, element.ToString()));
                 break;
