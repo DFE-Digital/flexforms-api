@@ -1,6 +1,8 @@
 using GovUK.Dfe.FlexForms.Application.Common.EventHandlers;
+using GovUK.Dfe.FlexForms.Application.Options;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Events;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using Microsoft.Extensions.Logging;
 using GovUK.Dfe.CoreLibs.Email.Interfaces;
 using GovUK.Dfe.CoreLibs.Email.Models;
@@ -10,11 +12,21 @@ namespace GovUK.Dfe.FlexForms.Application.Applications.EventHandlers;
 public sealed class ApplicationSubmittedEventHandler(
     ILogger<ApplicationSubmittedEventHandler> logger,
     IEmailService emailService,
-    IEmailTemplateResolver emailTemplateResolver) : BaseEventHandler<ApplicationSubmittedEvent>(logger)
+    IEmailTemplateResolver emailTemplateResolver,
+    IApplicationRepository applicationRepository,
+    IEventTriggerDispatcher eventTriggerDispatcher) : BaseEventHandler<ApplicationSubmittedEvent>(logger)
 {
     private readonly ILogger<ApplicationSubmittedEventHandler> _logger = logger;
 
     protected override async Task HandleEvent(ApplicationSubmittedEvent notification, CancellationToken cancellationToken)
+    {
+        await SendConfirmationEmailAsync(notification, cancellationToken);
+        await DispatchConfiguredEventsAsync(notification, cancellationToken);
+    }
+
+    private async Task SendConfirmationEmailAsync(
+        ApplicationSubmittedEvent notification,
+        CancellationToken cancellationToken)
     {
         try
         {
@@ -63,6 +75,39 @@ public sealed class ApplicationSubmittedEventHandler(
             
             // Don't rethrow - email failures shouldn't break the application submission process
             // The application submission itself has already succeeded at this point
+        }
+    }
+
+    /// <summary>
+    /// Publishes the tenant's ApplicationSubmitted event bindings using the latest saved responses.
+    /// </summary>
+    private async Task DispatchConfiguredEventsAsync(
+        ApplicationSubmittedEvent notification,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var latestResponse = await applicationRepository.GetLatestResponseAsync(
+                notification.ApplicationId,
+                cancellationToken);
+
+            var formData = ApplicationFormDataParser.Parse(latestResponse?.ResponseBody);
+
+            await eventTriggerDispatcher.DispatchAsync(
+                EventTriggerType.ApplicationSubmitted,
+                notification.ApplicationId.Value,
+                notification.ApplicationReference,
+                notification.TemplateId.Value.ToString(),
+                formData,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error dispatching ApplicationSubmitted events for application {ApplicationId} (Reference: {ApplicationReference})",
+                notification.ApplicationId.Value,
+                notification.ApplicationReference);
         }
     }
 }

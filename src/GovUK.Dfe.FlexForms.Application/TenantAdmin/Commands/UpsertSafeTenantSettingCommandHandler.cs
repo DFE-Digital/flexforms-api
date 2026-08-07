@@ -76,9 +76,13 @@ public sealed class UpsertSafeTenantSettingCommandHandler(
             return Result<UpsertTenantSettingResponse>.Failure("Settings JSON is required.");
         }
 
+        // EventMappings/SchemaEvents/EventTriggers are read by the API runtime, so they live
+        // under the Shared target; everything else stays Web-only.
+        var target = TenantSafeSettingCategories.TargetFor(category);
+
         var validationErrors = TenantSettingJsonValidator.Validate(
             category,
-            TenantSafeSettingCategories.DefaultTarget,
+            target,
             decodedSettingsJson);
 
         if (validationErrors.Count > 0)
@@ -92,15 +96,25 @@ public sealed class UpsertSafeTenantSettingCommandHandler(
             var result = await settingsWriter.UpsertSettingAsync(
                 request.TenantId,
                 category,
-                TenantSafeSettingCategories.DefaultTarget,
+                target,
                 decodedSettingsJson,
                 isSecret: false,
                 cancellationToken);
 
+            // A pre-migration copy under the Web target would shadow the Shared row for the Web app.
+            if (!string.Equals(target, TenantSafeSettingCategories.DefaultTarget, StringComparison.OrdinalIgnoreCase))
+            {
+                await settingsWriter.DeleteSettingAsync(
+                    request.TenantId,
+                    category,
+                    TenantSafeSettingCategories.DefaultTarget,
+                    cancellationToken);
+            }
+
             await auditWriter.AppendAsync(
                 request.TenantId,
                 category,
-                TenantSafeSettingCategories.DefaultTarget,
+                target,
                 result.WasCreated ? "Created" : "Updated",
                 ResolveActorEmail(),
                 wasSecret: false,

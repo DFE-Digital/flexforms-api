@@ -1,12 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
 using GovUK.Dfe.FlexForms.Application.Common.EventHandlers;
+using GovUK.Dfe.FlexForms.Application.Options;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.CoreLibs.FileStorage.Interfaces;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Helpers;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Interfaces;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Models;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 
 namespace GovUK.Dfe.FlexForms.Application.Applications.EventHandlers;
@@ -15,7 +20,9 @@ public sealed class FileUploadedDomainEventHandler(
     ILogger<FileUploadedDomainEventHandler> logger,
     IEventPublisher publishEndpoint,
     ITenantContextAccessor tenantContextAccessor,
-    IAzureSpecificOperations azureSpecificOperations)
+    IAzureSpecificOperations azureSpecificOperations,
+    IApplicationRepository applicationRepository,
+    IEventTriggerDispatcher eventTriggerDispatcher)
     : BaseEventHandler<Domain.Events.FileUploadedDomainEvent>(logger)
 {
     protected override async Task HandleEvent(
@@ -87,5 +94,55 @@ public sealed class FileUploadedDomainEventHandler(
         logger.LogInformation(
             "Published ScanRequestedEvent to service bus - File: {FileName}",
             file.OriginalFileName);
+
+        await DispatchConfiguredEventsAsync(notification, cancellationToken);
+    }
+
+    /// <summary>
+    /// Publishes the tenant's FileUploaded event bindings. Runs after the mandatory scan request
+    /// so a mapping or configuration problem can never block virus scanning.
+    /// </summary>
+    private async Task DispatchConfiguredEventsAsync(
+        Domain.Events.FileUploadedDomainEvent notification,
+        CancellationToken cancellationToken)
+    {
+        var file = notification.File;
+
+        try
+        {
+            var application = await new GetApplicationByIdQueryObject(file.ApplicationId)
+                .Apply(applicationRepository.Query().AsNoTracking())
+                .FirstOrDefaultAsync(cancellationToken);
+
+            var templateId = application?.TemplateVersion?.TemplateId.Value.ToString();
+            if (string.IsNullOrEmpty(templateId))
+            {
+                logger.LogWarning(
+                    "Could not resolve a template for application {ApplicationId}; skipping FileUploaded event dispatch.",
+                    file.ApplicationId.Value);
+                return;
+            }
+
+            var latestResponse = await applicationRepository.GetLatestResponseAsync(
+                file.ApplicationId,
+                cancellationToken);
+
+            var formData = ApplicationFormDataParser.Parse(latestResponse?.ResponseBody);
+
+            await eventTriggerDispatcher.DispatchAsync(
+                EventTriggerType.FileUploaded,
+                file.ApplicationId.Value,
+                application!.ApplicationReference,
+                templateId,
+                formData,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Error dispatching FileUploaded events for application {ApplicationId}",
+                file.ApplicationId.Value);
+        }
     }
 }

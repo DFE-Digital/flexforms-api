@@ -1,5 +1,7 @@
 using GovUK.Dfe.FlexForms.Application.Applications.EventHandlers;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Events;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
@@ -20,6 +22,8 @@ public class FileUploadedDomainEventHandlerTests
     private readonly IEventPublisher _eventPublisher;
     private readonly ITenantContextAccessor _tenantContextAccessor;
     private readonly IAzureSpecificOperations _azureOps;
+    private readonly IApplicationRepository _applicationRepository;
+    private readonly IEventTriggerDispatcher _eventTriggerDispatcher;
     private readonly FileUploadedDomainEventHandler _handler;
 
     public FileUploadedDomainEventHandlerTests()
@@ -28,9 +32,18 @@ public class FileUploadedDomainEventHandlerTests
         _eventPublisher = Substitute.For<IEventPublisher>();
         _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
         _azureOps = Substitute.For<IAzureSpecificOperations>();
+        _applicationRepository = Substitute.For<IApplicationRepository>();
+        _eventTriggerDispatcher = Substitute.For<IEventTriggerDispatcher>();
+
+        _applicationRepository.Query().Returns(Array.Empty<Domain.Entities.Application>().AsQueryable());
 
         _handler = new FileUploadedDomainEventHandler(
-            _logger, _eventPublisher, _tenantContextAccessor, _azureOps);
+            _logger,
+            _eventPublisher,
+            _tenantContextAccessor,
+            _azureOps,
+            _applicationRepository,
+            _eventTriggerDispatcher);
     }
 
     [Fact]

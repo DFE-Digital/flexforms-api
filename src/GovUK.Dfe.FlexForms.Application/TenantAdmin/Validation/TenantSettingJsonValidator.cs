@@ -115,6 +115,7 @@ public static class TenantSettingJsonValidator
             "Dashboard" => true,
             "EventMappings" => true,
             "SchemaEvents" => true,
+            "EventTriggers" => true,
             _ => false
         };
 
@@ -237,6 +238,10 @@ public static class TenantSettingJsonValidator
                 ValidateSchemaEvents(root, errors);
                 break;
 
+            case "EventTriggers":
+                ValidateEventTriggers(root, errors);
+                break;
+
             default:
                 // Unknown categories: any JSON object/array/scalar is accepted.
                 break;
@@ -267,6 +272,75 @@ public static class TenantSettingJsonValidator
             else if (jsonSchema.ValueKind != JsonValueKind.Object)
             {
                 errors.Add($"SchemaEvents['{schemaProperty.Name}'].jsonSchema must be a JSON Schema object.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Known lifecycle triggers. Kept local so Domain/Application validation has no dependency
+    /// on the dispatcher's option types.
+    /// </summary>
+    private static readonly IReadOnlySet<string> KnownEventTriggers =
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "ApplicationSubmitted", "FileUploaded" };
+
+    /// <summary>
+    /// Virus scanning is a platform guarantee, so it must not be bindable as a tenant trigger.
+    /// </summary>
+    private const string SystemOnlyEventType = "ScanRequestedEvent";
+
+    private static void ValidateEventTriggers(JsonElement root, List<string> errors)
+    {
+        foreach (var triggerProperty in root.EnumerateObject())
+        {
+            if (!KnownEventTriggers.Contains(triggerProperty.Name))
+            {
+                errors.Add(
+                    $"EventTriggers['{triggerProperty.Name}'] is not a known trigger. " +
+                    $"Allowed: {string.Join(", ", KnownEventTriggers)}.");
+                continue;
+            }
+
+            if (triggerProperty.Value.ValueKind != JsonValueKind.Array)
+            {
+                errors.Add($"EventTriggers['{triggerProperty.Name}'] must be an array of event bindings.");
+                continue;
+            }
+
+            var index = 0;
+            foreach (var entry in triggerProperty.Value.EnumerateArray())
+            {
+                var path = $"EventTriggers['{triggerProperty.Name}'][{index}]";
+                index++;
+
+                if (entry.ValueKind != JsonValueKind.Object)
+                {
+                    errors.Add($"{path} must be an object.");
+                    continue;
+                }
+
+                var eventType = GetString(entry, "eventType") ?? GetString(entry, "EventType");
+                if (eventType is null)
+                {
+                    errors.Add($"{path}.eventType is required.");
+                }
+                else if (string.Equals(eventType, SystemOnlyEventType, StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add(
+                        $"{path}.eventType cannot be {SystemOnlyEventType}: virus scanning is published by the platform.");
+                }
+
+                if (GetString(entry, "mappingId") is null && GetString(entry, "MappingId") is null)
+                {
+                    errors.Add($"{path}.mappingId is required.");
+                }
+
+                var eventKind = GetString(entry, "eventKind") ?? GetString(entry, "EventKind");
+                if (eventKind is not null
+                    && !string.Equals(eventKind, "Typed", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(eventKind, "Schema", StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add($"{path}.eventKind must be 'Typed' or 'Schema'.");
+                }
             }
         }
     }

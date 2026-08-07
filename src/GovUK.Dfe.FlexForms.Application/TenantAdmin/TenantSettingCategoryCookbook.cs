@@ -125,17 +125,43 @@ public static class TenantSettingCategoryCookbook
         Entry(
             "EventMappings",
             "Per-template field mappings for typed and schema events (delegated to Tenant Admins).",
-            ["Web"],
+            ["Shared"],
             example: """{"form-001":{"TransferApplicationSubmittedEvent":{"mappingId":"...","eventType":"TransferApplicationSubmittedEvent","fieldMappings":{}}}}""",
-            notes: ["Non-secret", "Also editable via Event mappings Admin page", "Disk EventMappings files remain as fallback"],
+            notes:
+            [
+                "Non-secret",
+                "Saved with Target=Shared so the API runtime can read it",
+                "Also editable via Event mappings Admin page"
+            ],
             requiresObject: true),
 
         Entry(
             "SchemaEvents",
             "Tenant-defined schema events (topic + JSON Schema) for messages not yet in CoreLibs.",
-            ["Web"],
+            ["Shared"],
             example: """{"MyCustomSubmitted":{"topicName":"my-custom-submitted","version":"1.0","description":"...","jsonSchema":{"type":"object","properties":{}}}}""",
-            notes: ["Non-secret", "Use EventKind=Schema in ApplicationSubmission:PublishEvent:Events", "Promote successful schemas into CoreLibs when stable"],
+            notes:
+            [
+                "Non-secret",
+                "Saved with Target=Shared so the API runtime can read it",
+                "Use EventKind=Schema in EventTriggers",
+                "Promote successful schemas into CoreLibs when stable"
+            ],
+            requiresObject: true),
+
+        Entry(
+            "EventTriggers",
+            "Events the API publishes at each application lifecycle trigger (delegated to Tenant Admins).",
+            ["Shared"],
+            example: """{"ApplicationSubmitted":[{"eventKind":"Typed","eventType":"TransferApplicationSubmittedEvent","mappingId":"transfer-application-submitted-v1"}]}""",
+            notes:
+            [
+                "Non-secret",
+                "Saved with Target=Shared so the API runtime can read it",
+                "Triggers: ApplicationSubmitted, FileUploaded",
+                "Each binding needs a matching EventMappings entry for the template",
+                "ScanRequestedEvent is published by the platform and cannot be configured here"
+            ],
             requiresObject: true),
     ];
 
