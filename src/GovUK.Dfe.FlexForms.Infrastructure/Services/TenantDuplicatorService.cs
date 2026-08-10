@@ -143,7 +143,7 @@ public sealed class TenantDuplicatorService(
 
             if (string.Equals(setting.Category, "Authorization", StringComparison.OrdinalIgnoreCase))
             {
-                plaintext = ApplyAuthorizationApiSecretKey(plaintext, authorizationApiSecretKey);
+                plaintext = ApplyAuthorizationApiSecretKey(plaintext, authorizationApiSecretKey, newTenantId);
             }
 
             var stored = setting.IsSecret
@@ -194,11 +194,14 @@ public sealed class TenantDuplicatorService(
             }
         }
 
+        EnsureDuplicatedTenantAuthorizationDefaults(newTenant, newTenantId, authorizationApiSecretKey, now);
+        ApplyDuplicatedTenantTestAuthenticationDefaults(newTenant, newTenantId, now);
+
         dbContext.Tenants.Add(newTenant);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
-            "Duplicated tenant '{SourceName}' ({SourceId}) to '{NewName}' ({NewId}) with {SettingCount} settings, hostname '{Hostname}', origin '{Origin}'. Principals were not copied. Authorization and InternalServiceAuth secrets were regenerated.",
+            "Duplicated tenant '{SourceName}' ({SourceId}) to '{NewName}' ({NewId}) with {SettingCount} settings, hostname '{Hostname}', origin '{Origin}'. Principals were not copied. Authorization and InternalServiceAuth secrets were regenerated. Interactive auth defaults to TestAuthentication on Api and Web.",
             source.Name,
             sourceTenantId,
             newTenantName,
@@ -217,17 +220,77 @@ public sealed class TenantDuplicatorService(
     }
 
     /// <summary>
-    /// Sets <c>TokenSettings.SecretKey</c> on Authorization category JSON.
+    /// Sets the API token signing secret on Authorization category JSON.
+    /// Accepts nested <c>TokenSettings</c>, legacy flat <c>SecretKey</c> at the root,
+    /// or creates <c>TokenSettings</c> when neither is present.
     /// </summary>
-    internal static string ApplyAuthorizationApiSecretKey(string settingsJson, string secretKey)
+    internal static string ApplyAuthorizationApiSecretKey(
+        string settingsJson,
+        string secretKey,
+        Guid tenantId)
     {
         var root = ParseObject(settingsJson);
-        var tokenSettings = root["TokenSettings"] as JsonObject
-            ?? throw new InvalidOperationException(
-                "Authorization settings must contain a TokenSettings object.");
 
-        tokenSettings["SecretKey"] = secretKey;
+        if (root["TokenSettings"] is JsonObject tokenSettings)
+        {
+            tokenSettings["SecretKey"] = secretKey;
+            return root.ToJsonString(JsonWriteOptions);
+        }
+
+        if (root["SecretKey"] is not null
+            || root["Issuer"] is not null
+            || root["Audience"] is not null)
+        {
+            root["SecretKey"] = secretKey;
+            return root.ToJsonString(JsonWriteOptions);
+        }
+
+        root["TokenSettings"] = BuildAuthorizationTokenSettingsNode(secretKey, tenantId);
         return root.ToJsonString(JsonWriteOptions);
+    }
+
+    internal static string BuildAuthorizationSettingsJson(string secretKey, Guid tenantId)
+    {
+        var root = new JsonObject
+        {
+            ["TokenSettings"] = BuildAuthorizationTokenSettingsNode(secretKey, tenantId)
+        };
+
+        return root.ToJsonString(JsonWriteOptions);
+    }
+
+    private static JsonObject BuildAuthorizationTokenSettingsNode(string secretKey, Guid tenantId) =>
+        new()
+        {
+            ["SecretKey"] = secretKey,
+            ["Issuer"] = tenantId.ToString(),
+            ["Audience"] = $"api-audience-{tenantId:D}",
+            ["TokenLifetimeMinutes"] = 60
+        };
+
+    private void EnsureDuplicatedTenantAuthorizationDefaults(
+        TenantEntity newTenant,
+        Guid newTenantId,
+        string authorizationApiSecretKey,
+        DateTime now)
+    {
+        var hasApiAuthorization = newTenant.Settings.Any(s =>
+            string.Equals(s.Category, "Authorization", StringComparison.OrdinalIgnoreCase) &&
+            (string.Equals(s.Target, "Api", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(s.Target, "Shared", StringComparison.OrdinalIgnoreCase)));
+
+        if (hasApiAuthorization)
+        {
+            return;
+        }
+
+        UpsertDuplicatedTenantSetting(
+            newTenant,
+            "Authorization",
+            "Api",
+            BuildAuthorizationSettingsJson(authorizationApiSecretKey, newTenantId),
+            isSecret: true,
+            now);
     }
 
     /// <summary>
@@ -276,6 +339,70 @@ public sealed class TenantDuplicatorService(
 
     internal static string GenerateSecretKey(int byteLength = 48) =>
         Convert.ToBase64String(RandomNumberGenerator.GetBytes(byteLength));
+
+    internal static string BuildTestAuthenticationSettingsJson(Guid tenantId, string signingKey)
+    {
+        var root = new JsonObject
+        {
+            ["Enabled"] = true,
+            ["JwtSigningKey"] = signingKey,
+            ["JwtIssuer"] = tenantId.ToString(),
+            ["JwtAudience"] = $"test-audience-{tenantId:D}"
+        };
+
+        return root.ToJsonString(JsonWriteOptions);
+    }
+
+    internal static string BuildTestAuthenticationSchemeJson() =>
+        """{"Scheme":"TestAuthentication"}""";
+
+    private void ApplyDuplicatedTenantTestAuthenticationDefaults(
+        TenantEntity newTenant,
+        Guid newTenantId,
+        DateTime now)
+    {
+        var testAuthJson = BuildTestAuthenticationSettingsJson(newTenantId, GenerateSecretKey(48));
+        var schemeJson = BuildTestAuthenticationSchemeJson();
+
+        UpsertDuplicatedTenantSetting(newTenant, "Authentication", "Web", schemeJson, isSecret: false, now);
+        UpsertDuplicatedTenantSetting(newTenant, "TestAuthentication", "Api", testAuthJson, isSecret: true, now);
+        UpsertDuplicatedTenantSetting(newTenant, "TestAuthentication", "Web", testAuthJson, isSecret: true, now);
+    }
+
+    private void UpsertDuplicatedTenantSetting(
+        TenantEntity tenant,
+        string category,
+        string target,
+        string plaintext,
+        bool isSecret,
+        DateTime now)
+    {
+        var existing = tenant.Settings.FirstOrDefault(s =>
+            string.Equals(s.Category, category, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(s.Target, target, StringComparison.OrdinalIgnoreCase));
+
+        var stored = isSecret ? encryptor.Encrypt(plaintext) : plaintext;
+
+        if (existing is not null)
+        {
+            existing.Settings = stored;
+            existing.IsSecret = isSecret;
+            existing.UpdatedAtUtc = now;
+            return;
+        }
+
+        tenant.Settings.Add(new TenantSettingEntity
+        {
+            Id = Guid.NewGuid(),
+            TenantId = tenant.Id,
+            Category = category,
+            Target = target,
+            Settings = stored,
+            IsSecret = isSecret,
+            CreatedAtUtc = now,
+            UpdatedAtUtc = now
+        });
+    }
 
     private static IReadOnlyDictionary<string, string> NormalizeServiceApiKeys(
         IReadOnlyList<(string Email, string ApiKey)>? keys)

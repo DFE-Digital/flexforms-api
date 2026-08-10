@@ -59,19 +59,15 @@ public class UserAutoRegistrationHandler : DelegatingHandler
         // If auto-registration is disabled, just pass through
         if (!settings.AutoRegisterUsers)
         {
-            _logger.LogWarning(">>>>>>>>>>> AutoRegistration disabled!");
-
             return await base.SendAsync(request, cancellationToken);
         }
-
-        _logger.LogWarning(">>>>>>>>>>> AutoRegistration enabled!");
 
         // First attempt - try the request
         var response = await base.SendAsync(request, cancellationToken);
 
         // Check if this is a recoverable auth error from token exchange
         // (user not found, or existing user without tenant membership).
-        if (IsAutoRegisterableExchangeError(response, request))
+        if (await IsAutoRegisterableExchangeErrorAsync(response, request))
         {
             _logger.LogInformation(
                 "Token exchange failed due to missing user or tenant membership. Attempting auto-registration...");
@@ -109,7 +105,9 @@ public class UserAutoRegistrationHandler : DelegatingHandler
         return response;
     }
 
-    private bool IsAutoRegisterableExchangeError(HttpResponseMessage response, HttpRequestMessage request)
+    private static async Task<bool> IsAutoRegisterableExchangeErrorAsync(
+        HttpResponseMessage response,
+        HttpRequestMessage request)
     {
         // Only intercept errors from token exchange endpoint
         if (!request.RequestUri?.AbsolutePath.Contains("/tokens/exchange", StringComparison.OrdinalIgnoreCase) == true)
@@ -128,9 +126,7 @@ public class UserAutoRegistrationHandler : DelegatingHandler
         // Try to read the error message to confirm it's a recoverable registration error
         try
         {
-            var contentTask = response.Content.ReadAsStringAsync();
-            contentTask.Wait(); // Synchronous wait is safe here as content is already loaded
-            var content = contentTask.Result;
+            var content = await response.Content.ReadAsStringAsync();
 
             if (string.IsNullOrEmpty(content))
                 return false;
@@ -169,7 +165,8 @@ public class UserAutoRegistrationHandler : DelegatingHandler
 
             if (!IsEducationIssuer(tokenState.ExternalIdpToken.Value))
             {
-                _logger.LogWarning("Cannot auto-register user: Token issuer does not contain 'education'. Auto-registration is only allowed for education identity providers.");
+                _logger.LogWarning(
+                    "Cannot auto-register user: Token issuer does not contain 'education' or 'login.microsoftonline.com'. Auto-registration is only allowed for education identity providers.");
                 return false;
             }
 

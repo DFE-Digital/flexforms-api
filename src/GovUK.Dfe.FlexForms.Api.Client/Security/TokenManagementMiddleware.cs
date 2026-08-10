@@ -29,6 +29,16 @@ public class TokenManagementMiddleware(RequestDelegate next, ILogger<TokenManage
             return;
         }
 
+        // Skip login/logout pages — they must not trigger token exchange/API calls.
+        var path = context.Request.Path.Value ?? string.Empty;
+        if (path.StartsWith("/TestLogin", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/TestLogout", StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith("/Logout", StringComparison.OrdinalIgnoreCase))
+        {
+            await _next(context);
+            return;
+        }
+
         var userName = context.User.Identity.Name ?? "Unknown";
 
         try
