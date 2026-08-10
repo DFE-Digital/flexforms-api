@@ -4105,7 +4105,7 @@
         "tags": [
           "TenantAdmin"
         ],
-        "summary": "Duplicates the caller's own tenant into a new TenantConfig tenant.\nCopies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.\nPrincipals are not copied. Interactive SuperAdmin only.",
+        "summary": "Duplicates the caller's own tenant into a new TenantConfig tenant.\nCopies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.\nPrincipals are not copied. Interactive SuperAdmin only.\nSecret fields must be Base64-encoded UTF-8 (same WAF-safe pattern as SettingsJson).",
         "operationId": "TenantAdmin_DuplicateTenant",
         "parameters": [
           {

@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.FlexForms.Application.Common;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Commands;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
@@ -58,6 +59,9 @@ public class DuplicateTenantCommandHandlerTests
     {
         var sourceId = Guid.Parse("11111111-1111-4111-8111-111111111111");
         var newId = Guid.Parse("33333333-3333-4333-8333-333333333333");
+        var authSecret = new string('a', 32);
+        var internalSecret = new string('b', 32);
+        var serviceApiKey = new string('c', 32);
         _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(CreateTenant(sourceId, "Transfers"));
 
@@ -67,9 +71,12 @@ public class DuplicateTenantCommandHandlerTests
                 "Transfers Copy",
                 "copy.dev.example",
                 "https://copy.dev.example",
-                Arg.Any<string>(),
-                Arg.Any<string>(),
-                Arg.Any<IReadOnlyList<(string Email, string ApiKey)>>(),
+                authSecret,
+                internalSecret,
+                Arg.Is<IReadOnlyList<(string Email, string ApiKey)>>(keys =>
+                    keys.Count == 1
+                    && keys[0].Email == "svc@example.com"
+                    && keys[0].ApiKey == serviceApiKey),
                 Arg.Any<CancellationToken>())
             .Returns(new DuplicateTenantResult(
                 sourceId,
@@ -86,14 +93,40 @@ public class DuplicateTenantCommandHandlerTests
                 "Transfers Copy",
                 "copy.dev.example",
                 "https://copy.dev.example",
-                new string('a', 32),
-                new string('b', 32),
-                [("svc@example.com", new string('c', 32))]),
+                WafSafeUtf8Base64.Encode(authSecret),
+                WafSafeUtf8Base64.Encode(internalSecret),
+                [("svc@example.com", WafSafeUtf8Base64.Encode(serviceApiKey))]),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.Equal(5, result.Value!.SettingsCopied);
         await _configProvider.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldReturnValidation_WhenSecretIsNotBase64()
+    {
+        var sourceId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(sourceId, "Transfers"));
+
+        var result = await _handler.Handle(
+            new DuplicateTenantCommand(
+                sourceId,
+                Guid.NewGuid(),
+                "New Tenant",
+                "new.dev.example",
+                "https://new.dev.example",
+                "not-valid-base64!!!",
+                WafSafeUtf8Base64.Encode(new string('b', 32)),
+                []),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
+        Assert.Contains("AuthorizationApiSecretKey", result.Error);
+        await _duplicator.DidNotReceiveWithAnyArgs().DuplicateAsync(
+            default, default, default!, default!, default!, default!, default!, default!, default);
     }
 
     [Fact]
@@ -128,8 +161,8 @@ public class DuplicateTenantCommandHandlerTests
             "New Tenant",
             "new.dev.example",
             "https://new.dev.example",
-            new string('a', 32),
-            new string('b', 32),
+            WafSafeUtf8Base64.Encode(new string('a', 32)),
+            WafSafeUtf8Base64.Encode(new string('b', 32)),
             []);
 
     private static TenantConfiguration CreateTenant(Guid id, string name) =>

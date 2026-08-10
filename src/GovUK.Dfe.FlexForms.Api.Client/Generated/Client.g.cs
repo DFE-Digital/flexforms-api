@@ -7545,6 +7545,7 @@ namespace GovUK.Dfe.FlexForms.Api.Client
         /// Duplicates the caller's own tenant into a new TenantConfig tenant.
         /// <br/>Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
         /// <br/>Principals are not copied. Interactive SuperAdmin only.
+        /// <br/>Secret fields must be Base64-encoded UTF-8 (same WAF-safe pattern as SettingsJson).
         /// </summary>
         /// <returns>Tenant duplicated.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>

@@ -156,6 +156,7 @@ public class TenantAdminController(ISender sender) : ControllerBase
     /// Duplicates the caller's own tenant into a new TenantConfig tenant.
     /// Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
     /// Principals are not copied. Interactive SuperAdmin only.
+    /// Secret fields must be Base64-encoded UTF-8 (same WAF-safe pattern as SettingsJson).
     /// </summary>
     [HttpPost("{tenantId:guid}/duplicate")]
     [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
