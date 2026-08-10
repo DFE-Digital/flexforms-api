@@ -1,4 +1,6 @@
+using System.Text.Json;
 using FluentValidation;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Common;
 using GovUK.Dfe.FlexForms.Domain.Services;
@@ -7,14 +9,9 @@ using MediatR;
 
 namespace GovUK.Dfe.FlexForms.Application.TenantAdmin.Commands;
 
-/// <param name="AuthorizationApiSecretKey">
-/// Actual Authorization SecretKey, Base64-encoded UTF-8 (WAF-safe transport).
-/// </param>
-/// <param name="InternalServiceAuthSecretKey">
-/// Actual InternalServiceAuth SecretKey, Base64-encoded UTF-8 (WAF-safe transport).
-/// </param>
-/// <param name="InternalServiceAuthServiceApiKeys">
-/// Service emails with ApiKeys Base64-encoded UTF-8 (WAF-safe transport).
+/// <param name="PayloadJson">
+/// Base64-encoded UTF-8 JSON containing authorization and InternalServiceAuth secrets
+/// (WAF-safe transport; see <see cref="CloneTenantSecretsPayload"/>).
 /// </param>
 public sealed record DuplicateTenantCommand(
     Guid SourceTenantId,
@@ -22,9 +19,7 @@ public sealed record DuplicateTenantCommand(
     string NewTenantName,
     string Hostname,
     string FrontendOrigin,
-    string AuthorizationApiSecretKey,
-    string InternalServiceAuthSecretKey,
-    IReadOnlyList<(string Email, string ApiKey)> InternalServiceAuthServiceApiKeys)
+    string PayloadJson)
     : IRequest<Result<DuplicateTenantResponse>>;
 
 internal sealed class DuplicateTenantCommandValidator : AbstractValidator<DuplicateTenantCommand>
@@ -36,39 +31,16 @@ internal sealed class DuplicateTenantCommandValidator : AbstractValidator<Duplic
         RuleFor(x => x.NewTenantName).NotEmpty().MaximumLength(100);
         RuleFor(x => x.Hostname).NotEmpty().MaximumLength(255);
         RuleFor(x => x.FrontendOrigin).NotEmpty().MaximumLength(500);
-        RuleFor(x => x.AuthorizationApiSecretKey)
+        RuleFor(x => x.PayloadJson)
             .NotEmpty()
             .Must(WafSafeUtf8Base64.IsValidBase64)
-            .WithMessage("AuthorizationApiSecretKey must be a valid Base64-encoded UTF-8 string.")
-            .Must(encoded => DecodedLengthAtLeast(encoded, 32))
-            .WithMessage("AuthorizationApiSecretKey must decode to at least 32 characters.");
-        RuleFor(x => x.InternalServiceAuthSecretKey)
-            .NotEmpty()
-            .Must(WafSafeUtf8Base64.IsValidBase64)
-            .WithMessage("InternalServiceAuthSecretKey must be a valid Base64-encoded UTF-8 string.")
-            .Must(encoded => DecodedLengthAtLeast(encoded, 32))
-            .WithMessage("InternalServiceAuthSecretKey must decode to at least 32 characters.");
-        RuleForEach(x => x.InternalServiceAuthServiceApiKeys).ChildRules(service =>
-        {
-            service.RuleFor(s => s.Email).NotEmpty();
-            service.RuleFor(s => s.ApiKey)
-                .NotEmpty()
-                .Must(WafSafeUtf8Base64.IsValidBase64)
-                .WithMessage("ApiKey must be a valid Base64-encoded UTF-8 string.")
-                .Must(encoded => DecodedLengthAtLeast(encoded, 32))
-                .WithMessage("ApiKey must decode to at least 32 characters.");
-        });
+            .WithMessage("PayloadJson must be a valid Base64-encoded UTF-8 string.");
     }
-
-    private static bool DecodedLengthAtLeast(string encoded, int minLength) =>
-        WafSafeUtf8Base64.TryDecode(encoded, out var decoded, out _)
-        && decoded.Length >= minLength;
 }
 
 /// <summary>
 /// Creates a new TenantConfig tenant by copying settings from the caller's current tenant.
 /// Interactive SuperAdmin only. Principals are not copied.
-/// Secret fields on the command are Base64-encoded UTF-8 (WAF-safe); decoded before persistence.
 /// </summary>
 public sealed class DuplicateTenantCommandHandler(
     ITenantDuplicator tenantDuplicator,
@@ -77,6 +49,11 @@ public sealed class DuplicateTenantCommandHandler(
     ITenantConfigurationProvider tenantConfigProvider)
     : IRequestHandler<DuplicateTenantCommand, Result<DuplicateTenantResponse>>
 {
+    private static readonly JsonSerializerOptions PayloadJsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
+
     public async Task<Result<DuplicateTenantResponse>> Handle(
         DuplicateTenantCommand request,
         CancellationToken cancellationToken)
@@ -101,35 +78,12 @@ public sealed class DuplicateTenantCommandHandler(
                 $"Administrators may only duplicate their own tenant ('{currentTenant.Id}').");
         }
 
-        if (!WafSafeUtf8Base64.TryDecode(
-                request.AuthorizationApiSecretKey,
-                out var authorizationApiSecretKey,
-                out var authError))
+        if (!TryDecodeSecretsPayload(
+                request.PayloadJson,
+                out var secrets,
+                out var payloadError))
         {
-            return Result<DuplicateTenantResponse>.Validation(
-                $"AuthorizationApiSecretKey: {authError}");
-        }
-
-        if (!WafSafeUtf8Base64.TryDecode(
-                request.InternalServiceAuthSecretKey,
-                out var internalServiceAuthSecretKey,
-                out var internalAuthError))
-        {
-            return Result<DuplicateTenantResponse>.Validation(
-                $"InternalServiceAuthSecretKey: {internalAuthError}");
-        }
-
-        var decodedServiceApiKeys = new List<(string Email, string ApiKey)>(
-            request.InternalServiceAuthServiceApiKeys.Count);
-        foreach (var (email, apiKey) in request.InternalServiceAuthServiceApiKeys)
-        {
-            if (!WafSafeUtf8Base64.TryDecode(apiKey, out var decodedApiKey, out var apiKeyError))
-            {
-                return Result<DuplicateTenantResponse>.Validation(
-                    $"InternalServiceAuthServiceApiKeys ApiKey for '{email}': {apiKeyError}");
-            }
-
-            decodedServiceApiKeys.Add((email, decodedApiKey));
+            return Result<DuplicateTenantResponse>.Validation(payloadError);
         }
 
         try
@@ -140,9 +94,11 @@ public sealed class DuplicateTenantCommandHandler(
                 request.NewTenantName,
                 request.Hostname,
                 request.FrontendOrigin,
-                authorizationApiSecretKey,
-                internalServiceAuthSecretKey,
-                decodedServiceApiKeys,
+                secrets.AuthorizationApiSecretKey,
+                secrets.InternalServiceAuthSecretKey,
+                secrets.InternalServiceAuthServiceApiKeys
+                    .Select(s => (s.Email, s.ApiKey))
+                    .ToList(),
                 cancellationToken);
 
             await tenantConfigProvider.RefreshAsync(cancellationToken);
@@ -166,5 +122,69 @@ public sealed class DuplicateTenantCommandHandler(
         {
             return Result<DuplicateTenantResponse>.Validation(ex.Message);
         }
+    }
+
+    internal static bool TryDecodeSecretsPayload(
+        string payloadJsonBase64,
+        out CloneTenantSecretsPayload secrets,
+        out string error)
+    {
+        secrets = new CloneTenantSecretsPayload();
+        error = string.Empty;
+
+        if (!WafSafeUtf8Base64.TryDecode(payloadJsonBase64, out var json, out var decodeError))
+        {
+            error = $"PayloadJson: {decodeError}";
+            return false;
+        }
+
+        try
+        {
+            var parsed = JsonSerializer.Deserialize<CloneTenantSecretsPayload>(json, PayloadJsonOptions);
+            if (parsed is null)
+            {
+                error = "PayloadJson did not contain a secrets object.";
+                return false;
+            }
+
+            secrets = parsed;
+        }
+        catch (JsonException ex)
+        {
+            error = $"PayloadJson is not valid secrets JSON: {ex.Message}";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(secrets.AuthorizationApiSecretKey)
+            || secrets.AuthorizationApiSecretKey.Length < 32)
+        {
+            error = "authorizationApiSecretKey must be at least 32 characters.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(secrets.InternalServiceAuthSecretKey)
+            || secrets.InternalServiceAuthSecretKey.Length < 32)
+        {
+            error = "internalServiceAuthSecretKey must be at least 32 characters.";
+            return false;
+        }
+
+        secrets.InternalServiceAuthServiceApiKeys ??= [];
+        foreach (var service in secrets.InternalServiceAuthServiceApiKeys)
+        {
+            if (string.IsNullOrWhiteSpace(service.Email))
+            {
+                error = "Each service api key entry requires an email.";
+                return false;
+            }
+
+            if (string.IsNullOrWhiteSpace(service.ApiKey) || service.ApiKey.Length < 32)
+            {
+                error = $"ApiKey for '{service.Email}' must be at least 32 characters.";
+                return false;
+            }
+        }
+
+        return true;
     }
 }

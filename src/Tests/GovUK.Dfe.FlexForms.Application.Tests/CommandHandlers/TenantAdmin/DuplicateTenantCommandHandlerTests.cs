@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.FlexForms.Application.Common;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Commands;
 using GovUK.Dfe.FlexForms.Domain.Services;
@@ -93,9 +94,7 @@ public class DuplicateTenantCommandHandlerTests
                 "Transfers Copy",
                 "copy.dev.example",
                 "https://copy.dev.example",
-                WafSafeUtf8Base64.Encode(authSecret),
-                WafSafeUtf8Base64.Encode(internalSecret),
-                [("svc@example.com", WafSafeUtf8Base64.Encode(serviceApiKey))]),
+                EncodePayload(authSecret, internalSecret, [("svc@example.com", serviceApiKey)])),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -104,7 +103,7 @@ public class DuplicateTenantCommandHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ShouldReturnValidation_WhenSecretIsNotBase64()
+    public async Task Handle_ShouldReturnValidation_WhenPayloadIsNotBase64()
     {
         var sourceId = Guid.Parse("11111111-1111-4111-8111-111111111111");
         _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
@@ -117,14 +116,12 @@ public class DuplicateTenantCommandHandlerTests
                 "New Tenant",
                 "new.dev.example",
                 "https://new.dev.example",
-                "not-valid-base64!!!",
-                WafSafeUtf8Base64.Encode(new string('b', 32)),
-                []),
+                "not-valid-base64!!!"),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
-        Assert.Contains("AuthorizationApiSecretKey", result.Error);
+        Assert.Contains("PayloadJson", result.Error);
         await _duplicator.DidNotReceiveWithAnyArgs().DuplicateAsync(
             default, default, default!, default!, default!, default!, default!, default!, default);
     }
@@ -161,9 +158,25 @@ public class DuplicateTenantCommandHandlerTests
             "New Tenant",
             "new.dev.example",
             "https://new.dev.example",
-            WafSafeUtf8Base64.Encode(new string('a', 32)),
-            WafSafeUtf8Base64.Encode(new string('b', 32)),
-            []);
+            EncodePayload(new string('a', 32), new string('b', 32), []));
+
+    private static string EncodePayload(
+        string authSecret,
+        string internalSecret,
+        IReadOnlyList<(string Email, string ApiKey)> serviceKeys)
+    {
+        var payload = new CloneTenantSecretsPayload
+        {
+            AuthorizationApiSecretKey = authSecret,
+            InternalServiceAuthSecretKey = internalSecret,
+            InternalServiceAuthServiceApiKeys = serviceKeys
+                .Select(s => new CloneTenantServiceApiKeyPayload { Email = s.Email, ApiKey = s.ApiKey })
+                .ToList()
+        };
+
+        return WafSafeUtf8Base64.Encode(
+            System.Text.Json.JsonSerializer.Serialize(payload));
+    }
 
     private static TenantConfiguration CreateTenant(Guid id, string name) =>
         new(id, name, new ConfigurationBuilder().Build(), []);

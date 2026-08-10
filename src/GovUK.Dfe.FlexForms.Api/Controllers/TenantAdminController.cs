@@ -153,28 +153,24 @@ public class TenantAdminController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-    /// Duplicates the caller's own tenant into a new TenantConfig tenant.
+    /// Clones the caller's own tenant into a new TenantConfig tenant.
     /// Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
     /// Principals are not copied. Interactive SuperAdmin only.
-    /// Secret fields must be Base64-encoded UTF-8 (same WAF-safe pattern as SettingsJson).
+    /// Secrets are sent only inside Base64 <c>payloadJson</c> (WAF-safe; avoids secret property names on the wire).
     /// </summary>
-    [HttpPost("{tenantId:guid}/duplicate")]
+    [HttpPost("{tenantId:guid}/clone")]
     [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
-    [SwaggerResponse(201, "Tenant duplicated.", typeof(DuplicateTenantResponse))]
+    [SwaggerResponse(201, "Tenant cloned.", typeof(DuplicateTenantResponse))]
     [SwaggerResponse(400, "Validation error.", typeof(ExceptionResponse))]
     [SwaggerResponse(401, "Unauthorized.", typeof(ExceptionResponse))]
     [SwaggerResponse(403, "Forbidden - interactive SuperAdmin of own tenant required.", typeof(ExceptionResponse))]
     [SwaggerResponse(404, "Source tenant not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
-    public async Task<IActionResult> DuplicateTenant(
+    public async Task<IActionResult> CloneTenant(
         Guid tenantId,
-        [FromBody] DuplicateTenantRequest body,
+        [FromBody] CloneTenantRequest body,
         CancellationToken cancellationToken)
     {
-        var serviceApiKeys = (body.InternalServiceAuthServiceApiKeys ?? [])
-            .Select(s => (s.Email, s.ApiKey))
-            .ToList();
-
         var result = await sender.Send(
             new DuplicateTenantCommand(
                 tenantId,
@@ -182,9 +178,7 @@ public class TenantAdminController(ISender sender) : ControllerBase
                 body.NewTenantName,
                 body.Hostname,
                 body.FrontendOrigin,
-                body.AuthorizationApiSecretKey,
-                body.InternalServiceAuthSecretKey,
-                serviceApiKeys),
+                body.PayloadJson),
             cancellationToken);
 
         if (!result.IsSuccess)
@@ -192,6 +186,18 @@ public class TenantAdminController(ISender sender) : ControllerBase
 
         return new ObjectResult(result) { StatusCode = StatusCodes.Status201Created };
     }
+
+    /// <summary>
+    /// Legacy alias for <see cref="CloneTenant"/>. Prefer <c>POST .../clone</c>.
+    /// </summary>
+    [HttpPost("{tenantId:guid}/duplicate")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [ApiExplorerSettings(IgnoreApi = true)]
+    public Task<IActionResult> DuplicateTenant(
+        Guid tenantId,
+        [FromBody] CloneTenantRequest body,
+        CancellationToken cancellationToken)
+        => CloneTenant(tenantId, body, cancellationToken);
 
     /// <summary>
     /// Adds or updates a configuration section for the caller's own tenant only.

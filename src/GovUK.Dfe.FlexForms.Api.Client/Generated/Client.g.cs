@@ -7542,14 +7542,14 @@ namespace GovUK.Dfe.FlexForms.Api.Client
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// Duplicates the caller's own tenant into a new TenantConfig tenant.
+        /// Clones the caller's own tenant into a new TenantConfig tenant.
         /// <br/>Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
         /// <br/>Principals are not copied. Interactive SuperAdmin only.
-        /// <br/>Secret fields must be Base64-encoded UTF-8 (same WAF-safe pattern as SettingsJson).
+        /// <br/>Secrets are sent only inside Base64 payloadJson (WAF-safe; avoids secret property names on the wire).
         /// </summary>
-        /// <returns>Tenant duplicated.</returns>
+        /// <returns>Tenant cloned.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<DuplicateTenantResponse> DuplicateTenantAsync(System.Guid tenantId, DuplicateTenantRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<DuplicateTenantResponse> CloneTenantAsync(System.Guid tenantId, CloneTenantRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (tenantId == null)
                 throw new System.ArgumentNullException("tenantId");
@@ -7572,10 +7572,10 @@ namespace GovUK.Dfe.FlexForms.Api.Client
 
                     var urlBuilder_ = new System.Text.StringBuilder();
                     if (!string.IsNullOrEmpty(_baseUrl)) urlBuilder_.Append(_baseUrl);
-                    // Operation Path: "v1/admin/tenants/{tenantId}/duplicate"
+                    // Operation Path: "v1/admin/tenants/{tenantId}/clone"
                     urlBuilder_.Append("v1/admin/tenants/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(tenantId, System.Globalization.CultureInfo.InvariantCulture)));
-                    urlBuilder_.Append("/duplicate");
+                    urlBuilder_.Append("/clone");
 
                     PrepareRequest(client_, request_, urlBuilder_);
 

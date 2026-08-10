@@ -4100,13 +4100,13 @@
         }
       }
     },
-    "/v1/admin/tenants/{tenantId}/duplicate": {
+    "/v1/admin/tenants/{tenantId}/clone": {
       "post": {
         "tags": [
           "TenantAdmin"
         ],
-        "summary": "Duplicates the caller's own tenant into a new TenantConfig tenant.\nCopies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.\nPrincipals are not copied. Interactive SuperAdmin only.\nSecret fields must be Base64-encoded UTF-8 (same WAF-safe pattern as SettingsJson).",
-        "operationId": "TenantAdmin_DuplicateTenant",
+        "summary": "Clones the caller's own tenant into a new TenantConfig tenant.\nCopies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.\nPrincipals are not copied. Interactive SuperAdmin only.\nSecrets are sent only inside Base64 payloadJson (WAF-safe; avoids secret property names on the wire).",
+        "operationId": "TenantAdmin_CloneTenant",
         "parameters": [
           {
             "name": "tenantId",
@@ -4124,7 +4124,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/DuplicateTenantRequest"
+                "$ref": "#/components/schemas/CloneTenantRequest"
               }
             }
           },
@@ -4133,7 +4133,7 @@
         },
         "responses": {
           "201": {
-            "description": "Tenant duplicated.",
+            "description": "Tenant cloned.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6723,7 +6723,7 @@
           }
         }
       },
-      "DuplicateTenantRequest": {
+      "CloneTenantRequest": {
         "type": "object",
         "additionalProperties": false,
         "properties": {
@@ -6740,28 +6740,7 @@
           "frontendOrigin": {
             "type": "string"
           },
-          "authorizationApiSecretKey": {
-            "type": "string"
-          },
-          "internalServiceAuthSecretKey": {
-            "type": "string"
-          },
-          "internalServiceAuthServiceApiKeys": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/DuplicateTenantServiceApiKey"
-            }
-          }
-        }
-      },
-      "DuplicateTenantServiceApiKey": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "apiKey": {
+          "payloadJson": {
             "type": "string"
           }
         }
