@@ -5,6 +5,7 @@ using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using NSubstitute;
 using System.Security.Claims;
 using System.Text;
@@ -19,17 +20,20 @@ public class UpsertTenantSettingCommandHandlerTests
     private readonly ITenantConfigurationProvider _configProvider = Substitute.For<ITenantConfigurationProvider>();
     private readonly ITenantSettingAuditWriter _auditWriter = Substitute.For<ITenantSettingAuditWriter>();
     private readonly IHttpContextAccessor _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+    private readonly IHostEnvironment _hostEnvironment = Substitute.For<IHostEnvironment>();
     private readonly UpsertTenantSettingCommandHandler _handler;
 
     public UpsertTenantSettingCommandHandlerTests()
     {
+        _hostEnvironment.EnvironmentName.Returns("Development");
         _handler = new UpsertTenantSettingCommandHandler(
             _writer,
             _tenantContext,
             _permissionChecker,
             _configProvider,
             _auditWriter,
-            _httpContextAccessor);
+            _httpContextAccessor,
+            _hostEnvironment);
     }
 
     [Fact]
@@ -145,6 +149,52 @@ public class UpsertTenantSettingCommandHandlerTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
+        await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldRejectEnablingTestAuthentication_InProduction()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+        _hostEnvironment.EnvironmentName.Returns("Production");
+
+        var result = await _handler.Handle(
+            new UpsertTenantSettingCommand(
+                tenantId,
+                "TestAuthentication",
+                "Web",
+                ToBase64("""{"Enabled":true,"JwtSigningKey":"abcdefghijklmnopqrstuvwxyz012345","JwtIssuer":"iss","JwtAudience":"aud"}"""),
+                true),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
+        Assert.Contains("Production", result.Error);
+        await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldRejectTestAuthenticationScheme_InProduction()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+        _hostEnvironment.EnvironmentName.Returns("Prod");
+
+        var result = await _handler.Handle(
+            new UpsertTenantSettingCommand(
+                tenantId,
+                "Authentication",
+                "Web",
+                ToBase64("""{"Scheme":"TestAuthentication"}"""),
+                false),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
+        Assert.Contains("Production", result.Error);
         await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
     }
 

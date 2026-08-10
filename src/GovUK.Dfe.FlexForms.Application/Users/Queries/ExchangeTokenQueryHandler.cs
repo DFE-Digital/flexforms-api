@@ -1,6 +1,7 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Security.Configurations;
 using GovUK.Dfe.CoreLibs.Security.Interfaces;
+using GovUK.Dfe.FlexForms.Application.Security;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
@@ -18,6 +19,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 
 namespace GovUK.Dfe.FlexForms.Application.Users.Queries
 {
@@ -35,6 +37,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
         ISelfRegistrationTemplateAccessService selfRegistrationTemplateAccess,
         IUnitOfWork unitOfWork,
         IUserCacheInvalidator userCacheInvalidator,
+        IHostEnvironment hostEnvironment,
         [FromKeyedServices("internal")] ICustomRequestChecker internalRequestChecker,
         ILogger<ExchangeTokenQueryHandler> logger)
         : IRequestHandler<ExchangeTokenQuery, Result<ExchangeTokenDto>>
@@ -53,9 +56,11 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                     .Bind(tenantInternalAuthOptions);
             }
 
-            // Get tenant-specific test auth options so only the correct tenant uses test authentication
+            // Get tenant-specific test auth options so only the correct tenant uses test authentication.
+            // Production hard-blocks Test Authentication regardless of tenant settings.
             TestAuthenticationOptions? tenantTestAuthOptions = null;
-            if (tenantContextAccessor.CurrentTenant != null)
+            if (tenantContextAccessor.CurrentTenant != null
+                && TestAuthenticationEnvironmentGate.IsAllowed(hostEnvironment))
             {
                 tenantTestAuthOptions = new TestAuthenticationOptions();
                 tenantContextAccessor.CurrentTenant.Settings

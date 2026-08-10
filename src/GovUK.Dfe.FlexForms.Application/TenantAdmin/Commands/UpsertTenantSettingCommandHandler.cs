@@ -1,3 +1,4 @@
+using GovUK.Dfe.FlexForms.Application.Security;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Validation;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
@@ -5,7 +6,9 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using MediatR;
 using System.Security.Claims;
 using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 
 namespace GovUK.Dfe.FlexForms.Application.TenantAdmin.Commands;
 
@@ -29,7 +32,8 @@ public sealed class UpsertTenantSettingCommandHandler(
     IPermissionCheckerService permissionChecker,
     ITenantConfigurationProvider tenantConfigProvider,
     ITenantSettingAuditWriter auditWriter,
-    IHttpContextAccessor httpContextAccessor)
+    IHttpContextAccessor httpContextAccessor,
+    IHostEnvironment hostEnvironment)
     : IRequestHandler<UpsertTenantSettingCommand, Result<UpsertTenantSettingResponse>>
 {
     public async Task<Result<UpsertTenantSettingResponse>> Handle(
@@ -85,6 +89,13 @@ public sealed class UpsertTenantSettingCommandHandler(
                 string.Join(" ", validationErrors));
         }
 
+        if (TestAuthenticationEnvironmentGate.IsProduction(hostEnvironment)
+            && WouldEnableTestAuthentication(request.Category, decodedSettingsJson))
+        {
+            return Result<UpsertTenantSettingResponse>.Validation(
+                "Test Authentication cannot be enabled or selected in Production.");
+        }
+
         var effectiveIsSecret = request.IsSecret
             || TenantSettingsSecretCategories.ShouldEncrypt(request.Category);
 
@@ -132,5 +143,50 @@ public sealed class UpsertTenantSettingCommandHandler(
                ?? user?.FindFirst("email")?.Value
                ?? user?.Identity?.Name
                ?? "unknown";
+    }
+
+    private static bool WouldEnableTestAuthentication(string category, string settingsJson)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(settingsJson);
+            var root = doc.RootElement;
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return false;
+            }
+
+            if (string.Equals(category, "TestAuthentication", StringComparison.OrdinalIgnoreCase))
+            {
+                return root.TryGetProperty("Enabled", out var enabled)
+                       && enabled.ValueKind is JsonValueKind.True
+                           or JsonValueKind.String
+                       && (enabled.ValueKind == JsonValueKind.True
+                           || (enabled.ValueKind == JsonValueKind.String
+                               && bool.TryParse(enabled.GetString(), out var parsed)
+                               && parsed));
+            }
+
+            if (string.Equals(category, "Authentication", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(category, "InteractiveAuthentication", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!root.TryGetProperty("Scheme", out var scheme)
+                    || scheme.ValueKind != JsonValueKind.String)
+                {
+                    return false;
+                }
+
+                var value = scheme.GetString()?.Trim();
+                return string.Equals(value, "TestAuthentication", StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(value, "Test", StringComparison.OrdinalIgnoreCase)
+                       || string.Equals(value, "TestAuth", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
+
+        return false;
     }
 }

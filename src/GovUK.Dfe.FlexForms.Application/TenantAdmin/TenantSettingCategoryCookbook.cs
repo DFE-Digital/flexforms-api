@@ -15,7 +15,7 @@ public static class TenantSettingCategoryCookbook
             "Explicit interactive login scheme for this tenant.",
             ["Web", "Shared"],
             example: """{"Scheme":"DfESignIn"}""",
-            notes: ["Values: TestAuthentication, EntraSso, DfESignIn", "Wins over provider Enabled flags"],
+            notes: ["Values: TestAuthentication, EntraSso, DfESignIn", "Wins over provider Enabled flags", "TestAuthentication is ignored in Production"],
             requiresObject: true),
 
         Entry(
@@ -23,7 +23,7 @@ public static class TenantSettingCategoryCookbook
             "Local/dev JWT login without an external IdP.",
             ["Web", "Shared"],
             example: """{"Enabled":false,"JwtSigningKey":"...","JwtIssuer":"...","JwtAudience":"..."}""",
-            notes: ["Forced secret category", "When Enabled=true, signing fields are required"],
+            notes: ["Forced secret category", "When Enabled=true, signing fields are required", "Cannot be enabled in Production"],
             requiresObject: true),
 
         Entry(

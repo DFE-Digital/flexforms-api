@@ -160,7 +160,8 @@ public class RegisterUserCommandHandlerTests
             CreateRegisterMembershipService(),
             CreateRegisterAudienceBinder(),
             Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
-            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>(),
+            Substitute.For<Microsoft.Extensions.Hosting.IHostEnvironment>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -242,7 +243,8 @@ public class RegisterUserCommandHandlerTests
             CreateRegisterMembershipService(),
             CreateRegisterAudienceBinder(),
             Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
-            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>(),
+            Substitute.For<Microsoft.Extensions.Hosting.IHostEnvironment>());
 
         var command = new RegisterUserCommand(subjectToken, templateId);
 
@@ -324,7 +326,8 @@ public class RegisterUserCommandHandlerTests
             CreateRegisterMembershipService(),
             CreateRegisterAudienceBinder(),
             Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
-            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>(),
+            Substitute.For<Microsoft.Extensions.Hosting.IHostEnvironment>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -408,7 +411,8 @@ public class RegisterUserCommandHandlerTests
             CreateRegisterMembershipService(),
             CreateRegisterAudienceBinder(),
             Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
-            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>(),
+            Substitute.For<Microsoft.Extensions.Hosting.IHostEnvironment>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -449,7 +453,8 @@ public class RegisterUserCommandHandlerTests
             CreateRegisterMembershipService(),
             CreateRegisterAudienceBinder(),
             Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
-            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>(),
+            Substitute.For<Microsoft.Extensions.Hosting.IHostEnvironment>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -500,7 +505,8 @@ public class RegisterUserCommandHandlerTests
             CreateRegisterMembershipService(),
             CreateRegisterAudienceBinder(),
             Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
-            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>(),
+            Substitute.For<Microsoft.Extensions.Hosting.IHostEnvironment>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -557,7 +563,8 @@ public class RegisterUserCommandHandlerTests
             CreateRegisterMembershipService(),
             CreateRegisterAudienceBinder(),
             Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
-            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>(),
+            Substitute.For<Microsoft.Extensions.Hosting.IHostEnvironment>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act
@@ -646,7 +653,8 @@ public class RegisterUserCommandHandlerTests
             CreateRegisterMembershipService(),
             CreateRegisterAudienceBinder(),
             Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
-            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>());
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>(),
+            Substitute.For<Microsoft.Extensions.Hosting.IHostEnvironment>());
         var command = new RegisterUserCommand(subjectToken, templateId);
 
         // Act

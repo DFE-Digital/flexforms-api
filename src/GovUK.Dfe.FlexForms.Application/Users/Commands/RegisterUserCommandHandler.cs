@@ -6,6 +6,8 @@ using GovUK.Dfe.FlexForms.Application.Common.Attributes;
 
 using GovUK.Dfe.FlexForms.Application.Common.Behaviours;
 
+using GovUK.Dfe.FlexForms.Application.Security;
+
 using GovUK.Dfe.FlexForms.Application.Services;
 
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
@@ -43,6 +45,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 using Microsoft.Extensions.Configuration;
+
+using Microsoft.Extensions.Hosting;
 
 using Microsoft.IdentityModel.Tokens;
 
@@ -82,7 +86,9 @@ public sealed class RegisterUserCommandHandler(
 
     ISelfRegistrationTemplateAccessService selfRegistrationTemplateAccess,
 
-    IUserCacheInvalidator userCacheInvalidator) : IRequestHandler<RegisterUserCommand, Result<UserDto>>
+    IUserCacheInvalidator userCacheInvalidator,
+
+    IHostEnvironment hostEnvironment) : IRequestHandler<RegisterUserCommand, Result<UserDto>>
 
 {
 
@@ -124,11 +130,14 @@ public sealed class RegisterUserCommandHandler(
 
         {
 
-            // Get tenant-specific test auth options so only the correct tenant uses test authentication
+            // Get tenant-specific test auth options so only the correct tenant uses test authentication.
+            // Production hard-blocks Test Authentication regardless of tenant settings.
 
             TestAuthenticationOptions? tenantTestAuthOptions = null;
 
-            if (tenantContextAccessor.CurrentTenant != null)
+            if (tenantContextAccessor.CurrentTenant != null
+
+                && TestAuthenticationEnvironmentGate.IsAllowed(hostEnvironment))
 
             {
 

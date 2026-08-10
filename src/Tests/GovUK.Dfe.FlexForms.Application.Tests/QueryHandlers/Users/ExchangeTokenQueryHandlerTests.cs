@@ -19,6 +19,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
 using MockQueryable;
 using MockQueryable.NSubstitute;
@@ -104,6 +105,7 @@ public class ExchangeTokenQueryHandlerTests
             selfRegistrationAccess,
             Substitute.For<IUnitOfWork>(),
             Substitute.For<IUserCacheInvalidator>(),
+            Substitute.For<IHostEnvironment>(),
             internalRequestChecker,
             logger);
     }
