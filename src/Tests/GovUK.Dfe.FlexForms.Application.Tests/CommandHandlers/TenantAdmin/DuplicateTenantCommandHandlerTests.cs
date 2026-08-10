@@ -36,7 +36,7 @@ public class DuplicateTenantCommandHandlerTests
         Assert.False(result.IsSuccess);
         Assert.Equal(DomainErrorCode.Forbidden, result.ErrorCode);
         await _duplicator.DidNotReceiveWithAnyArgs().DuplicateAsync(
-            default, default, default!, default!, default!, default!, default!, default!, default);
+            default, default, default!, default!, default!, default!, default!, default!, default!, default);
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class DuplicateTenantCommandHandlerTests
         Assert.False(result.IsSuccess);
         Assert.Equal(DomainErrorCode.Forbidden, result.ErrorCode);
         await _duplicator.DidNotReceiveWithAnyArgs().DuplicateAsync(
-            default, default, default!, default!, default!, default!, default!, default!, default);
+            default, default, default!, default!, default!, default!, default!, default!, default!, default);
     }
 
     [Fact]
@@ -78,6 +78,7 @@ public class DuplicateTenantCommandHandlerTests
                     keys.Count == 1
                     && keys[0].Email == "svc@example.com"
                     && keys[0].ApiKey == serviceApiKey),
+                "New service name",
                 Arg.Any<CancellationToken>())
             .Returns(new DuplicateTenantResult(
                 sourceId,
@@ -97,7 +98,8 @@ public class DuplicateTenantCommandHandlerTests
                     "https://copy.dev.example",
                     authSecret,
                     internalSecret,
-                    [("svc@example.com", serviceApiKey)])),
+                    [("svc@example.com", serviceApiKey)],
+                    "New service name")),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -124,7 +126,7 @@ public class DuplicateTenantCommandHandlerTests
         Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
         Assert.Contains("PayloadJson", result.Error);
         await _duplicator.DidNotReceiveWithAnyArgs().DuplicateAsync(
-            default, default, default!, default!, default!, default!, default!, default!, default);
+            default, default, default!, default!, default!, default!, default!, default!, default!, default);
     }
 
     [Fact]
@@ -142,6 +144,7 @@ public class DuplicateTenantCommandHandlerTests
                 Arg.Any<string>(),
                 Arg.Any<string>(),
                 Arg.Any<IReadOnlyList<(string Email, string ApiKey)>>(),
+                Arg.Any<string>(),
                 Arg.Any<CancellationToken>())
             .Returns<Task<DuplicateTenantResult>>(_ => throw new InvalidOperationException("Hostname already assigned"));
 
@@ -162,14 +165,16 @@ public class DuplicateTenantCommandHandlerTests
                 "https://new.dev.example",
                 new string('a', 32),
                 new string('b', 32),
-                []));
+                [],
+                "New service"));
 
     private static string EncodePayload(
         string hostname,
         string frontendOrigin,
         string authSecret,
         string internalSecret,
-        IReadOnlyList<(string Email, string ApiKey)> serviceKeys)
+        IReadOnlyList<(string Email, string ApiKey)> serviceKeys,
+        string serviceName)
     {
         var payload = new CloneTenantSecretsPayload
         {
@@ -182,8 +187,11 @@ public class DuplicateTenantCommandHandlerTests
                 .ToList()
         };
 
-        return WafSafeUtf8Base64.Encode(
-            System.Text.Json.JsonSerializer.Serialize(payload));
+        var json = System.Text.Json.JsonSerializer.Serialize(payload);
+        var doc = System.Text.Json.Nodes.JsonNode.Parse(json)!.AsObject();
+        doc["serviceName"] = serviceName;
+
+        return WafSafeUtf8Base64.Encode(doc.ToJsonString());
     }
 
     private static TenantConfiguration CreateTenant(Guid id, string name) =>

@@ -1,4 +1,3 @@
-using GovUK.Dfe.FlexForms.Application.Templates.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
@@ -24,9 +23,9 @@ public sealed class TenantTemplateCatalogue(
             return Array.Empty<TemplateId>();
         }
 
-        // Configured mappings are the authoritative tenant membership list (1..N templates).
-        // HostMappings must only contain this tenant's template GUIDs — shared EA databases
-        // plus cross-tenant HostMappings would otherwise leak other tenants' templates.
+        // Configured mappings + tenant-owned rows are the only membership sources.
+        // Never fall back to "all templates in the EA database" — shared EA DBs would
+        // otherwise leak every other tenant's forms into a freshly cloned empty tenant.
         var fromConfig = ReadConfiguredTemplateIds(tenant);
         var ownedTemplateIds = await templateRepository.Query()
             .AsNoTracking()
@@ -34,33 +33,18 @@ public sealed class TenantTemplateCatalogue(
             .Select(template => template.Id!)
             .ToListAsync(cancellationToken);
 
-        if (fromConfig.Count > 0 || ownedTemplateIds.Count > 0)
-        {
-            var tenantTemplateIds = fromConfig
-                .Concat(ownedTemplateIds)
-                .Distinct()
-                .ToList()
-                .AsReadOnly();
-
-            logger.LogDebug(
-                "Tenant {TenantName} catalogue resolved from configuration and owned templates ({Count} template(s)).",
-                tenant.Name,
-                tenantTemplateIds.Count);
-            return tenantTemplateIds;
-        }
-
-        // Isolated tenant DB / legacy: no mappings or tenant-owned rows are configured,
-        // so all templates in this database belong to the current tenant.
-        var fromDatabase = await new GetAllTemplateIdsQueryObject()
-            .Apply(templateRepository.Query().AsNoTracking())
-            .ToListAsync(cancellationToken);
+        var tenantTemplateIds = fromConfig
+            .Concat(ownedTemplateIds)
+            .Distinct()
+            .ToList()
+            .AsReadOnly();
 
         logger.LogDebug(
-            "Tenant {TenantName} catalogue resolved from database ({Count} template(s)); no HostMappings configured.",
+            "Tenant {TenantName} catalogue resolved from configuration and owned templates ({Count} template(s)).",
             tenant.Name,
-            fromDatabase.Count);
+            tenantTemplateIds.Count);
 
-        return fromDatabase;
+        return tenantTemplateIds;
     }
 
     /// <inheritdoc />

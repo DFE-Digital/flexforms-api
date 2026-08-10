@@ -150,7 +150,7 @@ public class TenantTemplateCatalogueTests
     }
 
     [Fact]
-    public async Task GetTemplateIdsAsync_ShouldFallBackToDatabase_WhenNoMappingsConfigured()
+    public async Task GetTemplateIdsAsync_ShouldReturnEmpty_WhenNoMappingsAndNoOwnedTemplates()
     {
         var createdBy = new UserId(Guid.NewGuid());
         var templates = new List<Template>
@@ -167,7 +167,7 @@ public class TenantTemplateCatalogueTests
 
         var tenant = new TenantConfiguration(
             Guid.Parse("11111111-1111-4111-8111-111111111111"),
-            "Transfers",
+            "ClonedTenant",
             settings,
             Array.Empty<string>());
 
@@ -181,8 +181,44 @@ public class TenantTemplateCatalogueTests
 
         var result = await catalogue.GetTemplateIdsAsync();
 
-        Assert.Single(result);
-        Assert.Contains(DbTemplateId, result);
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetTemplateIdsAsync_ShouldReturnEmpty_WhenExplicitEmptyHostMappingsConfigured()
+    {
+        var createdBy = new UserId(Guid.NewGuid());
+        var templates = new List<Template>
+        {
+            new(DbTemplateId, "DB Template", DateTime.UtcNow, createdBy)
+        }.AsQueryable().BuildMockDbSet();
+
+        var templateRepo = Substitute.For<IEaRepository<Template>>();
+        templateRepo.Query().Returns(templates);
+
+        await using var jsonStream = new MemoryStream(
+            """{"ApplicationTemplates":{"HostMappings":{}}}"""u8.ToArray());
+        var settings = new ConfigurationBuilder()
+            .AddJsonStream(jsonStream)
+            .Build();
+
+        var tenant = new TenantConfiguration(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            "ClonedTenant",
+            settings,
+            Array.Empty<string>());
+
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        accessor.CurrentTenant.Returns(tenant);
+
+        var catalogue = new TenantTemplateCatalogue(
+            templateRepo,
+            accessor,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TenantTemplateCatalogue>.Instance);
+
+        var result = await catalogue.GetTemplateIdsAsync();
+
+        Assert.Empty(result);
     }
 }
 

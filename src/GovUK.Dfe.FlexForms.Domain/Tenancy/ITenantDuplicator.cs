@@ -2,7 +2,7 @@ namespace GovUK.Dfe.FlexForms.Domain.Tenancy;
 
 /// <summary>
 /// Clones TenantConfig for a new tenant (settings, one hostname, one frontend origin).
-/// Does not copy principals or EA application data.
+/// Does not copy principals, form templates, or other EA application data.
 /// </summary>
 public interface ITenantDuplicator
 {
@@ -20,6 +20,7 @@ public interface ITenantDuplicator
         string authorizationApiSecretKey,
         string internalServiceAuthSecretKey,
         IReadOnlyList<(string Email, string ApiKey)> internalServiceAuthServiceApiKeys,
+        string serviceName,
         CancellationToken cancellationToken = default);
 }
 

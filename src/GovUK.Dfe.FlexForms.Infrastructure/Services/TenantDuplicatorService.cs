@@ -31,6 +31,7 @@ public sealed class TenantDuplicatorService(
         string authorizationApiSecretKey,
         string internalServiceAuthSecretKey,
         IReadOnlyList<(string Email, string ApiKey)> internalServiceAuthServiceApiKeys,
+        string serviceName,
         CancellationToken cancellationToken = default)
     {
         if (newTenantId == Guid.Empty)
@@ -41,6 +42,12 @@ public sealed class TenantDuplicatorService(
             throw new InvalidOperationException("New tenant name is required.");
         if (newTenantName.Length > 100)
             throw new InvalidOperationException("New tenant name must not exceed 100 characters.");
+
+        serviceName = (serviceName ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(serviceName))
+            throw new InvalidOperationException("Service name is required.");
+        if (serviceName.Length > 200)
+            throw new InvalidOperationException("Service name must not exceed 200 characters.");
 
         hostname = NormalizeHostname(hostname);
         frontendOrigin = NormalizeOrigin(frontendOrigin);
@@ -141,9 +148,21 @@ public sealed class TenantDuplicatorService(
                 continue;
             }
 
+            // Do not copy form-template bindings — the new tenant starts with no templates
+            // and must create its own (avoids inheriting source HostMappings / Template:Id).
+            if (IsTemplateBindingCategory(setting.Category))
+            {
+                continue;
+            }
+
             if (string.Equals(setting.Category, "Authorization", StringComparison.OrdinalIgnoreCase))
             {
                 plaintext = ApplyAuthorizationApiSecretKey(plaintext, authorizationApiSecretKey, newTenantId);
+            }
+
+            if (string.Equals(setting.Category, "Layout", StringComparison.OrdinalIgnoreCase))
+            {
+                plaintext = ApplyLayoutServiceName(plaintext, serviceName);
             }
 
             var stored = setting.IsSecret
@@ -196,12 +215,14 @@ public sealed class TenantDuplicatorService(
 
         EnsureDuplicatedTenantAuthorizationDefaults(newTenant, newTenantId, authorizationApiSecretKey, now);
         ApplyDuplicatedTenantTestAuthenticationDefaults(newTenant, newTenantId, now);
+        EnsureDuplicatedTenantEmptyTemplateBindings(newTenant, now);
+        EnsureDuplicatedTenantLayoutServiceName(newTenant, serviceName, now);
 
         dbContext.Tenants.Add(newTenant);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         logger.LogInformation(
-            "Duplicated tenant '{SourceName}' ({SourceId}) to '{NewName}' ({NewId}) with {SettingCount} settings, hostname '{Hostname}', origin '{Origin}'. Principals were not copied. Authorization and InternalServiceAuth secrets were regenerated. Interactive auth defaults to TestAuthentication on Api and Web.",
+            "Duplicated tenant '{SourceName}' ({SourceId}) to '{NewName}' ({NewId}) with {SettingCount} settings, hostname '{Hostname}', origin '{Origin}'. Principals and form templates were not copied. Authorization and InternalServiceAuth secrets were regenerated. Interactive auth defaults to TestAuthentication on Api and Web.",
             source.Name,
             sourceTenantId,
             newTenantName,
@@ -368,6 +389,55 @@ public sealed class TenantDuplicatorService(
         UpsertDuplicatedTenantSetting(newTenant, "TestAuthentication", "Api", testAuthJson, isSecret: true, now);
         UpsertDuplicatedTenantSetting(newTenant, "TestAuthentication", "Web", testAuthJson, isSecret: true, now);
     }
+
+    /// <summary>
+    /// Sets <c>ServiceName</c> on Layout category JSON.
+    /// </summary>
+    internal static string ApplyLayoutServiceName(string settingsJson, string serviceName)
+    {
+        var root = ParseObject(settingsJson);
+        root["ServiceName"] = serviceName;
+        return root.ToJsonString(JsonWriteOptions);
+    }
+
+    private void EnsureDuplicatedTenantLayoutServiceName(
+        TenantEntity newTenant,
+        string serviceName,
+        DateTime now)
+    {
+        var hasWebLayout = newTenant.Settings.Any(s =>
+            string.Equals(s.Category, "Layout", StringComparison.OrdinalIgnoreCase) &&
+            (string.Equals(s.Target, "Web", StringComparison.OrdinalIgnoreCase) ||
+             string.Equals(s.Target, "Shared", StringComparison.OrdinalIgnoreCase)));
+
+        if (hasWebLayout)
+        {
+            return;
+        }
+
+        UpsertDuplicatedTenantSetting(
+            newTenant,
+            "Layout",
+            "Web",
+            ApplyLayoutServiceName("{}", serviceName),
+            isSecret: false,
+            now);
+    }
+
+    /// <summary>
+    /// Explicit empty HostMappings so the catalogue does not fall back to every template
+    /// in a shared EA database after clone.
+    /// </summary>
+    private void EnsureDuplicatedTenantEmptyTemplateBindings(TenantEntity newTenant, DateTime now)
+    {
+        const string emptyHostMappingsJson = """{"HostMappings":{}}""";
+        UpsertDuplicatedTenantSetting(newTenant, "ApplicationTemplates", "Api", emptyHostMappingsJson, isSecret: false, now);
+        UpsertDuplicatedTenantSetting(newTenant, "Template", "Web", emptyHostMappingsJson, isSecret: false, now);
+    }
+
+    internal static bool IsTemplateBindingCategory(string? category) =>
+        string.Equals(category, "ApplicationTemplates", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(category, "Template", StringComparison.OrdinalIgnoreCase);
 
     private void UpsertDuplicatedTenantSetting(
         TenantEntity tenant,

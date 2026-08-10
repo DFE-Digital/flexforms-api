@@ -134,4 +134,26 @@ public class TenantDuplicatorSecretRewriteTests
         var root = JsonNode.Parse(json)!.AsObject();
         Assert.Equal("TestAuthentication", root["Scheme"]!.GetValue<string>());
     }
+
+    [Fact]
+    public void IsTemplateBindingCategory_ShouldMatchApplicationTemplatesAndTemplate()
+    {
+        Assert.True(TenantDuplicatorService.IsTemplateBindingCategory("ApplicationTemplates"));
+        Assert.True(TenantDuplicatorService.IsTemplateBindingCategory("Template"));
+        Assert.True(TenantDuplicatorService.IsTemplateBindingCategory("applicationtemplates"));
+        Assert.False(TenantDuplicatorService.IsTemplateBindingCategory("Authorization"));
+        Assert.False(TenantDuplicatorService.IsTemplateBindingCategory("InternalServiceAuth"));
+    }
+
+    [Fact]
+    public void ApplyLayoutServiceName_ShouldSetServiceName()
+    {
+        var updated = TenantDuplicatorService.ApplyLayoutServiceName(
+            """{"ServiceName":"Old","Phase":"beta"}""",
+            "New service");
+
+        var root = JsonNode.Parse(updated)!.AsObject();
+        Assert.Equal("New service", root["ServiceName"]!.GetValue<string>());
+        Assert.Equal("beta", root["Phase"]!.GetValue<string>());
+    }
 }

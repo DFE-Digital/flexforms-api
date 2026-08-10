@@ -77,6 +77,7 @@ public sealed class DuplicateTenantCommandHandler(
         if (!TryDecodeSecretsPayload(
                 request.PayloadJson,
                 out var secrets,
+                out var serviceName,
                 out var payloadError))
         {
             return Result<DuplicateTenantResponse>.Validation(payloadError);
@@ -95,6 +96,7 @@ public sealed class DuplicateTenantCommandHandler(
                 secrets.InternalServiceAuthServiceApiKeys
                     .Select(s => (s.Email, s.ApiKey))
                     .ToList(),
+                serviceName,
                 cancellationToken);
 
             await tenantConfigProvider.RefreshAsync(cancellationToken);
@@ -123,9 +125,11 @@ public sealed class DuplicateTenantCommandHandler(
     internal static bool TryDecodeSecretsPayload(
         string payloadJsonBase64,
         out CloneTenantSecretsPayload secrets,
+        out string serviceName,
         out string error)
     {
         secrets = new CloneTenantSecretsPayload();
+        serviceName = string.Empty;
         error = string.Empty;
 
         if (!WafSafeUtf8Base64.TryDecode(payloadJsonBase64, out var json, out var decodeError))
@@ -144,6 +148,13 @@ public sealed class DuplicateTenantCommandHandler(
             }
 
             secrets = parsed;
+
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.TryGetProperty("serviceName", out var serviceNameNode) ||
+                doc.RootElement.TryGetProperty("ServiceName", out serviceNameNode))
+            {
+                serviceName = serviceNameNode.GetString()?.Trim() ?? string.Empty;
+            }
         }
         catch (JsonException ex)
         {
@@ -160,6 +171,18 @@ public sealed class DuplicateTenantCommandHandler(
         if (string.IsNullOrWhiteSpace(secrets.FrontendOrigin))
         {
             error = "frontendOrigin is required.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(serviceName))
+        {
+            error = "serviceName is required.";
+            return false;
+        }
+
+        if (serviceName.Length > 200)
+        {
+            error = "serviceName must not exceed 200 characters.";
             return false;
         }
 

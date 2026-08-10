@@ -191,9 +191,18 @@ public class DatabaseTenantConfigurationProvider(
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
+                var wroteChild = false;
                 foreach (var property in element.EnumerateObject())
                 {
+                    wroteChild = true;
                     FlattenJsonElement($"{prefix}:{property.Name}", property.Value, result);
+                }
+
+                // Empty objects (e.g. {"HostMappings":{}}) must still emit a key so
+                // consumers can detect an explicit empty section after flatten.
+                if (!wroteChild)
+                {
+                    result.Add(new KeyValuePair<string, string?>(prefix, null));
                 }
                 break;
 

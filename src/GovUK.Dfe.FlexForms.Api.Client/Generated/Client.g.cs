@@ -7545,7 +7545,8 @@ namespace GovUK.Dfe.FlexForms.Api.Client
         /// Clones the caller's own tenant into a new TenantConfig tenant.
         /// <br/>Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
         /// <br/>Principals are not copied. Interactive SuperAdmin only.
-        /// <br/>Secrets are sent only inside Base64 payloadJson (WAF-safe; avoids secret property names on the wire).
+        /// <br/>Hostname, frontend origin, and secrets are sent only inside Base64 payloadJson
+        /// <br/>(WAF-safe; avoids cleartext https:// ARGS that trip RFI rule 931130).
         /// </summary>
         /// <returns>Tenant cloned.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
