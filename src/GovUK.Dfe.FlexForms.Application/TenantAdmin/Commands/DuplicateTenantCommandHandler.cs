@@ -10,15 +10,13 @@ using MediatR;
 namespace GovUK.Dfe.FlexForms.Application.TenantAdmin.Commands;
 
 /// <param name="PayloadJson">
-/// Base64-encoded UTF-8 JSON containing authorization and InternalServiceAuth secrets
+/// Base64-encoded UTF-8 JSON containing hostname, frontend origin, and secrets
 /// (WAF-safe transport; see <see cref="CloneTenantSecretsPayload"/>).
 /// </param>
 public sealed record DuplicateTenantCommand(
     Guid SourceTenantId,
     Guid NewTenantId,
     string NewTenantName,
-    string Hostname,
-    string FrontendOrigin,
     string PayloadJson)
     : IRequest<Result<DuplicateTenantResponse>>;
 
@@ -29,8 +27,6 @@ internal sealed class DuplicateTenantCommandValidator : AbstractValidator<Duplic
         RuleFor(x => x.SourceTenantId).NotEmpty();
         RuleFor(x => x.NewTenantId).NotEmpty();
         RuleFor(x => x.NewTenantName).NotEmpty().MaximumLength(100);
-        RuleFor(x => x.Hostname).NotEmpty().MaximumLength(255);
-        RuleFor(x => x.FrontendOrigin).NotEmpty().MaximumLength(500);
         RuleFor(x => x.PayloadJson)
             .NotEmpty()
             .Must(WafSafeUtf8Base64.IsValidBase64)
@@ -92,8 +88,8 @@ public sealed class DuplicateTenantCommandHandler(
                 request.SourceTenantId,
                 request.NewTenantId,
                 request.NewTenantName,
-                request.Hostname,
-                request.FrontendOrigin,
+                secrets.Hostname,
+                secrets.FrontendOrigin,
                 secrets.AuthorizationApiSecretKey,
                 secrets.InternalServiceAuthSecretKey,
                 secrets.InternalServiceAuthServiceApiKeys
@@ -152,6 +148,18 @@ public sealed class DuplicateTenantCommandHandler(
         catch (JsonException ex)
         {
             error = $"PayloadJson is not valid secrets JSON: {ex.Message}";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(secrets.Hostname))
+        {
+            error = "hostname is required.";
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(secrets.FrontendOrigin))
+        {
+            error = "frontendOrigin is required.";
             return false;
         }
 

@@ -156,7 +156,8 @@ public class TenantAdminController(ISender sender) : ControllerBase
     /// Clones the caller's own tenant into a new TenantConfig tenant.
     /// Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
     /// Principals are not copied. Interactive SuperAdmin only.
-    /// Secrets are sent only inside Base64 <c>payloadJson</c> (WAF-safe; avoids secret property names on the wire).
+    /// Hostname, frontend origin, and secrets are sent only inside Base64 <c>payloadJson</c>
+    /// (WAF-safe; avoids cleartext <c>https://</c> ARGS that trip RFI rule 931130).
     /// </summary>
     [HttpPost("{tenantId:guid}/clone")]
     [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
@@ -176,8 +177,6 @@ public class TenantAdminController(ISender sender) : ControllerBase
                 tenantId,
                 body.NewTenantId,
                 body.NewTenantName,
-                body.Hostname,
-                body.FrontendOrigin,
                 body.PayloadJson),
             cancellationToken);
 

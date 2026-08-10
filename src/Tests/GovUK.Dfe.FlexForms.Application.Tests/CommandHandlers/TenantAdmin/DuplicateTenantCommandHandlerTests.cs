@@ -92,9 +92,12 @@ public class DuplicateTenantCommandHandlerTests
                 sourceId,
                 newId,
                 "Transfers Copy",
-                "copy.dev.example",
-                "https://copy.dev.example",
-                EncodePayload(authSecret, internalSecret, [("svc@example.com", serviceApiKey)])),
+                EncodePayload(
+                    "copy.dev.example",
+                    "https://copy.dev.example",
+                    authSecret,
+                    internalSecret,
+                    [("svc@example.com", serviceApiKey)])),
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
@@ -114,8 +117,6 @@ public class DuplicateTenantCommandHandlerTests
                 sourceId,
                 Guid.NewGuid(),
                 "New Tenant",
-                "new.dev.example",
-                "https://new.dev.example",
                 "not-valid-base64!!!"),
             CancellationToken.None);
 
@@ -156,17 +157,24 @@ public class DuplicateTenantCommandHandlerTests
             sourceTenantId,
             Guid.NewGuid(),
             "New Tenant",
-            "new.dev.example",
-            "https://new.dev.example",
-            EncodePayload(new string('a', 32), new string('b', 32), []));
+            EncodePayload(
+                "new.dev.example",
+                "https://new.dev.example",
+                new string('a', 32),
+                new string('b', 32),
+                []));
 
     private static string EncodePayload(
+        string hostname,
+        string frontendOrigin,
         string authSecret,
         string internalSecret,
         IReadOnlyList<(string Email, string ApiKey)> serviceKeys)
     {
         var payload = new CloneTenantSecretsPayload
         {
+            Hostname = hostname,
+            FrontendOrigin = frontendOrigin,
             AuthorizationApiSecretKey = authSecret,
             InternalServiceAuthSecretKey = internalSecret,
             InternalServiceAuthServiceApiKeys = serviceKeys

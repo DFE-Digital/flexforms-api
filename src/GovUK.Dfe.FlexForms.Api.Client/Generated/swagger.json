@@ -4105,7 +4105,7 @@
         "tags": [
           "TenantAdmin"
         ],
-        "summary": "Clones the caller's own tenant into a new TenantConfig tenant.\nCopies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.\nPrincipals are not copied. Interactive SuperAdmin only.\nSecrets are sent only inside Base64 payloadJson (WAF-safe; avoids secret property names on the wire).",
+        "summary": "Clones the caller's own tenant into a new TenantConfig tenant.\nCopies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.\nPrincipals are not copied. Interactive SuperAdmin only.\nHostname, frontend origin, and secrets are sent only inside Base64 payloadJson\n(WAF-safe; avoids cleartext https:// ARGS that trip RFI rule 931130).",
         "operationId": "TenantAdmin_CloneTenant",
         "parameters": [
           {
@@ -6732,12 +6732,6 @@
             "format": "guid"
           },
           "newTenantName": {
-            "type": "string"
-          },
-          "hostname": {
-            "type": "string"
-          },
-          "frontendOrigin": {
             "type": "string"
           },
           "payloadJson": {
