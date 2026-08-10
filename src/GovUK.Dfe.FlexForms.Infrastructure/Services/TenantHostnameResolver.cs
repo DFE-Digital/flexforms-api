@@ -39,4 +39,16 @@ public sealed class TenantHostnameResolver(TenantConfigDbContext dbContext) : IT
 
         return new TenantHostnameResolution(match.TenantId, match.TenantName, match.Hostname);
     }
+
+    public async Task<IReadOnlyList<string>> ListHostnamesForTenantAsync(
+        Guid tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        return await dbContext.TenantHostnames
+            .AsNoTracking()
+            .Where(h => h.TenantId == tenantId)
+            .OrderBy(h => h.Hostname)
+            .Select(h => h.Hostname)
+            .ToListAsync(cancellationToken);
+    }
 }

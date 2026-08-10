@@ -86,7 +86,8 @@ public class AssignUserRoleCommandHandlerTests
             tenantRoleService ?? CreateTenantRoleService(),
             userFactory ?? Substitute.For<IUserFactory>(),
             httpContextAccessor,
-            userCacheInvalidator ?? Substitute.For<IUserCacheInvalidator>());
+            userCacheInvalidator ?? Substitute.For<IUserCacheInvalidator>(),
+            Substitute.For<ITenantAccessAuditWriter>());
     }
 
     [Theory]

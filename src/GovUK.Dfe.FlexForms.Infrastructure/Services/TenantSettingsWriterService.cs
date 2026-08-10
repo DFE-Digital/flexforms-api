@@ -75,4 +75,38 @@ public class TenantSettingsWriterService(
 
         return new UpsertTenantSettingResult(existing.Id, wasCreated, category, target);
     }
+
+    /// <inheritdoc />
+    public async Task<DeleteTenantSettingResult?> DeleteSettingAsync(
+        Guid tenantId,
+        string category,
+        string target,
+        CancellationToken cancellationToken = default)
+    {
+        var tenant = await dbContext.Tenants
+            .AsNoTracking()
+            .FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Tenant '{tenantId}' not found.");
+
+        var existing = await dbContext.TenantSettings
+            .FirstOrDefaultAsync(s =>
+                s.TenantId == tenantId &&
+                s.Category == category &&
+                s.Target == target, cancellationToken);
+
+        if (existing is null)
+        {
+            return null;
+        }
+
+        var result = new DeleteTenantSettingResult(existing.Id, existing.Category, existing.Target, existing.IsSecret);
+        dbContext.TenantSettings.Remove(existing);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        logger.LogInformation(
+            "Deleted setting '{Category}' (Target={Target}) for tenant '{TenantName}' ({TenantId}).",
+            category, target, tenant.Name, tenantId);
+
+        return result;
+    }
 }

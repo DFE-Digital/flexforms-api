@@ -1,9 +1,12 @@
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Commands;
+using GovUK.Dfe.FlexForms.Application.TenantAdmin.Validation;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using NSubstitute;
+using System.Security.Claims;
 using System.Text;
 
 namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.TenantAdmin;
@@ -14,6 +17,8 @@ public class UpsertTenantSettingCommandHandlerTests
     private readonly ITenantContextAccessor _tenantContext = Substitute.For<ITenantContextAccessor>();
     private readonly IPermissionCheckerService _permissionChecker = Substitute.For<IPermissionCheckerService>();
     private readonly ITenantConfigurationProvider _configProvider = Substitute.For<ITenantConfigurationProvider>();
+    private readonly ITenantSettingAuditWriter _auditWriter = Substitute.For<ITenantSettingAuditWriter>();
+    private readonly IHttpContextAccessor _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
     private readonly UpsertTenantSettingCommandHandler _handler;
 
     public UpsertTenantSettingCommandHandlerTests()
@@ -22,7 +27,9 @@ public class UpsertTenantSettingCommandHandlerTests
             _writer,
             _tenantContext,
             _permissionChecker,
-            _configProvider);
+            _configProvider,
+            _auditWriter,
+            _httpContextAccessor);
     }
 
     [Fact]
@@ -78,7 +85,30 @@ public class UpsertTenantSettingCommandHandlerTests
         Assert.True(result.Value!.WasCreated);
         await _writer.Received(1).UpsertSettingAsync(
             tenantId, "Layout", "Web", "{}", false, Arg.Any<CancellationToken>());
+        await _auditWriter.Received(1).AppendAsync(
+            tenantId, "Layout", "Web", "Created", Arg.Any<string>(), false, Arg.Any<CancellationToken>());
         await _configProvider.Received(1).RefreshAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldForceSecret_WhenCategoryRequiresEncryption()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+
+        var json = """{"SecretKey":"k","Issuer":"i","Audience":"a"}""";
+        _writer.UpsertSettingAsync(
+                tenantId, "Authorization", "Api", json, true, Arg.Any<CancellationToken>())
+            .Returns(new UpsertTenantSettingResult(Guid.NewGuid(), false, "Authorization", "Api"));
+
+        var result = await _handler.Handle(
+            new UpsertTenantSettingCommand(tenantId, "Authorization", "Api", ToBase64(json), false),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        await _writer.Received(1).UpsertSettingAsync(
+            tenantId, "Authorization", "Api", json, true, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -94,6 +124,27 @@ public class UpsertTenantSettingCommandHandlerTests
 
         Assert.False(result.IsSuccess);
         Assert.Contains("Base64", result.Error);
+        await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldValidateCategoryJson()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+
+        var result = await _handler.Handle(
+            new UpsertTenantSettingCommand(
+                tenantId,
+                "TestAuthentication",
+                "Shared",
+                ToBase64("""{"Enabled":true}"""),
+                false),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
         await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
     }
 

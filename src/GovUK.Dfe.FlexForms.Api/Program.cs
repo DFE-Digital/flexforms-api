@@ -23,9 +23,11 @@ using System.Text.Json.Serialization;
 using System.Linq;
 using GovUK.Dfe.FlexForms.Api.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Caching;
 using GovUK.Dfe.FlexForms.Infrastructure.Caching;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using GovUK.Dfe.FlexForms.Infrastructure.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
@@ -125,6 +127,16 @@ namespace GovUK.Dfe.FlexForms.Api
             builder.Services.AddScoped<ITenantSettingsReader, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantSettingsReader>();
             builder.Services.AddScoped<ITenantHostnameResolver, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantHostnameResolver>();
             builder.Services.AddSingleton<IHostConfigurationReader, GovUK.Dfe.FlexForms.Infrastructure.Services.HostConfigurationReader>();
+            builder.Services.AddScoped<ITenantSettingAuditWriter, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantSettingAuditWriter>();
+            builder.Services.AddScoped<ITenantSettingAuditQuery, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantSettingAuditQueryService>();
+            builder.Services.AddScoped<ITenantAccessAuditWriter, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantAccessAuditWriter>();
+            builder.Services.AddScoped<ITenantAccessAuditQuery, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantAccessAuditQueryService>();
+            builder.Services.AddScoped<ITenantConfigurationPromotion, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantConfigurationPromotionService>();
+
+            builder.Services.AddHealthChecks()
+                .AddCheck("self", () => Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy())
+                .AddDbContextCheck<TenantConfigDbContext>("tenantconfig-database", tags: ["ready"])
+                .AddDbContextCheck<ExternalApplicationsContext>("application-database", tags: ["ready"]);
 
             // SaaS hot-reload pub/sub: the configuration provider broadcasts refresh events; the
             // auth-provider registry subscribes and rebuilds its indexes in-place.
@@ -156,6 +168,7 @@ namespace GovUK.Dfe.FlexForms.Api
 
                 tenantConfigurationProvider = dbProvider;
                 builder.Services.AddSingleton<ITenantConfigurationProvider>(dbProvider);
+                builder.Services.AddSingleton<ITenantConfigurationRefreshState>(dbProvider);
                 builder.Services.AddSingleton<IHostedService>(dbProvider);
             }
             else
@@ -377,6 +390,17 @@ namespace GovUK.Dfe.FlexForms.Api
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapControllers();
+
+                endpoints.MapHealthChecks("/health");
+                endpoints.MapHealthChecks("/healthz");
+                endpoints.MapHealthChecks("/liveness", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+                {
+                    Predicate = check => check.Name == "self"
+                });
+                endpoints.MapHealthChecks("/readiness", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+                {
+                    Predicate = check => check.Tags.Contains("ready")
+                });
 
                 endpoints.MapHub<Hubs.NotificationHub>("/hubs/notifications")
                     .RequireAuthorization("Cookies.CanReadNotifications")

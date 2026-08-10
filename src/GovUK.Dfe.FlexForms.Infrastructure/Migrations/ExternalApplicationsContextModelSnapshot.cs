@@ -646,6 +646,57 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations
                     b.ToTable("TemplateVersions", "ea");
                 });
 
+            modelBuilder.Entity("GovUK.Dfe.FlexForms.Domain.Entities.TenantAccessAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ActorEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RoleName")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("SubjectEmail")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("nvarchar(320)");
+
+                    b.Property<Guid?>("SubjectUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "OccurredAtUtc")
+                        .HasDatabaseName("IX_TenantAccessAudits_TenantId_OccurredAtUtc");
+
+                    b.HasIndex("TenantId", "SubjectEmail")
+                        .HasDatabaseName("IX_TenantAccessAudits_TenantId_SubjectEmail");
+
+                    b.ToTable("TenantAccessAudits", "ea");
+                });
+
             modelBuilder.Entity("GovUK.Dfe.FlexForms.Domain.Entities.TenantMembership", b =>
                 {
                     b.Property<Guid>("Id")
@@ -918,7 +969,7 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations
             modelBuilder.Entity("GovUK.Dfe.FlexForms.Domain.Entities.RolePermission", b =>
                 {
                     b.HasOne("GovUK.Dfe.FlexForms.Domain.Entities.Role", "Role")
-                        .WithMany()
+                        .WithMany("Permissions")
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1057,6 +1108,11 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations
                     b.Navigation("Files");
 
                     b.Navigation("Responses");
+                });
+
+            modelBuilder.Entity("GovUK.Dfe.FlexForms.Domain.Entities.Role", b =>
+                {
+                    b.Navigation("Permissions");
                 });
 
             modelBuilder.Entity("GovUK.Dfe.FlexForms.Domain.Entities.Template", b =>

@@ -308,6 +308,14 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         System.Threading.Tasks.Task<TenantRoleDto> CreateAsync(CreateTenantRoleRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Creates a custom role from a Caseworker or Reviewer permission preset.
+        /// </summary>
+        /// <returns>Role created from template.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TenantRoleDto> CreateFromTemplateAsync(CreateTenantRoleFromTemplateRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <returns>Role renamed.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<TenantRoleDto> RenameAsync(System.Guid roleId, RenameTenantRoleRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
@@ -454,6 +462,22 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
+        /// Returns non-secret organisation settings (terminology, banner, dashboard) for Tenant Admins.
+        /// </summary>
+        /// <returns>Organisation settings.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetTenantSettingsResponse> GetSafeTenantSettingsAsync(System.Guid tenantId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Upserts a delegated non-secret organisation setting (Tenant Admin or SuperAdmin).
+        /// </summary>
+        /// <returns>Setting upserted.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<UpsertTenantSettingResponse> UpsertSafeTenantSettingAsync(System.Guid tenantId, UpsertTenantSettingRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
         /// Returns decrypted TenantConfig settings rows for the caller's own tenant.
         /// <br/>Restricted to interactive SuperAdmin users.
         /// </summary>
@@ -474,6 +498,14 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
+        /// Deletes a tenant setting category. Interactive SuperAdmin only.
+        /// </summary>
+        /// <returns>Setting deleted.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<DeleteTenantSettingResponse> DeleteTenantSettingAsync(System.Guid tenantId, string category = null, string target = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
         /// Duplicates the caller's own tenant into a new TenantConfig tenant.
         /// <br/>Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
         /// <br/>Principals are not copied. Interactive SuperAdmin only.
@@ -481,6 +513,78 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>Tenant duplicated.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<DuplicateTenantResponse> DuplicateTenantAsync(System.Guid tenantId, DuplicateTenantRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Returns the effective runtime configuration for the caller's tenant (auth scheme, hostnames, cache metadata).
+        /// </summary>
+        /// <returns>Effective tenant configuration.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TenantEffectiveConfigurationDto> GetEffectiveConfigurationAsync(System.Guid tenantId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Exports tenant settings for promotion to another environment (secrets redacted).
+        /// </summary>
+        /// <returns>Export bundle.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ExportTenantConfigurationDto> ExportConfigurationAsync(System.Guid tenantId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Imports a promotion bundle into the caller's tenant.
+        /// </summary>
+        /// <returns>Import result.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ImportTenantConfigurationResultDto> ImportConfigurationAsync(System.Guid tenantId, ImportTenantConfigurationDto body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Returns recent tenant setting change audit entries.
+        /// </summary>
+        /// <returns>Audit log.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetTenantSettingAuditLogDto> GetSettingAuditLogAsync(System.Guid tenantId, int? take = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Dry-run validation and diff for a proposed tenant setting change.
+        /// </summary>
+        /// <returns>Validation result.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ValidateTenantSettingResponse> ValidateTenantSettingAsync(System.Guid tenantId, ValidateTenantSettingRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Tenant health checks for SuperAdmin Tenant Settings.
+        /// </summary>
+        /// <returns>Tenant health.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TenantHealthDto> GetTenantHealthAsync(System.Guid tenantId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Category cookbook (examples and notes) for SuperAdmin UI.
+        /// </summary>
+        /// <returns>Category cookbook.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetTenantSettingCategoryCookbookResponse> GetCategoryCookbookAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Platform typed-event catalogue (CoreLibs Messaging.Contracts) with property schema.
+        /// </summary>
+        /// <returns>Event catalogue.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetEventCatalogueResponse> GetEventCatalogueAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Read-only platform tenant catalogue (SuperAdmin only).
+        /// </summary>
+        /// <returns>Platform tenants.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetPlatformTenantsResponse> GetPlatformTenantsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
     }
 
@@ -568,6 +672,15 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>Role assigned successfully.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<UserDto> AssignUserRoleAsync(AssignUserRoleRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Returns the audit trail of user/role changes for the current tenant
+        /// <br/>(e.g. who granted Admin access).
+        /// </summary>
+        /// <returns>Access audit log.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<GetTenantAccessAuditLogDto> GetAccessAuditLogAsync(int? take = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>

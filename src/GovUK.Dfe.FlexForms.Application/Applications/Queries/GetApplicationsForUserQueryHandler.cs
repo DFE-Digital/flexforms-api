@@ -41,8 +41,9 @@ public sealed class GetApplicationsForUserQueryHandler(
         {
             var tenantName = tenantContextAccessor.CurrentTenant?.Name ?? "(none)";
             var searchKey = request.Search?.ToCacheKeySuffix() ?? "";
+            var emailCacheKey = request.Email.Trim().ToLowerInvariant();
             var baseCacheKey =
-                $"Applications_ForUser_{CacheKeyHelper.GenerateHashedCacheKey(request.Email)}_t{request.TemplateId}_{searchKey}_p{request.PageNumber}_ps{request.PageSize}";
+                $"Applications_ForUser_{CacheKeyHelper.GenerateHashedCacheKey(emailCacheKey)}_t{request.TemplateId}_{searchKey}_p{request.PageNumber}_ps{request.PageSize}";
             var cacheKey = TenantCacheKeyHelper.CreateTenantScopedKey(tenantContextAccessor, baseCacheKey);
             var methodName = nameof(GetApplicationsForUserQueryHandler);
 

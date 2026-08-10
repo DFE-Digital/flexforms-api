@@ -5,16 +5,17 @@ using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using MediatR;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace GovUK.Dfe.FlexForms.Api.Security
 {
     public class PermissionsClaimProvider(
-        ISender sender, 
+        ISender sender,
         ILogger<PermissionsClaimProvider> logger,
-        IEaRepository<User> userRepo
-        ) : ICustomClaimProvider
+        IEaRepository<User> userRepo,
+        IHttpContextAccessor httpContextAccessor) : ICustomClaimProvider
     {
         public async Task<IEnumerable<Claim>> GetClaimsAsync(ClaimsPrincipal principal)
         {
@@ -22,6 +23,13 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                          ?? principal.FindFirst("iss")?.Value;
             if (string.IsNullOrEmpty(issuer) ||
                 !issuer.Contains("windows.net", StringComparison.OrdinalIgnoreCase))
+            {
+                return Array.Empty<Claim>();
+            }
+
+            if (!RequestClaimEnrichmentGate.TryBegin(
+                    httpContextAccessor.HttpContext,
+                    RequestClaimEnrichmentGate.AzurePermissionsKey))
             {
                 return Array.Empty<Claim>();
             }
@@ -61,7 +69,7 @@ namespace GovUK.Dfe.FlexForms.Api.Security
 
             var claims = new List<Claim> { new(ClaimTypes.Role, dbUser.Role.Name) };
 
-            if(result.Value is not null)
+            if (result.Value is not null)
             {
                 claims.AddRange(result.Value.Permissions.Select(p =>
                     new Claim(

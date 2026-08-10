@@ -40,7 +40,8 @@ public sealed class AssignUserRoleCommandHandler(
     ITenantRoleService tenantRoleService,
     IUserFactory userFactory,
     IHttpContextAccessor httpContextAccessor,
-    IUserCacheInvalidator userCacheInvalidator)
+    IUserCacheInvalidator userCacheInvalidator,
+    ITenantAccessAuditWriter accessAuditWriter)
     : IRequestHandler<AssignUserRoleCommand, Result<UserDto>>
 {
     public async Task<Result<UserDto>> Handle(
@@ -266,6 +267,21 @@ public sealed class AssignUserRoleCommandHandler(
         }
 
         await unitOfWork.CommitAsync(cancellationToken);
+
+        var actorEmail = httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Email)
+            ?? httpContextAccessor.HttpContext?.User?.Identity?.Name
+            ?? "unknown";
+
+        await accessAuditWriter.AppendAsync(
+            currentTenant.Id,
+            user.Id,
+            user.Email,
+            "RoleAssigned",
+            membershipRoleName,
+            grantedById,
+            actorEmail,
+            existingUser is null ? "User created and role assigned" : "Role assigned to existing user",
+            cancellationToken);
 
         // Drop permission / OBO caches so the next request re-exchanges with the new role.
         await userCacheInvalidator.InvalidateForUserAsync(

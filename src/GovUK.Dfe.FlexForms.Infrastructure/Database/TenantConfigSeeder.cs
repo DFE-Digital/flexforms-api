@@ -12,10 +12,8 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Database;
 /// </summary>
 public static class TenantConfigSeeder
 {
-    private static readonly HashSet<string> SecretCategories = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "ConnectionStrings", "AzureAd", "InternalServiceAuth"
-    };
+    private static readonly HashSet<string> SecretCategories = TenantSettingsSecretCategories.All
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
     private static readonly HashSet<string> SkipKeys = new(StringComparer.OrdinalIgnoreCase)
     {

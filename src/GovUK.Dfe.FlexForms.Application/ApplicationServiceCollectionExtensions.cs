@@ -3,6 +3,7 @@ using GovUK.Dfe.FlexForms.Utils.Configuration;
 using GovUK.Dfe.FlexForms.Application.Common.Behaviours;
 using GovUK.Dfe.FlexForms.Application.Common.Pipeline;
 using GovUK.Dfe.FlexForms.Application.Consumers;
+using GovUK.Dfe.FlexForms.Application.Messaging;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Services;
@@ -87,6 +88,14 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddTransient<IFileFactory, FileFactory>();
 
             services.AddTransient<IEmailTemplateResolver, EmailTemplateResolver>();
+
+            // Outbound mapped event publishing. Scoped so every lookup uses the request's tenant settings.
+            services.AddScoped<IEventMappingProvider, EventMappingProvider>();
+            services.AddScoped<ISchemaEventDefinitionProvider, SchemaEventDefinitionProvider>();
+            services.AddScoped<IEventDataMapper, EventDataMapper>();
+            services.AddScoped<IEventTriggerDispatcher, EventTriggerDispatcher>();
+            services.AddSingleton<IEventTypeRegistry, EventTypeRegistry>();
+
             services.AddScoped<ITenantTemplateCatalogue, TenantTemplateCatalogue>();
             services.AddScoped<ITenantTemplateResolver, TenantTemplateResolver>();
             services.AddScoped<IUserAccessibleTemplateService, UserAccessibleTemplateService>();
@@ -141,6 +150,11 @@ namespace Microsoft.Extensions.DependencyInjection
                     },
                     configureBus: (context, cfg) =>
                     {
+                        // Any CoreLibs Messaging.Contracts event a tenant binds through
+                        // EventTriggers needs its topic entity name registered.
+                        MessagingEventBusConfigurator.ConfigureDiscoveredMessageTopics(cfg);
+
+                        // Applied last so the scan pipeline never depends on name discovery.
                         cfg.Message<ScanRequestedEvent>(m => m.SetEntityName(TopicNames.ScanRequests));
                         cfg.Message<ScanResultEvent>(m => m.SetEntityName(TopicNames.ScanResult));
                     },

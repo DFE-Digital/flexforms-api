@@ -2,6 +2,7 @@ using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Applications.EventHandlers;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Events;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
 using Microsoft.Extensions.Logging;
@@ -15,6 +16,17 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.Applications;
 
 public class ApplicationSubmittedEventHandlerTests
 {
+    private static ApplicationSubmittedEventHandler CreateHandler(
+        ILogger<ApplicationSubmittedEventHandler> logger,
+        IEmailService emailService,
+        IEmailTemplateResolver emailTemplateResolver)
+        => new(
+            logger,
+            emailService,
+            emailTemplateResolver,
+            Substitute.For<IApplicationRepository>(),
+            Substitute.For<IEventTriggerDispatcher>());
+
     [Theory]
     [CustomAutoData(typeof(ApplicationCustomization))]
     public async Task Handle_ShouldSendEmail_WhenEventReceived(
@@ -48,7 +60,7 @@ public class ApplicationSubmittedEventHandlerTests
         emailService.SendEmailAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
             .Returns(successResponse);
 
-        var handler = new ApplicationSubmittedEventHandler(logger, emailService, emailTemplateResolver);
+        var handler = CreateHandler(logger, emailService, emailTemplateResolver);
 
         // Act
         await handler.Handle(@event, CancellationToken.None);
@@ -100,7 +112,7 @@ public class ApplicationSubmittedEventHandlerTests
         emailService.SendEmailAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
             .Returns(successResponse);
 
-        var handler = new ApplicationSubmittedEventHandler(logger, emailService, emailTemplateResolver);
+        var handler = CreateHandler(logger, emailService, emailTemplateResolver);
 
         // Act
         await handler.Handle(@event, CancellationToken.None);
@@ -143,7 +155,7 @@ public class ApplicationSubmittedEventHandlerTests
         emailTemplateResolver.ResolveEmailTemplateAsync(templateId, "ApplicationSubmitted")
             .Returns((string?)null);
 
-        var handler = new ApplicationSubmittedEventHandler(logger, emailService, emailTemplateResolver);
+        var handler = CreateHandler(logger, emailService, emailTemplateResolver);
 
         // Act
         await handler.Handle(@event, CancellationToken.None);
@@ -192,7 +204,7 @@ public class ApplicationSubmittedEventHandlerTests
         emailService.SendEmailAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
             .Returns(successResponse);
 
-        var handler = new ApplicationSubmittedEventHandler(logger, emailService, emailTemplateResolver);
+        var handler = CreateHandler(logger, emailService, emailTemplateResolver);
 
         // Act
         await handler.Handle(@event, CancellationToken.None);
@@ -239,7 +251,7 @@ public class ApplicationSubmittedEventHandlerTests
         emailService.SendEmailAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
             .Returns(failureResponse);
 
-        var handler = new ApplicationSubmittedEventHandler(logger, emailService, emailTemplateResolver);
+        var handler = CreateHandler(logger, emailService, emailTemplateResolver);
 
         // Act
         await handler.Handle(@event, CancellationToken.None);
@@ -285,7 +297,7 @@ public class ApplicationSubmittedEventHandlerTests
         emailService.SendEmailAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
             .ThrowsAsync(new Exception("Test exception"));
 
-        var handler = new ApplicationSubmittedEventHandler(logger, emailService, emailTemplateResolver);
+        var handler = CreateHandler(logger, emailService, emailTemplateResolver);
 
         // Act & Assert
         var exception = await Record.ExceptionAsync(async () => await handler.Handle(@event, CancellationToken.None));
