@@ -10682,7 +10682,8 @@ namespace GovUK.Dfe.FlexForms.Api.Client
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// Removes a user from the current tenant by clearing their permissions on tenant templates.
+        /// Removes a user from the current tenant by deactivating membership and clearing
+        /// <br/>template (form) access. Application permissions are retained for a later re-add.
         /// </summary>
         /// <returns>User removed from tenant.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>

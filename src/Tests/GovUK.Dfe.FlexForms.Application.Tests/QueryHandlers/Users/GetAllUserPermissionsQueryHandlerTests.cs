@@ -22,11 +22,29 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.QueryHandlers.Users;
 
 public class GetAllUserPermissionsQueryHandlerTests
 {
-    private static ITenantMembershipService CreateMembershipService(TenantMembership? membership = null)
+    private static ITenantMembershipService CreateActiveMembershipService(RoleId? roleId = null)
     {
+        var resolvedRoleId = roleId ?? new RoleId(Guid.NewGuid());
+        var role = new Role(resolvedRoleId, "TestRole");
+        var membership = new TenantMembership(
+            new TenantMembershipId(Guid.NewGuid()),
+            Guid.NewGuid(),
+            new UserId(Guid.NewGuid()),
+            resolvedRoleId,
+            DateTime.UtcNow);
+        membership.GetType().GetProperty(nameof(TenantMembership.Role))!.SetValue(membership, role);
+
         var service = Substitute.For<ITenantMembershipService>();
         service.GetActiveMembershipAsync(Arg.Any<Guid>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>())
             .Returns(membership);
+        return service;
+    }
+
+    private static ITenantMembershipService CreateNoMembershipService()
+    {
+        var service = Substitute.For<ITenantMembershipService>();
+        service.GetActiveMembershipAsync(Arg.Any<Guid>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns((TenantMembership?)null);
         return service;
     }
 
@@ -100,7 +118,7 @@ public class GetAllUserPermissionsQueryHandlerTests
             userRepo,
             cacheService,
             tenantContextAccessor,
-            CreateMembershipService(),
+            CreateActiveMembershipService(),
             CreateRolePermissionService(),
             CreateTenantPermissionFilter());
 
@@ -154,7 +172,7 @@ public class GetAllUserPermissionsQueryHandlerTests
             userRepo,
             cacheService,
             tenantContextAccessor,
-            CreateMembershipService(),
+            CreateActiveMembershipService(),
             CreateRolePermissionService(),
             CreateTenantPermissionFilter());
 
@@ -193,7 +211,7 @@ public class GetAllUserPermissionsQueryHandlerTests
             userRepo,
             cacheService,
             tenantContextAccessor,
-            CreateMembershipService(),
+            CreateActiveMembershipService(),
             CreateRolePermissionService(),
             CreateTenantPermissionFilter());
 
@@ -225,7 +243,7 @@ public class GetAllUserPermissionsQueryHandlerTests
             userRepo,
             cacheService,
             tenantContextAccessor,
-            CreateMembershipService(),
+            CreateActiveMembershipService(),
             CreateRolePermissionService(),
             CreateTenantPermissionFilter());
 

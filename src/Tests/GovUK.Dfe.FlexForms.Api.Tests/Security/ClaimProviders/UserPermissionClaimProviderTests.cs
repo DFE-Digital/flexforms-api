@@ -47,6 +47,19 @@ public class UserPermissionClaimProviderTests
             .FilterToCurrentTenantAsync(Arg.Any<IEnumerable<Permission>>(), Arg.Any<CancellationToken>())
             .Returns(callInfo => callInfo.Arg<IEnumerable<Permission>>().ToList());
 
+        // Default: active membership so permission-emitting tests keep working.
+        // Tests that assert empty claims for missing membership override this.
+        _membershipService.GetActiveMembershipAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<UserId>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ci => new TenantMembership(
+                new TenantMembershipId(Guid.NewGuid()),
+                ci.ArgAt<Guid>(0),
+                ci.ArgAt<UserId>(1),
+                new RoleId(Guid.NewGuid()),
+                DateTime.UtcNow));
+
         _provider = new UserPermissionClaimProvider(
             _logger,
             _userRepo,
@@ -250,6 +263,62 @@ public class UserPermissionClaimProviderTests
         var result = await _provider.GetClaimsAsync(principal);
 
         // Assert
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task GetClaimsAsync_ShouldReturnEmpty_WhenUserHasNoActiveMembership()
+    {
+        var email = "removed@example.com";
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(JwtRegisteredClaimNames.Iss, "https://example.com"),
+            new Claim(ClaimTypes.Email, email)
+        }));
+
+        var userId = new UserId(Guid.NewGuid());
+        var roleId = new RoleId(Guid.NewGuid());
+        var permission = new Permission(
+            new PermissionId(Guid.NewGuid()),
+            userId,
+            null,
+            Guid.NewGuid().ToString(),
+            ResourceType.Application,
+            AccessType.Read,
+            DateTime.UtcNow,
+            userId);
+
+        var user = new User(
+            id: userId,
+            roleId: roleId,
+            name: "Removed User",
+            email: email,
+            createdOn: DateTime.UtcNow,
+            createdBy: null,
+            lastModifiedOn: null,
+            lastModifiedBy: null,
+            externalProviderId: null,
+            initialPermissions: [permission]);
+
+        user.GetType().GetProperty("Role")!.SetValue(user, new Role(roleId, "User"));
+
+        var users = new[] { user }.AsQueryable().BuildMockDbSet();
+        _userRepo.Query().Returns(users);
+
+        _membershipService.GetActiveMembershipAsync(
+                Arg.Any<Guid>(),
+                Arg.Any<UserId>(),
+                Arg.Any<CancellationToken>())
+            .Returns((TenantMembership?)null);
+
+        _cacheService.GetOrAddAsync<List<string>>(
+            Arg.Any<string>(),
+            Arg.Any<Func<Task<List<string>>>>(),
+            Arg.Any<string>())
+            .Returns(callInfo => callInfo.Arg<Func<Task<List<string>>>>()());
+
+        var result = await _provider.GetClaimsAsync(principal);
+
         Assert.Empty(result);
     }
 

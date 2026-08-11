@@ -4,6 +4,7 @@ using GovUK.Dfe.CoreLibs.Security.Interfaces;
 using GovUK.Dfe.FlexForms.Application.Common;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
+using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
@@ -69,12 +70,27 @@ public class UserPermissionClaimProvider(
                 if (dbUser?.Id is null)
                     return new List<string>();
 
-                var roleGrants = new List<PermissionClaimMerger.Grant>();
-
                 var membership = await tenantMembershipService.GetActiveMembershipAsync(
                     currentTenant.Id,
                     dbUser.Id,
                     CancellationToken.None);
+
+                var isPlatformSuperAdmin = RoleNames.IsPlatformSuperAdminUser(
+                    dbUser.Role?.Name ?? RoleNames.FromRoleId(dbUser.RoleId.Value),
+                    dbUser.RoleId.Value);
+
+                // Suspended / removed members must not receive permission claims from a
+                // stale JWT. Platform SuperAdmin may operate without a membership row.
+                if (membership is null && !isPlatformSuperAdmin)
+                {
+                    logger.LogInformation(
+                        "UserPermissionClaimProvider > No active membership for {Email} on tenant {TenantName}; emitting no permission claims.",
+                        userEmail,
+                        currentTenant.Name);
+                    return new List<string>();
+                }
+
+                var roleGrants = new List<PermissionClaimMerger.Grant>();
 
                 if (membership?.RoleId is not null)
                 {

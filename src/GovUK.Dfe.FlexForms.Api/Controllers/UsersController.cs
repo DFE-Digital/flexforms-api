@@ -246,7 +246,8 @@ public class UsersController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-    /// Removes a user from the current tenant by clearing their permissions on tenant templates.
+    /// Removes a user from the current tenant by deactivating membership and clearing
+    /// template (form) access. Application permissions are retained for a later re-add.
     /// </summary>
     [HttpDelete("{userId:guid}/tenant")]
     [SwaggerResponse(204, "User removed from tenant.")]

@@ -5450,7 +5450,7 @@
         "tags": [
           "Users"
         ],
-        "summary": "Removes a user from the current tenant by clearing their permissions on tenant templates.",
+        "summary": "Removes a user from the current tenant by deactivating membership and clearing\ntemplate (form) access. Application permissions are retained for a later re-add.",
         "operationId": "Users_RemoveUserFromTenant",
         "parameters": [
           {

@@ -71,6 +71,21 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                             membershipRoleName = membership?.Role?.Name;
                             membershipRoleId = membership?.RoleId;
 
+                            var isPlatformSuperAdmin = RoleNames.IsPlatformSuperAdminUser(
+                                userWithPermissions.Role?.Name
+                                ?? RoleNames.FromRoleId(userWithPermissions.RoleId.Value),
+                                userWithPermissions.RoleId.Value);
+
+                            // Removed / suspended users must not receive effective permissions.
+                            if (membership is null && !isPlatformSuperAdmin)
+                            {
+                                return Result<UserAuthorizationDto>.Success(new UserAuthorizationDto
+                                {
+                                    Permissions = Array.Empty<UserPermissionDto>(),
+                                    Roles = Array.Empty<string>(),
+                                });
+                            }
+
                             if (membership?.RoleId is not null)
                             {
                                 var rolePerms = await rolePermissionService.GetByRoleIdAsync(
