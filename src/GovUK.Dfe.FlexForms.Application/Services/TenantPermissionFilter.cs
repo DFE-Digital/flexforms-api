@@ -5,6 +5,7 @@ using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
+using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 
 namespace GovUK.Dfe.FlexForms.Application.Services;
 
@@ -63,12 +64,13 @@ public sealed class TenantPermissionFilter(
         if (tenantTemplateIds.Count == 0)
             return false;
 
+        var applicationIdVo = new ApplicationId(applicationId);
         var ownership = await applicationRepository.Query()
             .AsNoTracking()
-            .Where(a => a.Id != null && a.Id.Value == applicationId)
+            .Where(a => a.Id == applicationIdVo)
             .Select(a => new
             {
-                TemplateId = a.TemplateVersion!.TemplateId.Value,
+                TemplateId = a.TemplateVersion!.TemplateId,
                 TemplateTenantId = a.TemplateVersion!.Template!.TenantId
             })
             .FirstOrDefaultAsync(cancellationToken);
@@ -77,7 +79,7 @@ public sealed class TenantPermissionFilter(
             return false;
 
         return IsTemplateInTenant(
-            ownership.TemplateId,
+            ownership.TemplateId.Value,
             ownership.TemplateTenantId,
             currentTenantId.Value,
             tenantTemplateIds);
@@ -149,30 +151,32 @@ public sealed class TenantPermissionFilter(
         IReadOnlyCollection<Permission> permissions,
         CancellationToken cancellationToken)
     {
-        var applicationGuids = permissions
+        // Use ApplicationId value objects (not Guid/.Value) so EF can translate Contains.
+        var applicationIds = permissions
             .Where(p => p.ResourceType is ResourceType.Application or ResourceType.ApplicationFiles)
             .Select(p => TryResolveApplicationId(p, out var id) ? id : Guid.Empty)
             .Where(id => id != Guid.Empty)
             .Distinct()
-            .ToList();
+            .Select(id => new ApplicationId(id))
+            .ToHashSet();
 
-        if (applicationGuids.Count == 0)
+        if (applicationIds.Count == 0)
             return new Dictionary<Guid, ApplicationOwnership>();
 
         var rows = await applicationRepository.Query()
             .AsNoTracking()
-            .Where(a => a.Id != null && applicationGuids.Contains(a.Id.Value))
+            .Where(a => a.Id != null && applicationIds.Contains(a.Id))
             .Select(a => new
             {
-                ApplicationId = a.Id!.Value,
-                TemplateId = a.TemplateVersion!.TemplateId.Value,
+                ApplicationId = a.Id!,
+                TemplateId = a.TemplateVersion!.TemplateId,
                 TemplateTenantId = a.TemplateVersion!.Template!.TenantId
             })
             .ToListAsync(cancellationToken);
 
         return rows.ToDictionary(
-            row => row.ApplicationId,
-            row => new ApplicationOwnership(row.TemplateId, row.TemplateTenantId));
+            row => row.ApplicationId.Value,
+            row => new ApplicationOwnership(row.TemplateId.Value, row.TemplateTenantId));
     }
 
     private static bool TryResolveApplicationId(Permission permission, out Guid applicationId)
