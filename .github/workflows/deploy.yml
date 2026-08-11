@@ -60,6 +60,7 @@ jobs:
     permissions:
       contents: read
     needs: [ set-env ]
+    if: needs.set-env.outputs.environment-lower == 'production'
     steps:
       - name: Validate Packages
         uses: DFE-Digital/rsd-github-actions/.github/actions/validate-packages@v1
@@ -80,7 +81,7 @@ jobs:
     if: |
       always() &&
       needs.set-env.result == 'success' &&
-      needs.validate-packages.result == 'success' &&
+      (needs.validate-packages.result == 'success' || needs.validate-packages.result == 'skipped') &&
       (needs.test.result == 'success' || needs.test.result == 'skipped')
     environment: ${{ needs.set-env.outputs.environment }}
     permissions:
