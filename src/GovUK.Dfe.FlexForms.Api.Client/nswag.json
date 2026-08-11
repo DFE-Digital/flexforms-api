@@ -1,5 +1,5 @@
 {
-  "runtime": "Net90",
+  "runtime": "Net100",
   "defaultVariables": "CSharpOutputPath=../GovUK.Dfe.FlexForms.Api.Client",
   "documentGenerator": {
     "aspNetCoreToOpenApi": {

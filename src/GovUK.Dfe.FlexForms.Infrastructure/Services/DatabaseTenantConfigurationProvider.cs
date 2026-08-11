@@ -67,6 +67,7 @@ public class DatabaseTenantConfigurationProvider(
                 .Include(t => t.Settings.Where(s => s.Target == "Shared" || s.Target == targetApplication))
                 .Include(t => t.Hostnames)
                 .Include(t => t.FrontendOrigins)
+                .AsSplitQuery()
                 .ToListAsync(cancellationToken);
 
             var newTenantsById = new Dictionary<Guid, TenantConfiguration>();
