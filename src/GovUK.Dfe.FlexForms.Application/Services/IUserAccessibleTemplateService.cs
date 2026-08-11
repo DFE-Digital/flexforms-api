@@ -4,8 +4,9 @@ using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 namespace GovUK.Dfe.FlexForms.Application.Services;
 
 /// <summary>
-/// Resolves which tenant templates the current user is allowed to access
-/// (tenant catalogue intersected with the user's Template permission grants).
+/// Resolves which tenant templates the current user is allowed to access.
+/// Admins/template managers and Template:Any grants receive the full tenant catalogue;
+/// other users receive catalogue ∩ explicit Template permission grants.
 /// </summary>
 public interface IUserAccessibleTemplateService
 {

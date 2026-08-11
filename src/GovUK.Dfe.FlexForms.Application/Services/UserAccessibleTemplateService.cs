@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
@@ -7,7 +8,8 @@ namespace GovUK.Dfe.FlexForms.Application.Services;
 
 /// <inheritdoc />
 public sealed class UserAccessibleTemplateService(
-    ITenantTemplateCatalogue tenantTemplateCatalogue) : IUserAccessibleTemplateService
+    ITenantTemplateCatalogue tenantTemplateCatalogue,
+    IPermissionCheckerService permissionCheckerService) : IUserAccessibleTemplateService
 {
     /// <inheritdoc />
     public async Task<IReadOnlyList<TemplateId>> GetAccessibleTemplateIdsAsync(
@@ -18,7 +20,26 @@ public sealed class UserAccessibleTemplateService(
         if (catalogue.Count == 0)
             return Array.Empty<TemplateId>();
 
-        var permitted = permissions
+        // Admins / template managers get the full tenant catalogue (same as GetAccessibleTemplates).
+        // SuperAdmin/Admin create applications via role bypass without always having per-template
+        // Permission rows — without this, dashboard listing filters to zero templates.
+        if (permissionCheckerService.CanManageTemplates())
+            return catalogue;
+
+        var permissionList = permissions as IList<Permission> ?? permissions.ToList();
+
+        // Template:Any:* unlocks every template in the current tenant catalogue.
+        if (permissionList.Any(p =>
+                p.ResourceType == ResourceType.Template
+                && string.Equals(
+                    p.ResourceKey,
+                    PermissionConstants.AnyResourceKey,
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            return catalogue;
+        }
+
+        var permitted = permissionList
             .Where(p => p.ResourceType == ResourceType.Template)
             .Select(p => Guid.TryParse(p.ResourceKey, out var id) && id != Guid.Empty
                 ? new TemplateId(id)

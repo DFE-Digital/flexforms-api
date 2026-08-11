@@ -1,6 +1,9 @@
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using Microsoft.Extensions.Configuration;
@@ -235,7 +238,7 @@ public class UserAccessibleTemplateServiceTests
         catalogue.GetTemplateIdsAsync(Arg.Any<CancellationToken>())
             .Returns(new[] { TemplateA, TemplateB }.AsReadOnly());
 
-        var service = new UserAccessibleTemplateService(catalogue);
+        var service = new UserAccessibleTemplateService(catalogue, CreatePermissionChecker(canManageTemplates: false));
         var permissions = new[]
         {
             CreatePermission(TemplateB),
@@ -249,13 +252,58 @@ public class UserAccessibleTemplateServiceTests
     }
 
     [Fact]
+    public async Task GetAccessibleTemplateIdsAsync_ShouldReturnFullCatalogue_WhenUserCanManageTemplates()
+    {
+        var catalogue = Substitute.For<ITenantTemplateCatalogue>();
+        catalogue.GetTemplateIdsAsync(Arg.Any<CancellationToken>())
+            .Returns(new[] { TemplateA, TemplateB }.AsReadOnly());
+
+        // SuperAdmin/Admin: no per-template permission rows (create apps via role bypass).
+        var service = new UserAccessibleTemplateService(catalogue, CreatePermissionChecker(canManageTemplates: true));
+
+        var result = await service.GetAccessibleTemplateIdsAsync(Array.Empty<Permission>());
+
+        Assert.Equal(2, result.Count);
+        Assert.Contains(TemplateA, result);
+        Assert.Contains(TemplateB, result);
+    }
+
+    [Fact]
+    public async Task GetAccessibleTemplateIdsAsync_ShouldReturnFullCatalogue_WhenUserHasTemplateAnyGrant()
+    {
+        var catalogue = Substitute.For<ITenantTemplateCatalogue>();
+        catalogue.GetTemplateIdsAsync(Arg.Any<CancellationToken>())
+            .Returns(new[] { TemplateA, TemplateB }.AsReadOnly());
+
+        var service = new UserAccessibleTemplateService(catalogue, CreatePermissionChecker(canManageTemplates: false));
+        var permissions = new[]
+        {
+            new Permission(
+                new PermissionId(Guid.NewGuid()),
+                new UserId(Guid.NewGuid()),
+                applicationId: null,
+                PermissionConstants.AnyResourceKey,
+                ResourceType.Template,
+                AccessType.Write,
+                DateTime.UtcNow,
+                new UserId(Guid.NewGuid()))
+        };
+
+        var result = await service.GetAccessibleTemplateIdsAsync(permissions);
+
+        Assert.Equal(2, result.Count);
+        Assert.Contains(TemplateA, result);
+        Assert.Contains(TemplateB, result);
+    }
+
+    [Fact]
     public async Task ResolveAccessibleListingFilterAsync_ShouldRestrictToRequestedAccessibleTemplate()
     {
         var catalogue = Substitute.For<ITenantTemplateCatalogue>();
         catalogue.GetTemplateIdsAsync(Arg.Any<CancellationToken>())
             .Returns(new[] { TemplateA, TemplateB }.AsReadOnly());
 
-        var service = new UserAccessibleTemplateService(catalogue);
+        var service = new UserAccessibleTemplateService(catalogue, CreatePermissionChecker(canManageTemplates: false));
         var permissions = new[] { CreatePermission(TemplateA), CreatePermission(TemplateB) };
 
         var result = await service.ResolveAccessibleListingFilterAsync(permissions, TemplateA.Value);
@@ -264,14 +312,21 @@ public class UserAccessibleTemplateServiceTests
         Assert.Equal(TemplateA, result[0]);
     }
 
+    private static IPermissionCheckerService CreatePermissionChecker(bool canManageTemplates)
+    {
+        var checker = Substitute.For<IPermissionCheckerService>();
+        checker.CanManageTemplates().Returns(canManageTemplates);
+        return checker;
+    }
+
     private static Permission CreatePermission(TemplateId templateId) =>
         new(
             new PermissionId(Guid.NewGuid()),
             new UserId(Guid.NewGuid()),
             applicationId: null,
             templateId.Value.ToString(),
-            GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums.ResourceType.Template,
-            GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums.AccessType.Read,
+            ResourceType.Template,
+            AccessType.Read,
             DateTime.UtcNow,
             new UserId(Guid.NewGuid()));
 }
