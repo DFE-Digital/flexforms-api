@@ -1,4 +1,3 @@
-using System.Security.Claims;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
@@ -12,11 +11,12 @@ using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace GovUK.Dfe.FlexForms.Application.Users.Commands;
 
 /// <summary>
-/// Removes a user from the current tenant by clearing their permissions on tenant templates
+/// Removes a user from the current tenant by clearing their permissions on tenant resources
 /// and deactivating their tenant membership. The user account row is left intact.
 /// </summary>
 public sealed record RemoveUserFromTenantCommand(Guid UserId)
@@ -29,12 +29,13 @@ public sealed class RemoveUserFromTenantCommandHandler(
     IEaRepository<User> userRepository,
     IUnitOfWork unitOfWork,
     IUserFactory userFactory,
-    ITenantTemplateCatalogue tenantTemplateCatalogue,
+    ITenantPermissionFilter tenantPermissionFilter,
     ITenantContextAccessor tenantContextAccessor,
     ITenantMembershipService tenantMembershipService,
     IPermissionCheckerService permissionCheckerService,
     IHttpContextAccessor httpContextAccessor,
-    ITenantAccessAuditWriter accessAuditWriter)
+    ITenantAccessAuditWriter accessAuditWriter,
+    IUserCacheInvalidator userCacheInvalidator)
     : IRequestHandler<RemoveUserFromTenantCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(
@@ -64,17 +65,12 @@ public sealed class RemoveUserFromTenantCommandHandler(
             return Result<bool>.Failure("You cannot remove yourself from the tenant");
         }
 
-        var catalogueIds = await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken);
-        if (catalogueIds.Count > 0)
-        {
-            var catalogueSet = catalogueIds.ToHashSet();
-            var tenantTemplateIds = UserTemplateAccess.GetTemplateIds(user)
-                .Where(catalogueSet.Contains)
-                .ToList();
+        var tenantPermissions = await tenantPermissionFilter.FilterToCurrentTenantAsync(
+            user.Permissions,
+            cancellationToken);
 
-            if (tenantTemplateIds.Count > 0)
-                userFactory.RemoveTemplatePermissionsFromUser(user, tenantTemplateIds);
-        }
+        foreach (var permission in tenantPermissions)
+            userFactory.RemovePermissionFromUser(user, permission);
 
         await tenantMembershipService.DeactivateMembershipAsync(
             currentTenant.Id,
@@ -82,6 +78,12 @@ public sealed class RemoveUserFromTenantCommandHandler(
             cancellationToken);
 
         await unitOfWork.CommitAsync(cancellationToken);
+
+        await userCacheInvalidator.InvalidateForUserAsync(
+            user.Email,
+            user.ExternalProviderId,
+            userId,
+            cancellationToken);
 
         var actorEmail = actingEmail
             ?? httpContextAccessor.HttpContext?.User?.Identity?.Name

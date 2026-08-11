@@ -2,6 +2,7 @@ using GovUK.Dfe.CoreLibs.Caching.Helpers;
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Security.Interfaces;
 using GovUK.Dfe.FlexForms.Application.Common;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
@@ -19,6 +20,7 @@ namespace GovUK.Dfe.FlexForms.Api.Security;
 /// role defaults (<see cref="RolePermission"/>) plus user overrides
 /// (<see cref="Permission"/>, including <c>ResourceType.Template</c> form access).
 /// When a user has any grant for a resource type+key, role grants for that key are omitted.
+/// User-owned grants are filtered to the current tenant before merge.
 /// </summary>
 public class UserPermissionClaimProvider(
     ILogger<UserPermissionClaimProvider> logger,
@@ -26,7 +28,8 @@ public class UserPermissionClaimProvider(
     ICacheService<IRedisCacheType> cacheService,
     ITenantContextAccessor tenantContextAccessor,
     ITenantMembershipService tenantMembershipService,
-    IRolePermissionService rolePermissionService) : ICustomClaimProvider
+    IRolePermissionService rolePermissionService,
+    ITenantPermissionFilter tenantPermissionFilter) : ICustomClaimProvider
 {
     public async Task<IEnumerable<Claim>> GetClaimsAsync(ClaimsPrincipal principal)
     {
@@ -87,7 +90,11 @@ public class UserPermissionClaimProvider(
                     .Apply(userRepo.Query().AsNoTracking())
                     .FirstOrDefaultAsync();
 
-                var userGrants = (userWithPerms?.Permissions ?? [])
+                var tenantUserPermissions = await tenantPermissionFilter.FilterToCurrentTenantAsync(
+                    userWithPerms?.Permissions ?? [],
+                    CancellationToken.None);
+
+                var userGrants = tenantUserPermissions
                     .Select(p => new PermissionClaimMerger.Grant(p.ResourceType, p.ResourceKey, p.AccessType))
                     .ToList();
 

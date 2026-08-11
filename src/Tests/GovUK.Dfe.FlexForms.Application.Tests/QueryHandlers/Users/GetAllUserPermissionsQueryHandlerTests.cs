@@ -5,6 +5,7 @@ using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.Queries;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
@@ -36,6 +37,14 @@ public class GetAllUserPermissionsQueryHandlerTests
         service.GetByRoleIdAsync(Arg.Any<RoleId>(), Arg.Any<CancellationToken>())
             .Returns(permissions ?? Array.Empty<RolePermission>());
         return service;
+    }
+
+    private static ITenantPermissionFilter CreateTenantPermissionFilter()
+    {
+        var filter = Substitute.For<ITenantPermissionFilter>();
+        filter.FilterToCurrentTenantAsync(Arg.Any<IEnumerable<Permission>>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => callInfo.Arg<IEnumerable<Permission>>().ToList());
+        return filter;
     }
 
     [Theory]
@@ -92,7 +101,8 @@ public class GetAllUserPermissionsQueryHandlerTests
             cacheService,
             tenantContextAccessor,
             CreateMembershipService(),
-            CreateRolePermissionService());
+            CreateRolePermissionService(),
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(new GetAllUserPermissionsQuery(userId), CancellationToken.None);
@@ -145,7 +155,8 @@ public class GetAllUserPermissionsQueryHandlerTests
             cacheService,
             tenantContextAccessor,
             CreateMembershipService(),
-            CreateRolePermissionService());
+            CreateRolePermissionService(),
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(new GetAllUserPermissionsQuery(userId), CancellationToken.None);
@@ -183,7 +194,8 @@ public class GetAllUserPermissionsQueryHandlerTests
             cacheService,
             tenantContextAccessor,
             CreateMembershipService(),
-            CreateRolePermissionService());
+            CreateRolePermissionService(),
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(new GetAllUserPermissionsQuery(userId), CancellationToken.None);
@@ -214,7 +226,8 @@ public class GetAllUserPermissionsQueryHandlerTests
             cacheService,
             tenantContextAccessor,
             CreateMembershipService(),
-            CreateRolePermissionService());
+            CreateRolePermissionService(),
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(new GetAllUserPermissionsQuery(userId), CancellationToken.None);

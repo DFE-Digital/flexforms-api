@@ -1,4 +1,3 @@
-using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.Commands;
@@ -25,7 +24,7 @@ public sealed class GetUserPermissionsQueryHandler(
     IPermissionCheckerService permissionCheckerService,
     ITenantContextAccessor tenantContextAccessor,
     ITenantMembershipService tenantMembershipService,
-    ITenantTemplateCatalogue tenantTemplateCatalogue,
+    ITenantPermissionFilter tenantPermissionFilter,
     IEaRepository<User> userRepository)
     : IRequestHandler<GetUserPermissionsQuery, Result<IReadOnlyCollection<UserPermissionDto>>>
 {
@@ -56,47 +55,11 @@ public sealed class GetUserPermissionsQueryHandler(
         if (membership is null)
             return Result<IReadOnlyCollection<UserPermissionDto>>.NotFound("User is not an active member of this tenant");
 
-        var tenantTemplateIds = (await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken))
-            .ToHashSet();
+        var tenantPermissions = await tenantPermissionFilter.FilterToCurrentTenantAsync(
+            user.Permissions,
+            cancellationToken);
 
-        var tenantPermissions = user.Permissions
-            .Where(p => BelongsToTenant(p, tenantTemplateIds))
-            .Select(SetUserPermissionsCommandHandler.Map)
-            .ToList();
-
-        return Result<IReadOnlyCollection<UserPermissionDto>>.Success(tenantPermissions);
-    }
-
-    /// <summary>
-    /// A permission belongs to the current tenant if its resource is a tenant template,
-    /// an application under a tenant template, the wildcard "Any" key, or a non-template
-    /// resource type (User, Notifications) which are inherently tenant-scoped via membership.
-    /// </summary>
-    internal static bool BelongsToTenant(Permission permission, HashSet<TemplateId> tenantTemplateIds)
-    {
-        switch (permission.ResourceType)
-        {
-            case ResourceType.Template:
-                if (string.Equals(permission.ResourceKey, Domain.Common.PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase))
-                    return true;
-                return Guid.TryParse(permission.ResourceKey, out var templateGuid)
-                       && tenantTemplateIds.Contains(new TemplateId(templateGuid));
-
-            case ResourceType.Application:
-            case ResourceType.ApplicationFiles:
-                if (string.Equals(permission.ResourceKey, Domain.Common.PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase))
-                    return true;
-                // Application permissions reference application GUIDs; filter via the
-                // loaded Application→TemplateVersion→TemplateId if available, otherwise
-                // keep (the resource validation on write already ensures tenant ownership).
-                if (permission.Application?.TemplateVersion?.TemplateId is { } appTemplateId)
-                    return tenantTemplateIds.Contains(appTemplateId);
-                return true;
-
-            case ResourceType.User:
-            case ResourceType.Notifications:
-            default:
-                return true;
-        }
+        return Result<IReadOnlyCollection<UserPermissionDto>>.Success(
+            tenantPermissions.Select(SetUserPermissionsCommandHandler.Map).ToList());
     }
 }

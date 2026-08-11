@@ -1,6 +1,7 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Applications.Queries;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
@@ -18,6 +19,14 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.QueryHandlers.Applications;
 public class GetApplicationByReferenceQueryHandlerTests
 {
     private const BindingFlags PublicInstance = BindingFlags.Public | BindingFlags.Instance | BindingFlags.FlattenHierarchy;
+
+    private static ITenantPermissionFilter CreateTenantPermissionFilter(bool belongsToTenant = true)
+    {
+        var filter = Substitute.For<ITenantPermissionFilter>();
+        filter.ApplicationBelongsToCurrentTenantAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>())
+            .Returns(belongsToTenant);
+        return filter;
+    }
 
     /// <summary>
     /// Sets navigation properties so GetApplicationByReferenceDtoQueryObject's projection can run in-memory (MockQueryable).
@@ -103,7 +112,8 @@ public class GetApplicationByReferenceQueryHandlerTests
         var handler = new GetApplicationByReferenceQueryHandler(
             applicationRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act - use IncludeSchema: true so projection populates TemplateSchema (required for assertions)
         var result = await handler.Handle(new GetApplicationByReferenceQuery(query.ApplicationReference, IncludeSchema: true), CancellationToken.None);
@@ -187,7 +197,8 @@ public class GetApplicationByReferenceQueryHandlerTests
         var handler = new GetApplicationByReferenceQueryHandler(
             applicationRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act - use IncludeSchema: true so projection populates TemplateSchema
         var result = await handler.Handle(new GetApplicationByReferenceQuery(query.ApplicationReference, IncludeSchema: true), CancellationToken.None);
@@ -220,7 +231,8 @@ public class GetApplicationByReferenceQueryHandlerTests
         var handler = new GetApplicationByReferenceQueryHandler(
             applicationRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -254,7 +266,8 @@ public class GetApplicationByReferenceQueryHandlerTests
         var handler = new GetApplicationByReferenceQueryHandler(
             applicationRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -319,7 +332,8 @@ public class GetApplicationByReferenceQueryHandlerTests
         var handler = new GetApplicationByReferenceQueryHandler(
             applicationRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);

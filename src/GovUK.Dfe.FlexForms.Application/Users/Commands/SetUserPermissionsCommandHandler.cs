@@ -76,6 +76,7 @@ public sealed class SetUserPermissionsCommandHandler(
     IEaRepository<User> userRepository,
     IApplicationRepository applicationRepository,
     ITenantTemplateCatalogue tenantTemplateCatalogue,
+    ITenantPermissionFilter tenantPermissionFilter,
     IUserFactory userFactory,
     IUnitOfWork unitOfWork,
     IUserCacheInvalidator userCacheInvalidator,
@@ -131,16 +132,14 @@ public sealed class SetUserPermissionsCommandHandler(
                     return Result<IReadOnlyCollection<UserPermissionDto>>.Failure(existenceError);
             }
 
-            var tenantTemplateIds = (await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken))
-                .ToHashSet();
-
             // Only remove permissions that belong to the current tenant;
             // permissions for other tenants are left untouched.
-            foreach (var existing in user.Permissions.ToList())
-            {
-                if (GetUserPermissionsQueryHandler.BelongsToTenant(existing, tenantTemplateIds))
-                    userFactory.RemovePermissionFromUser(user, existing);
-            }
+            var tenantPermissions = await tenantPermissionFilter.FilterToCurrentTenantAsync(
+                user.Permissions,
+                cancellationToken);
+
+            foreach (var existing in tenantPermissions)
+                userFactory.RemovePermissionFromUser(user, existing);
 
             foreach (var grant in grants)
             {

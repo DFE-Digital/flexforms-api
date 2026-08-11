@@ -3,6 +3,7 @@ using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Common;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
@@ -23,7 +24,8 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
         ICacheService<IRedisCacheType> cacheService,
         ITenantContextAccessor tenantContextAccessor,
         ITenantMembershipService tenantMembershipService,
-        IRolePermissionService rolePermissionService)
+        IRolePermissionService rolePermissionService,
+        ITenantPermissionFilter tenantPermissionFilter)
         : IRequestHandler<GetAllUserPermissionsQuery, Result<UserAuthorizationDto>>
     {
         public async Task<Result<UserAuthorizationDto>> Handle(
@@ -80,7 +82,9 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                             }
                         }
 
-                        var userGrants = userWithPermissions.Permissions
+                        var userGrants = (await tenantPermissionFilter.FilterToCurrentTenantAsync(
+                                userWithPermissions?.Permissions ?? [],
+                                cancellationToken))
                             .Select(p => new PermissionClaimMerger.Grant(p.ResourceType, p.ResourceKey, p.AccessType));
 
                         var mergedClaims = PermissionClaimMerger.Merge(roleGrants, userGrants);

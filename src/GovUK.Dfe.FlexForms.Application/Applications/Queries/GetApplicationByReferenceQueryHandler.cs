@@ -1,6 +1,7 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
@@ -18,7 +19,8 @@ public sealed record GetApplicationByReferenceQuery(string ApplicationReference,
 public sealed class GetApplicationByReferenceQueryHandler(
     IApplicationRepository applicationRepo,
     IHttpContextAccessor httpContextAccessor,
-    IPermissionCheckerService permissionCheckerService)
+    IPermissionCheckerService permissionCheckerService,
+    ITenantPermissionFilter tenantPermissionFilter)
     : IRequestHandler<GetApplicationByReferenceQuery, Result<ApplicationDto>>
 {
     public async Task<Result<ApplicationDto>> Handle(
@@ -37,6 +39,17 @@ public sealed class GetApplicationByReferenceQueryHandler(
 
             if (dto is null)
                 return Result<ApplicationDto>.NotFound("Application not found");
+
+            var templateId = dto.TemplateSchema?.TemplateId ?? Guid.Empty;
+            if (templateId == Guid.Empty)
+                return Result<ApplicationDto>.NotFound("Application not found");
+
+            if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(
+                    new TemplateId(templateId),
+                    cancellationToken))
+            {
+                return Result<ApplicationDto>.Forbid("Application does not belong to the current tenant");
+            }
 
             var canAccess = permissionCheckerService.HasPermission(
                 ResourceType.Application,

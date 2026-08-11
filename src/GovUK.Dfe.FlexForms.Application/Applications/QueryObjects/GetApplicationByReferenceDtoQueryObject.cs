@@ -30,15 +30,13 @@ public sealed class GetApplicationByReferenceDtoQueryObject(string applicationRe
                 DateSubmitted = a.Status == GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums.ApplicationStatus.Submitted
                     ? a.LastModifiedOn
                     : null,
-                TemplateSchema = includeSchema
-                    ? new TemplateSchemaDto
-                    {
-                        TemplateId = a.TemplateVersion!.Template!.Id!.Value,
-                        TemplateVersionId = a.TemplateVersion!.Id!.Value,
-                        VersionNumber = a.TemplateVersion!.VersionNumber,
-                        JsonSchema = a.TemplateVersion!.JsonSchema
-                    }
-                    : null,
+                TemplateSchema = new TemplateSchemaDto
+                {
+                    TemplateId = a.TemplateVersion!.Template!.Id!.Value,
+                    TemplateVersionId = a.TemplateVersion!.Id!.Value,
+                    VersionNumber = includeSchema ? a.TemplateVersion!.VersionNumber : string.Empty,
+                    JsonSchema = includeSchema ? a.TemplateVersion!.JsonSchema : string.Empty
+                },
                 CreatedBy = a.CreatedByUser == null
                     ? null
                     : new UserDto

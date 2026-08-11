@@ -3,6 +3,7 @@ using AutoFixture.Xunit2;
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Api.Security;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
@@ -25,6 +26,7 @@ public class UserPermissionClaimProviderTests
     private readonly ITenantContextAccessor _tenantContextAccessor;
     private readonly ITenantMembershipService _membershipService;
     private readonly IRolePermissionService _rolePermissionService;
+    private readonly ITenantPermissionFilter _tenantPermissionFilter;
     private readonly UserPermissionClaimProvider _provider;
 
     public UserPermissionClaimProviderTests()
@@ -35,10 +37,15 @@ public class UserPermissionClaimProviderTests
         _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
         _membershipService = Substitute.For<ITenantMembershipService>();
         _rolePermissionService = Substitute.For<IRolePermissionService>();
+        _tenantPermissionFilter = Substitute.For<ITenantPermissionFilter>();
 
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
         _tenantContextAccessor.CurrentTenant.Returns(
             new TenantConfiguration(Guid.NewGuid(), "Test", config, Array.Empty<string>()));
+
+        _tenantPermissionFilter
+            .FilterToCurrentTenantAsync(Arg.Any<IEnumerable<Permission>>(), Arg.Any<CancellationToken>())
+            .Returns(callInfo => callInfo.Arg<IEnumerable<Permission>>().ToList());
 
         _provider = new UserPermissionClaimProvider(
             _logger,
@@ -46,7 +53,8 @@ public class UserPermissionClaimProviderTests
             _cacheService,
             _tenantContextAccessor,
             _membershipService,
-            _rolePermissionService);
+            _rolePermissionService,
+            _tenantPermissionFilter);
     }
 
     [Fact]
