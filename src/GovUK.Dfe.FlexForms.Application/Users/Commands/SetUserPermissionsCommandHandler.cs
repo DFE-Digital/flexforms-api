@@ -4,6 +4,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Application.Users.Queries;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
@@ -130,8 +131,16 @@ public sealed class SetUserPermissionsCommandHandler(
                     return Result<IReadOnlyCollection<UserPermissionDto>>.Failure(existenceError);
             }
 
+            var tenantTemplateIds = (await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken))
+                .ToHashSet();
+
+            // Only remove permissions that belong to the current tenant;
+            // permissions for other tenants are left untouched.
             foreach (var existing in user.Permissions.ToList())
-                userFactory.RemovePermissionFromUser(user, existing);
+            {
+                if (GetUserPermissionsQueryHandler.BelongsToTenant(existing, tenantTemplateIds))
+                    userFactory.RemovePermissionFromUser(user, existing);
+            }
 
             foreach (var grant in grants)
             {
