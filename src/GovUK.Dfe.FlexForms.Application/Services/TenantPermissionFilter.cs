@@ -2,23 +2,29 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
-using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 
 namespace GovUK.Dfe.FlexForms.Application.Services;
 
 /// <inheritdoc />
 public sealed class TenantPermissionFilter(
     ITenantTemplateCatalogue tenantTemplateCatalogue,
-    IApplicationRepository applicationRepository) : ITenantPermissionFilter
+    IApplicationRepository applicationRepository,
+    ITenantContextAccessor tenantContextAccessor) : ITenantPermissionFilter
 {
     /// <inheritdoc />
     public async Task<IReadOnlyList<Permission>> FilterToCurrentTenantAsync(
         IEnumerable<Permission> permissions,
         CancellationToken cancellationToken = default)
     {
+        var currentTenantId = tenantContextAccessor.CurrentTenant?.Id;
+        if (currentTenantId is null)
+            return Array.Empty<Permission>();
+
         var tenantTemplateIds = (await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken))
+            .Select(id => id.Value)
             .ToHashSet();
 
         if (tenantTemplateIds.Count == 0)
@@ -28,23 +34,66 @@ public sealed class TenantPermissionFilter(
         if (permissionList.Count == 0)
             return permissionList;
 
-        var applicationTemplateMap = await BuildApplicationTemplateMapAsync(permissionList, cancellationToken);
+        var applicationOwnership = await BuildApplicationOwnershipMapAsync(
+            permissionList,
+            cancellationToken);
 
         return permissionList
-            .Where(p => BelongsToTenant(p, tenantTemplateIds, applicationTemplateMap))
+            .Where(p => BelongsToTenant(
+                p,
+                currentTenantId.Value,
+                tenantTemplateIds,
+                applicationOwnership))
             .ToList();
     }
 
     /// <inheritdoc />
-    public Task<bool> ApplicationBelongsToCurrentTenantAsync(
-        TemplateId templateId,
+    public async Task<bool> ApplicationBelongsToCurrentTenantAsync(
+        Guid applicationId,
         CancellationToken cancellationToken = default)
-        => tenantTemplateCatalogue.ContainsAsync(templateId, cancellationToken);
+    {
+        var currentTenantId = tenantContextAccessor.CurrentTenant?.Id;
+        if (currentTenantId is null || applicationId == Guid.Empty)
+            return false;
 
+        var tenantTemplateIds = (await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken))
+            .Select(id => id.Value)
+            .ToHashSet();
+
+        if (tenantTemplateIds.Count == 0)
+            return false;
+
+        var ownership = await applicationRepository.Query()
+            .AsNoTracking()
+            .Where(a => a.Id != null && a.Id.Value == applicationId)
+            .Select(a => new
+            {
+                TemplateId = a.TemplateVersion!.TemplateId.Value,
+                TemplateTenantId = a.TemplateVersion!.Template!.TenantId
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (ownership is null)
+            return false;
+
+        return IsTemplateInTenant(
+            ownership.TemplateId,
+            ownership.TemplateTenantId,
+            currentTenantId.Value,
+            tenantTemplateIds);
+    }
+
+    /// <summary>
+    /// Application/template grants belong to the current tenant when their template is in the
+    /// tenant catalogue and, when the template is tenant-owned, the owning tenant matches.
+    /// This prevents HostMappings overlap from leaking another tenant's application grants
+    /// into the permissions list.
+    /// </summary>
     internal static bool BelongsToTenant(
         Permission permission,
-        HashSet<TemplateId> tenantTemplateIds,
-        IReadOnlyDictionary<Guid, TemplateId> applicationTemplateMap)
+        Guid currentTenantId,
+        HashSet<Guid> tenantTemplateIds,
+        IReadOnlyDictionary<Guid, ApplicationOwnership> applicationOwnership)
     {
         switch (permission.ResourceType)
         {
@@ -53,21 +102,24 @@ public sealed class TenantPermissionFilter(
                     return tenantTemplateIds.Count > 0;
 
                 return Guid.TryParse(permission.ResourceKey, out var templateGuid)
-                       && tenantTemplateIds.Contains(new TemplateId(templateGuid));
+                       && IsTemplateInTenant(templateGuid, owningTenantId: null, currentTenantId, tenantTemplateIds);
 
             case ResourceType.Application:
             case ResourceType.ApplicationFiles:
                 if (IsAnyKey(permission.ResourceKey))
                     return tenantTemplateIds.Count > 0;
 
-                if (permission.Application?.TemplateVersion?.TemplateId is { } loadedTemplateId)
-                    return tenantTemplateIds.Contains(loadedTemplateId);
-
-                if (!Guid.TryParse(permission.ResourceKey, out var applicationGuid))
+                if (!TryResolveApplicationId(permission, out var applicationGuid))
                     return false;
 
-                return applicationTemplateMap.TryGetValue(applicationGuid, out var mappedTemplateId)
-                       && tenantTemplateIds.Contains(mappedTemplateId);
+                if (!applicationOwnership.TryGetValue(applicationGuid, out var ownership))
+                    return false;
+
+                return IsTemplateInTenant(
+                    ownership.TemplateId,
+                    ownership.TemplateTenantId,
+                    currentTenantId,
+                    tenantTemplateIds);
 
             case ResourceType.User:
             case ResourceType.Notifications:
@@ -76,37 +128,66 @@ public sealed class TenantPermissionFilter(
         }
     }
 
-    private async Task<IReadOnlyDictionary<Guid, TemplateId>> BuildApplicationTemplateMapAsync(
+    internal static bool IsTemplateInTenant(
+        Guid templateId,
+        Guid? owningTenantId,
+        Guid currentTenantId,
+        HashSet<Guid> tenantTemplateIds)
+    {
+        if (!tenantTemplateIds.Contains(templateId))
+            return false;
+
+        // Tenant-owned templates are authoritative: never treat another tenant's owned
+        // template as belonging here just because it also appears in HostMappings.
+        if (owningTenantId is Guid owner && owner != currentTenantId)
+            return false;
+
+        return true;
+    }
+
+    private async Task<IReadOnlyDictionary<Guid, ApplicationOwnership>> BuildApplicationOwnershipMapAsync(
         IReadOnlyCollection<Permission> permissions,
         CancellationToken cancellationToken)
     {
-        var applicationIds = permissions
+        var applicationGuids = permissions
             .Where(p => p.ResourceType is ResourceType.Application or ResourceType.ApplicationFiles)
-            .Where(p => !IsAnyKey(p.ResourceKey))
-            .Select(p => Guid.TryParse(p.ResourceKey, out var id) ? id : Guid.Empty)
+            .Select(p => TryResolveApplicationId(p, out var id) ? id : Guid.Empty)
             .Where(id => id != Guid.Empty)
             .Distinct()
-            .Select(id => new ApplicationId(id))
             .ToList();
 
-        if (applicationIds.Count == 0)
-            return new Dictionary<Guid, TemplateId>();
+        if (applicationGuids.Count == 0)
+            return new Dictionary<Guid, ApplicationOwnership>();
 
         var rows = await applicationRepository.Query()
             .AsNoTracking()
-            .Where(a => applicationIds.Contains(a.Id!))
+            .Where(a => a.Id != null && applicationGuids.Contains(a.Id.Value))
             .Select(a => new
             {
                 ApplicationId = a.Id!.Value,
-                TemplateId = a.TemplateVersion!.TemplateId
+                TemplateId = a.TemplateVersion!.TemplateId.Value,
+                TemplateTenantId = a.TemplateVersion!.Template!.TenantId
             })
             .ToListAsync(cancellationToken);
 
         return rows.ToDictionary(
             row => row.ApplicationId,
-            row => row.TemplateId);
+            row => new ApplicationOwnership(row.TemplateId, row.TemplateTenantId));
+    }
+
+    private static bool TryResolveApplicationId(Permission permission, out Guid applicationId)
+    {
+        if (permission.ApplicationId is not null)
+        {
+            applicationId = permission.ApplicationId.Value;
+            return applicationId != Guid.Empty;
+        }
+
+        return Guid.TryParse(permission.ResourceKey, out applicationId) && applicationId != Guid.Empty;
     }
 
     private static bool IsAnyKey(string resourceKey) =>
         string.Equals(resourceKey, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase);
+
+    internal readonly record struct ApplicationOwnership(Guid TemplateId, Guid? TemplateTenantId);
 }

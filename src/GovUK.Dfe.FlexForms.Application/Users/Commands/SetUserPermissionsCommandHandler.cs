@@ -170,7 +170,9 @@ public sealed class SetUserPermissionsCommandHandler(
                 cancellationToken);
 
             return Result<IReadOnlyCollection<UserPermissionDto>>.Success(
-                user.Permissions.Select(Map).ToList());
+                (await tenantPermissionFilter.FilterToCurrentTenantAsync(user.Permissions, cancellationToken))
+                    .Select(Map)
+                    .ToList());
         }
         catch (InvalidOperationException ex)
         {
@@ -207,8 +209,12 @@ public sealed class SetUserPermissionsCommandHandler(
                     return $"Application '{key}' was not found.";
 
                 var templateId = application.TemplateVersion?.TemplateId;
+                var templateTenantId = application.TemplateVersion?.Template?.TenantId;
+                var currentTenantId = tenantContextAccessor.CurrentTenant?.Id;
                 if (templateId is null
-                    || !await tenantTemplateCatalogue.ContainsAsync(templateId, cancellationToken))
+                    || currentTenantId is null
+                    || !await tenantTemplateCatalogue.ContainsAsync(templateId, cancellationToken)
+                    || (templateTenantId is Guid owner && owner != currentTenantId.Value))
                 {
                     return $"Application '{key}' does not belong to the current tenant.";
                 }

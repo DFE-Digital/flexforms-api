@@ -23,7 +23,7 @@ public class GetApplicationByReferenceQueryHandlerTests
     private static ITenantPermissionFilter CreateTenantPermissionFilter(bool belongsToTenant = true)
     {
         var filter = Substitute.For<ITenantPermissionFilter>();
-        filter.ApplicationBelongsToCurrentTenantAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>())
+        filter.ApplicationBelongsToCurrentTenantAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(belongsToTenant);
         return filter;
     }

@@ -40,12 +40,8 @@ public sealed class GetApplicationByReferenceQueryHandler(
             if (dto is null)
                 return Result<ApplicationDto>.NotFound("Application not found");
 
-            var templateId = dto.TemplateSchema?.TemplateId ?? Guid.Empty;
-            if (templateId == Guid.Empty)
-                return Result<ApplicationDto>.NotFound("Application not found");
-
             if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(
-                    new TemplateId(templateId),
+                    dto.ApplicationId,
                     cancellationToken))
             {
                 return Result<ApplicationDto>.Forbid("Application does not belong to the current tenant");

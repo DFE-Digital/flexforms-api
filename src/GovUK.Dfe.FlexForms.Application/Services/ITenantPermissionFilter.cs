@@ -1,5 +1,4 @@
 using GovUK.Dfe.FlexForms.Domain.Entities;
-using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 
 namespace GovUK.Dfe.FlexForms.Application.Services;
 
@@ -16,9 +15,9 @@ public interface ITenantPermissionFilter
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Returns true when the application's template belongs to the current tenant catalogue.
+    /// Returns true when the application's template belongs to the current tenant.
     /// </summary>
     Task<bool> ApplicationBelongsToCurrentTenantAsync(
-        TemplateId templateId,
+        Guid applicationId,
         CancellationToken cancellationToken = default);
 }

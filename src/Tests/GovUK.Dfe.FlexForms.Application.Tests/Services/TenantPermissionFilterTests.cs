@@ -8,8 +8,10 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.Services;
 
 public class TenantPermissionFilterTests
 {
-    private readonly TemplateId _tenantTemplateId = new(Guid.NewGuid());
-    private readonly TemplateId _otherTemplateId = new(Guid.NewGuid());
+    private readonly Guid _currentTenantId = Guid.NewGuid();
+    private readonly Guid _otherTenantId = Guid.NewGuid();
+    private readonly Guid _tenantTemplateId = Guid.NewGuid();
+    private readonly Guid _otherTemplateId = Guid.NewGuid();
     private readonly Guid _tenantApplicationId = Guid.NewGuid();
     private readonly Guid _otherApplicationId = Guid.NewGuid();
 
@@ -17,59 +19,74 @@ public class TenantPermissionFilterTests
     public void BelongsToTenant_ShouldKeepTenantTemplatePermissions()
     {
         var userId = new UserId(Guid.NewGuid());
-        var tenantTemplateIds = new HashSet<TemplateId> { _tenantTemplateId };
-        var map = new Dictionary<Guid, TemplateId>();
+        var tenantTemplateIds = new HashSet<Guid> { _tenantTemplateId };
+        var map = new Dictionary<Guid, TenantPermissionFilter.ApplicationOwnership>();
 
-        var tenantPermission = CreatePermission(userId, ResourceType.Template, _tenantTemplateId.Value.ToString(), AccessType.Read);
-        var otherPermission = CreatePermission(userId, ResourceType.Template, _otherTemplateId.Value.ToString(), AccessType.Read);
+        var tenantPermission = CreatePermission(userId, ResourceType.Template, _tenantTemplateId.ToString(), AccessType.Read);
+        var otherPermission = CreatePermission(userId, ResourceType.Template, _otherTemplateId.ToString(), AccessType.Read);
 
-        Assert.True(TenantPermissionFilter.BelongsToTenant(tenantPermission, tenantTemplateIds, map));
-        Assert.False(TenantPermissionFilter.BelongsToTenant(otherPermission, tenantTemplateIds, map));
+        Assert.True(TenantPermissionFilter.BelongsToTenant(tenantPermission, _currentTenantId, tenantTemplateIds, map));
+        Assert.False(TenantPermissionFilter.BelongsToTenant(otherPermission, _currentTenantId, tenantTemplateIds, map));
     }
 
     [Fact]
-    public void BelongsToTenant_ShouldKeepOnlyTenantApplicationPermissions()
+    public void BelongsToTenant_ShouldKeepOnlyCurrentTenantOwnedApplicationPermissions()
     {
         var userId = new UserId(Guid.NewGuid());
-        var tenantTemplateIds = new HashSet<TemplateId> { _tenantTemplateId };
-        var map = new Dictionary<Guid, TemplateId>
+        // Both templates appear in HostMappings/catalogue (overlap), but ownership differs.
+        var tenantTemplateIds = new HashSet<Guid> { _tenantTemplateId, _otherTemplateId };
+        var map = new Dictionary<Guid, TenantPermissionFilter.ApplicationOwnership>
         {
-            [_tenantApplicationId] = _tenantTemplateId,
-            [_otherApplicationId] = _otherTemplateId
+            [_tenantApplicationId] = new(_tenantTemplateId, _currentTenantId),
+            [_otherApplicationId] = new(_otherTemplateId, _otherTenantId)
         };
 
         var tenantPermission = CreatePermission(userId, ResourceType.Application, _tenantApplicationId.ToString(), AccessType.Read);
         var otherPermission = CreatePermission(userId, ResourceType.Application, _otherApplicationId.ToString(), AccessType.Read);
 
-        Assert.True(TenantPermissionFilter.BelongsToTenant(tenantPermission, tenantTemplateIds, map));
-        Assert.False(TenantPermissionFilter.BelongsToTenant(otherPermission, tenantTemplateIds, map));
+        Assert.True(TenantPermissionFilter.BelongsToTenant(tenantPermission, _currentTenantId, tenantTemplateIds, map));
+        Assert.False(TenantPermissionFilter.BelongsToTenant(otherPermission, _currentTenantId, tenantTemplateIds, map));
     }
 
     [Fact]
     public void BelongsToTenant_ShouldRejectUnknownApplicationPermissions()
     {
         var userId = new UserId(Guid.NewGuid());
-        var tenantTemplateIds = new HashSet<TemplateId> { _tenantTemplateId };
+        var tenantTemplateIds = new HashSet<Guid> { _tenantTemplateId };
         var unknownApplicationId = Guid.NewGuid();
         var permission = CreatePermission(userId, ResourceType.Application, unknownApplicationId.ToString(), AccessType.Read);
 
         Assert.False(TenantPermissionFilter.BelongsToTenant(
             permission,
+            _currentTenantId,
             tenantTemplateIds,
-            new Dictionary<Guid, TemplateId>()));
+            new Dictionary<Guid, TenantPermissionFilter.ApplicationOwnership>()));
     }
 
     [Fact]
     public void BelongsToTenant_ShouldKeepTenantWideAnyPermission()
     {
         var userId = new UserId(Guid.NewGuid());
-        var tenantTemplateIds = new HashSet<TemplateId> { _tenantTemplateId };
+        var tenantTemplateIds = new HashSet<Guid> { _tenantTemplateId };
         var permission = CreatePermission(userId, ResourceType.Application, PermissionConstants.AnyResourceKey, AccessType.Read);
 
         Assert.True(TenantPermissionFilter.BelongsToTenant(
             permission,
+            _currentTenantId,
             tenantTemplateIds,
-            new Dictionary<Guid, TemplateId>()));
+            new Dictionary<Guid, TenantPermissionFilter.ApplicationOwnership>()));
+    }
+
+    [Fact]
+    public void IsTemplateInTenant_ShouldRejectOtherTenantOwnedTemplateEvenWhenInCatalogue()
+    {
+        var tenantTemplateIds = new HashSet<Guid> { _otherTemplateId };
+
+        Assert.False(TenantPermissionFilter.IsTemplateInTenant(
+            _otherTemplateId,
+            _otherTenantId,
+            _currentTenantId,
+            tenantTemplateIds));
     }
 
     private static Permission CreatePermission(
