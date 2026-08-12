@@ -216,6 +216,11 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                 {
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.NotificationsPermissionRequirement(AccessType.Write.ToString()));
+                },
+                ["CanDeleteNotifications"] = pb =>
+                {
+                    pb.RequireAuthenticatedUser();
+                    pb.AddRequirements(new Handlers.NotificationsPermissionRequirement(AccessType.Delete.ToString()));
                 }
             };
 

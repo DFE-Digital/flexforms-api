@@ -38,9 +38,9 @@ public sealed class ClearNotificationsByCategoryCommandHandler(
             if (string.IsNullOrEmpty(principalId))
                 return Result<bool>.Forbid("No user identifier");
 
-            var canAccess = permissionCheckerService.HasPermission(ResourceType.Notifications, principalId, AccessType.Write);
+            var canAccess = permissionCheckerService.HasPermission(ResourceType.Notifications, principalId, AccessType.Delete);
             if (!canAccess)
-                return Result<bool>.Forbid("User does not have permission to modify notifications");
+                return Result<bool>.Forbid("User does not have permission to delete notifications");
 
             await notificationService.ClearNotificationsByCategoryAsync(request.Category,principalId, cancellationToken);
 

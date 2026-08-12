@@ -193,22 +193,22 @@
     {
       "Controller": "NotificationsController",
       "Action": "RemoveNotificationAsync",
-      "ExpectedSecurity": "Authorize: Policy=CanWriteNotifications"
+      "ExpectedSecurity": "Authorize: Policy=CanDeleteNotifications"
     },
     {
       "Controller": "NotificationsController",
       "Action": "ClearAllNotificationsAsync",
-      "ExpectedSecurity": "Authorize: Policy=CanWriteNotifications"
+      "ExpectedSecurity": "Authorize: Policy=CanDeleteNotifications"
     },
     {
       "Controller": "NotificationsController",
       "Action": "ClearNotificationsByCategoryAsync",
-      "ExpectedSecurity": "Authorize: Policy=CanWriteNotifications"
+      "ExpectedSecurity": "Authorize: Policy=CanDeleteNotifications"
     },
     {
       "Controller": "NotificationsController",
       "Action": "ClearNotificationsByContextAsync",
-      "ExpectedSecurity": "Authorize: Policy=CanWriteNotifications"
+      "ExpectedSecurity": "Authorize: Policy=CanDeleteNotifications"
     },
     {
       "Controller": "HubAuthController",

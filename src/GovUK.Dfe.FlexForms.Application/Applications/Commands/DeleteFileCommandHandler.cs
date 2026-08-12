@@ -70,14 +70,6 @@ public class DeleteFileCommandHandler(
             if (application is null)
                 return Result<bool>.NotFound("Application not found");
 
-            // Check if user is the application owner or admin
-            var isOwner = permissionCheckerService.IsApplicationOwner(application, dbUser.Id!.Value.ToString());
-            var isAdmin = permissionCheckerService.IsAdmin();
-
-            if (!isOwner && !isAdmin)
-                return Result<bool>.Failure("Only the application owner or admin can remove files");
-
-            // Permission check: user must have delete permission for this file
             if (!permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, request.ApplicationId.ToString(),
                     AccessType.Delete))
                 return Result<bool>.Forbid("User does not have permission to delete this file");

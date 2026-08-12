@@ -238,9 +238,11 @@ public class DeleteFileCommandHandlerTests
 
     [Theory]
     [CustomAutoData(typeof(ApplicationCustomization), typeof(UserCustomization))]
-    public async Task Handle_Should_Return_Failure_When_User_Not_Owner_Or_Admin(
+    public async Task Handle_Should_Allow_NonOwner_With_Delete_Permission(
         Domain.Entities.Application application,
         User user,
+        File file,
+        long fileSize,
         Guid fileId,
         Guid applicationId)
     {
@@ -253,12 +255,11 @@ public class DeleteFileCommandHandlerTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
         _httpContextAccessor.HttpContext.Returns(httpContext);
 
-        // Create a user with the same email as in the HTTP context
         var userWithMatchingEmail = new User(
             user.Id!,
             user.RoleId,
             user.Name,
-            "test@example.com", // Match the email in the HTTP context
+            "test@example.com",
             user.CreatedOn,
             user.CreatedBy,
             user.LastModifiedOn,
@@ -269,9 +270,8 @@ public class DeleteFileCommandHandlerTests
         var queryable = new List<User> { userWithMatchingEmail }.AsQueryable().BuildMock();
         _userRepository.Query().Returns(queryable);
 
-        // Create an application with the same ID as the applicationId parameter
         var applicationWithMatchingId = new Domain.Entities.Application(
-            new ApplicationId(applicationId), // Use the same ID as the parameter
+            new ApplicationId(applicationId),
             application.ApplicationReference,
             application.TemplateVersionId,
             application.CreatedOn,
@@ -283,8 +283,22 @@ public class DeleteFileCommandHandlerTests
         var applicationQueryable = new List<Domain.Entities.Application> { applicationWithMatchingId }.AsQueryable().BuildMock();
         _applicationRepo.Query().Returns(applicationQueryable);
 
-        _permissionCheckerService.IsApplicationOwner(applicationWithMatchingId, userWithMatchingEmail.Id!.Value.ToString()).Returns(false);
-        _permissionCheckerService.IsAdmin().Returns(false);
+        var fileWithMatchingId = new File(
+            new FileId(fileId),
+            file.ApplicationId,
+            file.Name,
+            file.Description,
+            file.OriginalFileName,
+            file.FileName,
+            file.Path,
+            file.UploadedOn,
+            file.UploadedBy, fileSize);
+
+        var fileQueryable = new List<File> { fileWithMatchingId }.AsQueryable().BuildMock();
+        _fileRepository.Query().Returns(fileQueryable);
+
+        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, applicationId.ToString(), AccessType.Delete)
+            .Returns(true);
 
         var command = new DeleteFileCommand(fileId, applicationId);
 
@@ -292,13 +306,13 @@ public class DeleteFileCommandHandlerTests
         var result = await _handler.Handle(command, CancellationToken.None);
 
         // Assert
-        Assert.False(result.IsSuccess);
-        Assert.Equal("Only the application owner or admin can remove files", result.Error);
+        Assert.True(result.IsSuccess);
+        _fileFactory.Received(1).DeleteFile(fileWithMatchingId);
     }
 
     [Theory]
     [CustomAutoData(typeof(ApplicationCustomization), typeof(UserCustomization))]
-    public async Task Handle_Should_Return_Failure_When_User_No_Delete_Permission(
+    public async Task Handle_Should_Return_Failure_When_User_No_Delete_Permission_Regardless_Of_Ownership(
         Domain.Entities.Application application,
         User user,
         Guid fileId,

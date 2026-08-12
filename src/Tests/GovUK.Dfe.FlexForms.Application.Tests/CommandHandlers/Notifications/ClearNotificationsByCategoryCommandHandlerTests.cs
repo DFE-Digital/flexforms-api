@@ -48,7 +48,7 @@ public class ClearNotificationsByCategoryCommandHandlerTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
         _httpContextAccessor.HttpContext.Returns(httpContext);
 
-        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Write).Returns(true);
+        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Delete).Returns(true);
 
         // Act
         var result = await _handler.Handle(command, CancellationToken.None);
@@ -73,14 +73,14 @@ public class ClearNotificationsByCategoryCommandHandlerTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
         _httpContextAccessor.HttpContext.Returns(httpContext);
 
-        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Write).Returns(false);
+        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Delete).Returns(false);
 
         // Act
         var result = await _handler.Handle(command, CancellationToken.None);
 
         // Assert
         Assert.False(result.IsSuccess);
-        Assert.Equal("User does not have permission to modify notifications", result.Error);
+        Assert.Equal("User does not have permission to delete notifications", result.Error);
         await _notificationService.DidNotReceive().ClearNotificationsByCategoryAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -138,14 +138,14 @@ public class ClearNotificationsByCategoryCommandHandlerTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
         _httpContextAccessor.HttpContext.Returns(httpContext);
 
-        _permissionCheckerService.HasPermission(ResourceType.Notifications, appId, AccessType.Write).Returns(true);
+        _permissionCheckerService.HasPermission(ResourceType.Notifications, appId, AccessType.Delete).Returns(true);
 
         // Act
         var result = await _handler.Handle(command, CancellationToken.None);
 
         // Assert
         Assert.True(result.IsSuccess);
-        _permissionCheckerService.Received(1).HasPermission(ResourceType.Notifications, appId, AccessType.Write);
+        _permissionCheckerService.Received(1).HasPermission(ResourceType.Notifications, appId, AccessType.Delete);
         await _notificationService.Received(1).ClearNotificationsByCategoryAsync(command.Category, appId, Arg.Any<CancellationToken>());
     }
 
@@ -164,7 +164,7 @@ public class ClearNotificationsByCategoryCommandHandlerTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
         _httpContextAccessor.HttpContext.Returns(httpContext);
 
-        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Write).Returns(true);
+        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Delete).Returns(true);
 
         var exceptionMessage = "Test exception";
         _notificationService.ClearNotificationsByCategoryAsync(command.Category, email, Arg.Any<CancellationToken>())

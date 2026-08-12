@@ -49,7 +49,7 @@ public class RemoveNotificationCommandHandlerTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
         _httpContextAccessor.HttpContext.Returns(httpContext);
 
-        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Write).Returns(true);
+        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Delete).Returns(true);
 
         // Act
         var result = await _handler.Handle(command, CancellationToken.None);
@@ -79,14 +79,14 @@ public class RemoveNotificationCommandHandlerTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
         _httpContextAccessor.HttpContext.Returns(httpContext);
 
-        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Write).Returns(false);
+        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Delete).Returns(false);
 
         // Act
         var result = await _handler.Handle(command, CancellationToken.None);
 
         // Assert
         Assert.False(result.IsSuccess);
-        Assert.Equal("User does not have permission to modify notifications", result.Error);
+        Assert.Equal("User does not have permission to delete notifications", result.Error);
         await _notificationService.DidNotReceive().RemoveNotificationAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -124,7 +124,7 @@ public class RemoveNotificationCommandHandlerTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
         _httpContextAccessor.HttpContext.Returns(httpContext);
 
-        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Write).Returns(true);
+        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Delete).Returns(true);
 
         var exceptionMessage = "Test exception";
         _notificationService.RemoveNotificationAsync(command.NotificationId, Arg.Any<CancellationToken>())

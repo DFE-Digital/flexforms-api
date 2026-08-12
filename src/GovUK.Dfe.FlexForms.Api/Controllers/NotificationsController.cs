@@ -210,7 +210,7 @@ public class NotificationsController(ISender sender) : ControllerBase
     [SwaggerResponse(404, "Notification not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
     [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
-    [Authorize(Policy = "CanWriteNotifications")]
+    [Authorize(Policy = "CanDeleteNotifications")]
     public async Task<IActionResult> RemoveNotificationAsync(
         [FromRoute] string notificationId,
         CancellationToken cancellationToken)
@@ -234,7 +234,7 @@ public class NotificationsController(ISender sender) : ControllerBase
     [SwaggerResponse(403, "Forbidden - user does not have required permissions", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
     [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
-    [Authorize(Policy = "CanWriteNotifications")]
+    [Authorize(Policy = "CanDeleteNotifications")]
     public async Task<IActionResult> ClearAllNotificationsAsync(CancellationToken cancellationToken)
     {
         var command = new ClearAllNotificationsCommand();
@@ -256,7 +256,7 @@ public class NotificationsController(ISender sender) : ControllerBase
     [SwaggerResponse(403, "Forbidden - user does not have required permissions", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
     [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
-    [Authorize(Policy = "CanWriteNotifications")]
+    [Authorize(Policy = "CanDeleteNotifications")]
     public async Task<IActionResult> ClearNotificationsByCategoryAsync(
         [FromRoute] string category,
         CancellationToken cancellationToken)
@@ -280,7 +280,7 @@ public class NotificationsController(ISender sender) : ControllerBase
     [SwaggerResponse(403, "Forbidden - user does not have required permissions", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
     [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
-    [Authorize(Policy = "CanWriteNotifications")]
+    [Authorize(Policy = "CanDeleteNotifications")]
     public async Task<IActionResult> ClearNotificationsByContextAsync(
         [FromRoute] string context,
         CancellationToken cancellationToken)
