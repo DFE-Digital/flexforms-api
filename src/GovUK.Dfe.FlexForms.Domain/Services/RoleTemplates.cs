@@ -10,7 +10,7 @@ namespace GovUK.Dfe.FlexForms.Domain.Services;
 public static class RoleTemplates
 {
     public const string CaseworkerKey = "Caseworker";
-    public const string ReviewerKey = "Reviewer";
+    public const string TemplateManagerKey = "TemplateManager";
 
     public sealed record Grant(ResourceType ResourceType, string ResourceKey, AccessType AccessType);
 
@@ -25,20 +25,18 @@ public static class RoleTemplates
         new Template(
             CaseworkerKey,
             "Caseworker",
-            "Read all applications and files; create applications on any template.",
+            "Read-Only access to all applications and files.",
             [
                 new Grant(ResourceType.Application, PermissionConstants.AnyResourceKey, AccessType.Read),
                 new Grant(ResourceType.ApplicationFiles, PermissionConstants.AnyResourceKey, AccessType.Read),
-                new Grant(ResourceType.Template, PermissionConstants.AnyResourceKey, AccessType.Write)
             ]),
 
         new Template(
-            ReviewerKey,
-            "Reviewer",
-            "Read-only access to all applications and files in the tenant.",
+            TemplateManagerKey,
+            "TemplateManager",
+            "Read, write and manage all templates.",
             [
-                new Grant(ResourceType.Application, PermissionConstants.AnyResourceKey, AccessType.Read),
-                new Grant(ResourceType.ApplicationFiles, PermissionConstants.AnyResourceKey, AccessType.Read)
+                new Grant(ResourceType.Template, PermissionConstants.AnyResourceKey, AccessType.Manage),
             ])
     ];
 
