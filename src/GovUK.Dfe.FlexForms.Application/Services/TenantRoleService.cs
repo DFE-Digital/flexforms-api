@@ -65,7 +65,7 @@ public sealed class TenantRoleService(
     public async Task<Role?> GetByIdAsync(Guid tenantId, RoleId roleId, CancellationToken cancellationToken = default)
     {
         return await new GetTenantRoleByIdQueryObject(tenantId, roleId)
-            .Apply(roleRepository.Query())
+            .Apply(roleRepository.Query().AsNoTracking())
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -75,7 +75,7 @@ public sealed class TenantRoleService(
             return null;
 
         return await new GetTenantRoleByNameQueryObject(tenantId, roleName.Trim())
-            .Apply(roleRepository.Query())
+            .Apply(roleRepository.Query().AsNoTracking())
             .FirstOrDefaultAsync(cancellationToken);
     }
 
@@ -100,6 +100,8 @@ public sealed class TenantRoleService(
     public async Task RenameAsync(Role role, string newName, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(role);
+        if (role.Id is null)
+            throw new ArgumentException("Role must have an Id.", nameof(role));
 
         // Domain owns rename + name policy; uniqueness needs the database.
         var pendingName = newName?.Trim() ?? throw new ArgumentNullException(nameof(newName));
@@ -110,8 +112,8 @@ public sealed class TenantRoleService(
                 throw new InvalidOperationException($"A role named '{pendingName}' already exists for this tenant.");
         }
 
-        role.Rename(newName);
-        await Task.CompletedTask;
+        var tracked = await GetTrackedByIdAsync(role, cancellationToken);
+        tracked.Rename(newName);
     }
 
     public async Task DeleteAsync(Role role, CancellationToken cancellationToken = default)
@@ -132,7 +134,20 @@ public sealed class TenantRoleService(
                 $"Role '{role.Name}' cannot be deleted while users are assigned to it.");
         }
 
+        var tracked = await GetTrackedByIdAsync(role, cancellationToken);
         // RolePermissions cascade-delete with the Role (EF relationship).
-        await roleRepository.RemoveAsync(role, cancellationToken);
+        await roleRepository.RemoveAsync(tracked, cancellationToken);
+    }
+
+    private async Task<Role> GetTrackedByIdAsync(Role role, CancellationToken cancellationToken)
+    {
+        if (role.TenantId is not Guid tenantId || role.Id is null)
+            return role;
+
+        var tracked = await new GetTenantRoleByIdQueryObject(tenantId, role.Id)
+            .Apply(roleRepository.Query())
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return tracked ?? role;
     }
 }

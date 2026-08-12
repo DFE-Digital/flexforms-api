@@ -206,6 +206,10 @@ public class ExternalApplicationsContext : DbContext
         b.HasIndex(e => e.TenantId)
             .HasDatabaseName("IX_Roles_TenantId");
 
+        b.Navigation(r => r.Permissions)
+            .HasField("_permissions")
+            .UsePropertyAccessMode(PropertyAccessMode.Field);
+
         if (useTemporal)
         {
             b.Property<DateTime>("PeriodStart")
