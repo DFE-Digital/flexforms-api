@@ -595,7 +595,7 @@ public class AssignUserRoleCommandHandlerTests
             CreateTenantRoleService(customRole: null));
 
         var result = await handler.Handle(
-            new AssignUserRoleCommand(email, name, RoleNames.Caseworker, [Guid.NewGuid()]),
+            new AssignUserRoleCommand(email, name, RoleTemplates.CaseworkerKey, [Guid.NewGuid()]),
             CancellationToken.None);
 
         Assert.False(result.IsSuccess);

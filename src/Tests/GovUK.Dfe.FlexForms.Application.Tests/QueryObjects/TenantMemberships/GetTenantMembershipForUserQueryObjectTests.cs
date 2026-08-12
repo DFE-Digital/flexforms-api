@@ -14,7 +14,7 @@ public class GetTenantMembershipForUserQueryObjectTests
     {
         var tenantId = Guid.NewGuid();
         var userId = new UserId(Guid.NewGuid());
-        var role = Role.CreateForTenant(tenantId, RoleNames.Caseworker, true);
+        var role = Role.CreateForTenant(tenantId, RoleNames.User, true);
         var inactive = new TenantMembership(
             new TenantMembershipId(Guid.NewGuid()),
             tenantId,

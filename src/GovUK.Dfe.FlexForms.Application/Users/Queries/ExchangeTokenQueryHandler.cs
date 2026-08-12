@@ -267,7 +267,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                     (svcRole.Value.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase) ||
                      svcRole.Value.Equals(RoleNames.Admin, StringComparison.OrdinalIgnoreCase) ||
                      svcRole.Value.Equals(RoleNames.User, StringComparison.OrdinalIgnoreCase) ||
-                     svcRole.Value.Equals(RoleNames.Caseworker, StringComparison.OrdinalIgnoreCase));
+                     svcRole.Value.Equals(RoleTemplates.CaseworkerKey, StringComparison.OrdinalIgnoreCase));
 
                 if (isExcludedRole)
                     continue;

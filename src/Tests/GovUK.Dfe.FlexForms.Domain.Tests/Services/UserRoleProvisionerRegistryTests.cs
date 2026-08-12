@@ -58,7 +58,7 @@ public class UserRoleProvisionerRegistryTests
             new AdminRoleProvisioner(userFactory)
         ]);
 
-        Assert.Null(registry.GetProvisioner(RoleNames.Caseworker));
+        Assert.Null(registry.GetProvisioner(RoleTemplates.CaseworkerKey));
         Assert.Null(registry.GetProvisioner(RoleNames.SuperAdmin));
     }
 }

@@ -132,7 +132,7 @@ public sealed class Role : BaseAggregateRoot, IEntity<RoleId>
 
     /// <summary>
     /// Ensures this role may be assigned through the tenant role-assignment API as a custom role
-    /// (not a system-seeded role such as legacy Caseworker).
+    /// (not a system-seeded Admin/User role).
     /// </summary>
     public void EnsureAssignableAsCustomRole()
     {

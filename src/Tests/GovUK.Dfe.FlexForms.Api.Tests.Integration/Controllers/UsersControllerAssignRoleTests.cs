@@ -1,4 +1,5 @@
 using GovUK.Dfe.FlexForms.Domain.Common;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations;
 using GovUK.Dfe.FlexForms.Tests.Common.Seeders;
@@ -72,7 +73,7 @@ public class UsersControllerAssignRoleTests
             {
                 Email = $"caseworker-{Guid.NewGuid()}@example.com",
                 Name = "Legacy Caseworker",
-                Role = RoleNames.Caseworker,
+                Role = RoleTemplates.CaseworkerKey,
                 TemplateIds = [Guid.Parse(EaContextSeeder.TemplateId)]
             }));
 

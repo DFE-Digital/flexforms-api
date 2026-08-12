@@ -104,7 +104,7 @@ namespace GovUK.Dfe.FlexForms.Domain.Tests.Aggregates
         [Fact]
         public void EnsureAssignableAsCustomRole_ShouldRejectSystemRoles()
         {
-            var role = Role.CreateForTenant(Guid.NewGuid(), "Caseworker", isSystem: true);
+            var role = Role.CreateForTenant(Guid.NewGuid(), RoleNames.User, isSystem: true);
 
             Assert.Throws<InvalidOperationException>(() => role.EnsureAssignableAsCustomRole());
         }

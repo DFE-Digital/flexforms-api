@@ -1,4 +1,5 @@
 using GovUK.Dfe.FlexForms.Domain.Common;
+using GovUK.Dfe.FlexForms.Domain.Services;
 
 namespace GovUK.Dfe.FlexForms.Domain.Tests.Common;
 
@@ -17,7 +18,7 @@ public class RoleNamesTests
 
     [Theory]
     [InlineData(RoleNames.SuperAdmin)]
-    [InlineData(RoleNames.Caseworker)]
+    [InlineData(RoleTemplates.CaseworkerKey)]
     [InlineData("Administrator")]
     [InlineData("superadmin")]
     public void IsAssignable_ShouldRejectNonUserRoles(string roleName)
@@ -38,7 +39,7 @@ public class RoleNamesTests
 
     [Theory]
     [InlineData(RoleNames.User)]
-    [InlineData(RoleNames.Caseworker)]
+    [InlineData(RoleTemplates.CaseworkerKey)]
     [InlineData("CustomReviewer")]
     public void IsReservedRoleName_ShouldAllowTenantAndCustomNames(string roleName)
     {
@@ -50,7 +51,7 @@ public class RoleNamesTests
     {
         Assert.Equal(new[] { RoleNames.Admin, RoleNames.User }, RoleNames.Assignable);
         Assert.DoesNotContain(RoleNames.SuperAdmin, RoleNames.Assignable);
-        Assert.DoesNotContain(RoleNames.Caseworker, RoleNames.Assignable);
+        Assert.DoesNotContain(RoleTemplates.CaseworkerKey, RoleNames.Assignable);
     }
 
     [Fact]
@@ -75,7 +76,7 @@ public class RoleNamesTests
     {
         Assert.True(RoleNames.IsDowngradeToUser(RoleNames.SuperAdmin, RoleNames.User));
         Assert.False(RoleNames.IsDowngradeToUser(RoleNames.Admin, RoleNames.User));
-        Assert.False(RoleNames.IsDowngradeToUser(RoleNames.Caseworker, RoleNames.User));
+        Assert.False(RoleNames.IsDowngradeToUser(RoleTemplates.CaseworkerKey, RoleNames.User));
         Assert.False(RoleNames.IsDowngradeToUser(RoleNames.User, RoleNames.User));
     }
 }

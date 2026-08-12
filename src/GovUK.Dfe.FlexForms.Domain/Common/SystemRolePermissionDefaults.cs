@@ -18,8 +18,7 @@ public static class SystemRolePermissionDefaults
     /// </summary>
     public static IReadOnlyList<DefaultGrant> ForRole(string canonicalRoleName)
     {
-        // SuperAdmin / User / legacy Caseworker / custom: no hardcoded defaults.
-        // Caseworker RolePermissions may still exist historically in the DB.
+        // SuperAdmin / User / custom: no hardcoded defaults.
         _ = canonicalRoleName;
         return Array.Empty<DefaultGrant>();
     }

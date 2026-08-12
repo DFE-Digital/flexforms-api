@@ -41,20 +41,16 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Seeders
             var roleAdmin = new Role(new RoleId(RoleConstants.AdminRoleId), RoleNames.Admin);
             var roleSubmitter = new Role(new RoleId(new Guid(SubmitterRoleId)), "Submitter");
             var roleUser = new Role(new RoleId(RoleConstants.UserRoleId), RoleNames.User);
-            var roleCaseworker = new Role(new RoleId(RoleConstants.CaseworkerRoleId), RoleNames.Caseworker);
             var tenantAdmin = new Role(new RoleId(Guid.NewGuid()), RoleNames.Admin, tenantId, isSystem: true);
             var tenantUser = new Role(new RoleId(Guid.NewGuid()), RoleNames.User, tenantId, isSystem: true);
-            var tenantCaseworker = new Role(new RoleId(Guid.NewGuid()), RoleNames.Caseworker, tenantId, isSystem: true);
             var now = DateTime.UtcNow;
 
             ctx.Roles.AddRange(
                 roleAdmin,
                 roleSubmitter,
                 roleUser,
-                roleCaseworker,
                 tenantAdmin,
-                tenantUser,
-                tenantCaseworker);
+                tenantUser);
 
             var aliceId = new UserId(new Guid(AliceId));
             var alice = new User(
@@ -96,23 +92,6 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Seeders
                     tenantId,
                     bobId,
                     tenantUser.Id!,
-                    now));
-
-            // Caseworker role defaults (also seeded by migration / RolePermissionService)
-            ctx.RolePermissions.AddRange(
-                new RolePermission(
-                    new RolePermissionId(Guid.NewGuid()),
-                    tenantCaseworker.Id!,
-                    PermissionConstants.AnyResourceKey,
-                    ResourceType.Application,
-                    AccessType.Read,
-                    now),
-                new RolePermission(
-                    new RolePermissionId(Guid.NewGuid()),
-                    tenantCaseworker.Id!,
-                    PermissionConstants.AnyResourceKey,
-                    ResourceType.ApplicationFiles,
-                    AccessType.Read,
                     now));
 
             ctx.SaveChanges();

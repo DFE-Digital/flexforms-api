@@ -22,12 +22,6 @@ public static class RoleNames
     public const string User = "User";
 
     /// <summary>
-    /// Legacy role name retained for existing DB rows and JWT claims.
-    /// Not assignable and not privileged — replace with custom roles + RolePermissions.
-    /// </summary>
-    public const string Caseworker = "Caseworker";
-
-    /// <summary>
     /// Roles that can be assigned through the tenant administrative role assignment API.
     /// </summary>
     public static readonly IReadOnlyCollection<string> Assignable =
@@ -129,9 +123,6 @@ public static class RoleNames
     {
         if (roleId == RoleConstants.AdminRoleId)
             return SuperAdmin;
-
-        if (roleId == RoleConstants.CaseworkerRoleId)
-            return Caseworker;
 
         if (roleId == RoleConstants.UserRoleId)
             return User;
