@@ -13,6 +13,7 @@ Tenants (products such as Transfers, Visits, LSRP) share one API. Each tenant’
 - **Roles & permissions** — SuperAdmin (platform), Admin / User / custom roles (tenant), claim-based grants
 - **Token exchange** — DfE Sign-In / Entra SSO / test / internal service → tenant-scoped API JWT
 - **Secure files** — Azure File Share + ClamAV scan via Azure Service Bus
+- **Tenant file validation** — Optional per-template callback; status + SignalR notify the uploader
 - **GOV.UK Notify** — Email for submit, invites, feedback
 - **Real-time notifications** — Azure SignalR
 - **Audit** — SQL Server temporal tables on `ea` entities
@@ -380,6 +381,7 @@ flowchart LR
 
 - **Shared** Service Bus namespace and SignalR resource for all tenants; tenant stamped on messages (`TenantAwareEventPublisher` / `TenantContextConsumeFilter`).
 - File storage is tenant-aware (`TenantAwareFileStorageService`).
+- Virus scan (`ScanRequestedEvent`) is platform-owned. Tenant Excel/schema checks use the HTTP callback below — not Service Bus.
 
 ---
 
@@ -460,9 +462,22 @@ See `scripts/` for TenantConfig import helpers (Web/Api settings upsert). Ensure
 
 Tenants can validate uploaded files in their own Azure Function (for example Excel schema checks) and **block submit** until the file is valid. Virus scanning is unchanged and remains platform-owned.
 
+Failed validation **marks** the file (`Failed`); it is not deleted. Infected files from ClamAV are still deleted.
+
 ### Flow
 
-1. Applicant uploads a file. If the template’s `FileValidation` mode is not `Off`, the file is stored as `Pending`.
+```mermaid
+flowchart LR
+    Upload["Upload"] --> Pending["Pending if mode on and extension eligible"]
+    Pending --> Event["FileUploaded trigger"]
+    Event --> Fn["Tenant Azure Function"]
+    Fn --> CB["POST /v1/integrations/files/{fileId}/validation-result"]
+    CB --> Status["Passed or Failed"]
+    Status --> Gate["Submit gate"]
+    Status --> N["Notification + SignalR"]
+```
+
+1. Applicant uploads a file. If the template’s `FileValidation` mode is not `Off` **and** the file’s extension is eligible, the file is stored as `Pending`. Other types stay `NotRequired`.
 2. The existing `FileUploaded` trigger publishes the mapped event (`fileId`, `fileUri`, …).
 3. The tenant function validates the file, then calls:
 
@@ -481,8 +496,9 @@ Content-Type: application/json
 ```
 
 4. FlexForms records `Passed` or `Failed` on `ea.Files`. Submit is gated by the template mode.
+5. `FileValidationRecordedEvent` creates a notification for the **uploader** (category `file-validation`, context = tenant `ApplicationName`) and pushes `notification.upserted` over SignalR. The Web banner, badge, `/Notifications` list, and upload Status column update live.
 
-Do **not** publish onto the FlexForms Service Bus. Tenant identity is taken from the credential, never from the body.
+Do **not** publish onto the FlexForms Service Bus. Tenant identity is taken from the credential, never from the body. A notification failure must not fail the callback.
 
 ### Authentication
 
@@ -491,13 +507,14 @@ Do **not** publish onto the FlexForms Service Bus. Tenant identity is taken from
 | Entra app | Register the app as a FlexForms User (`ExternalProviderId` = `appid`) and grant `FileValidation:Any:Write` (or a template GUID) |
 | API key / mTLS | AuthProviders entry with `IsServicePrincipal: true` and `Roles: ["FileValidation"]` (emits `FileValidation:Any:Write`) |
 
-Admin / SuperAdmin does **not** imply this grant. `CanWriteApplicationFiles` is not sufficient.
+Admin / SuperAdmin does **not** imply this grant. `CanWriteApplicationFiles` is not sufficient. Interactive Admin/SuperAdmin callers get **403**. Do not add API-key auth to `GovUK.Dfe.FlexForms.Api.Client` — that package is the first-party Web client. Integrations should use a narrow `HttpClient`.
 
 ### Tenant setting (`FileValidation`, Target `Shared`)
 
 ```json
 {
   "DefaultMode": "Off",
+  "Extensions": [ ".xlsx", ".xls" ],
   "Templates": {
     "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": "RequirePassed"
   }
@@ -510,7 +527,27 @@ Admin / SuperAdmin does **not** imply this grant. `CanWriteApplicationFiles` is 
 | `FailOnInvalid` | Block only when a file is `Failed` |
 | `RequirePassed` | Every file that required validation must be `Passed` (`Pending` also blocks) |
 
+`Extensions` is optional. When omitted or empty, every upload is eligible for validation when mode is not `Off`. When set (e.g. `[".xlsx"]`), JPEG/PNG (and other non-listed types) stay `NotRequired` and never block submit; only matching files become `Pending` / `Passed` / `Failed`. Values are case-insensitive; a leading `.` is optional (`xlsx` and `.xlsx` are the same).
+
 `RequirePassed` can leave applicants stuck if the tenant function is down. An admin override or “pending older than N hours” escape hatch is a later increment.
+
+### Statuses
+
+| Status | Meaning |
+|--------|---------|
+| `NotRequired` | Mode is `Off`, or the file’s extension is not in `Extensions` |
+| `Pending` | Eligible upload waiting for the tenant function |
+| `Passed` | Callback reported `isValid: true` |
+| `Failed` | Callback reported `isValid: false` (file kept; submit may be blocked) |
+
+### Notifications
+
+Same store and SignalR path as file-delete / malware banners. Context **must** be the tenant `ApplicationName` (else `TenantName`) so the Web list and unread badge include the item.
+
+| Result | Type | Auto-dismiss | Message |
+|--------|------|--------------|---------|
+| Failed | Error | No | `We could not validate '{fileName}'. {detail}` |
+| Passed | Success | 8 seconds | `The file '{fileName}' has been validated.` |
 
 ---
 

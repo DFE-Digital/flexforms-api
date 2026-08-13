@@ -157,12 +157,13 @@ public static class TenantSettingCategoryCookbook
             "FileValidation",
             "Per-template policy for blocking submit when a tenant function reports a file as invalid.",
             ["Shared"],
-            example: """{"DefaultMode":"Off","Templates":{"00000000-0000-0000-0000-000000000000":"RequirePassed"}}""",
+            example: """{"DefaultMode":"Off","Extensions":[".xlsx"],"Templates":{"00000000-0000-0000-0000-000000000000":"RequirePassed"}}""",
             notes:
             [
                 "Non-secret",
                 "Saved with Target=Shared so the API runtime can read it",
                 "Modes: Off (ignore), FailOnInvalid (block Failed only), RequirePassed (Pending also blocks)",
+                "Optional Extensions: only matching uploads are marked Pending (omit or [] = all files)",
                 "Tenant Azure Functions report results via POST /v1/integrations/files/{fileId}/validation-result"
             ],
             requiresObject: true),

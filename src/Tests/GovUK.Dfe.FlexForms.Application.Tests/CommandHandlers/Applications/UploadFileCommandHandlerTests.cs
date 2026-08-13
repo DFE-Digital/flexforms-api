@@ -50,6 +50,7 @@ public class UploadFileCommandHandlerTests
         _permissionCheckerService = Substitute.For<IPermissionCheckerService>();
         _fileValidationModeResolver = Substitute.For<IFileValidationModeResolver>();
         _fileValidationModeResolver.Resolve(Arg.Any<Guid?>()).Returns(FileValidationMode.Off);
+        _fileValidationModeResolver.IsExtensionSubjectToValidation(Arg.Any<string?>()).Returns(true);
 
         _handler = new UploadFileCommandHandler(
             _uploadRepository,

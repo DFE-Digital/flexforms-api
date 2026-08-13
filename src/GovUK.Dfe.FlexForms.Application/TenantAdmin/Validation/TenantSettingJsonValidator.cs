@@ -458,6 +458,8 @@ public static class TenantSettingJsonValidator
             }
         }
 
+        ValidateFileValidationExtensions(root, errors);
+
         if (!root.TryGetProperty("Templates", out var templates)
             && !root.TryGetProperty("templates", out templates))
         {
@@ -484,6 +486,33 @@ public static class TenantSettingJsonValidator
                 errors.Add(
                     $"FileValidation.Templates['{template.Name}'] must be Off, FailOnInvalid, or RequirePassed.");
             }
+        }
+    }
+
+    private static void ValidateFileValidationExtensions(JsonElement root, List<string> errors)
+    {
+        if (!root.TryGetProperty("Extensions", out var extensions)
+            && !root.TryGetProperty("extensions", out extensions))
+        {
+            return;
+        }
+
+        if (extensions.ValueKind != JsonValueKind.Array)
+        {
+            errors.Add("FileValidation.Extensions must be an array of file extensions (e.g. [\".xlsx\"]).");
+            return;
+        }
+
+        var index = 0;
+        foreach (var item in extensions.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(item.GetString()))
+            {
+                errors.Add($"FileValidation.Extensions[{index}] must be a non-empty string.");
+            }
+
+            index++;
         }
     }
 

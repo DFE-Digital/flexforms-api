@@ -56,4 +56,62 @@ public class FileValidationModeResolverTests
 
         Assert.Equal(FileValidationMode.FailOnInvalid, mode);
     }
+
+    [Fact]
+    public void IsExtensionSubjectToValidation_ReturnsTrue_WhenExtensionsMissing()
+    {
+        var settings = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["FileValidation:DefaultMode"] = "RequirePassed"
+            })
+            .Build();
+
+        var resolver = CreateResolver(settings);
+
+        Assert.True(resolver.IsExtensionSubjectToValidation("photo.png"));
+        Assert.True(resolver.IsExtensionSubjectToValidation("budget.xlsx"));
+    }
+
+    [Fact]
+    public void IsExtensionSubjectToValidation_FiltersByConfiguredExtensions()
+    {
+        var settings = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["FileValidation:DefaultMode"] = "RequirePassed",
+                ["FileValidation:Extensions:0"] = ".xlsx",
+                ["FileValidation:Extensions:1"] = "xls"
+            })
+            .Build();
+
+        var resolver = CreateResolver(settings);
+
+        Assert.True(resolver.IsExtensionSubjectToValidation("budget.XLSX"));
+        Assert.True(resolver.IsExtensionSubjectToValidation("legacy.xls"));
+        Assert.False(resolver.IsExtensionSubjectToValidation("photo.png"));
+        Assert.False(resolver.IsExtensionSubjectToValidation("scan.jpeg"));
+        Assert.False(resolver.IsExtensionSubjectToValidation(null));
+    }
+
+    [Theory]
+    [InlineData(".xlsx", ".xlsx")]
+    [InlineData("xlsx", ".xlsx")]
+    [InlineData("*.xlsx", ".xlsx")]
+    [InlineData("  .XLSX  ", ".xlsx")]
+    [InlineData(".", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void NormalizeExtension_NormalizesCommonForms(string? input, string? expected)
+    {
+        var actual = FileValidationModeResolver.NormalizeExtension(input);
+        Assert.Equal(expected, actual);
+    }
+
+    private static FileValidationModeResolver CreateResolver(IConfigurationRoot settings)
+    {
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        accessor.CurrentTenant.Returns(new TenantConfiguration(Guid.NewGuid(), "t", settings, []));
+        return new FileValidationModeResolver(accessor);
+    }
 }

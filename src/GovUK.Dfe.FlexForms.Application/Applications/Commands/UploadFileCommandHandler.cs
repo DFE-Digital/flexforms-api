@@ -154,7 +154,8 @@ public class UploadFileCommandHandler(
             );
 
             var mode = fileValidationModeResolver.Resolve(application.TemplateVersion?.TemplateId.Value);
-            if (mode != FileValidationMode.Off)
+            if (mode != FileValidationMode.Off
+                && fileValidationModeResolver.IsExtensionSubjectToValidation(request.OriginalFileName))
                 upload.RequireExternalValidation();
 
             await uploadRepository.AddAsync(upload, cancellationToken);

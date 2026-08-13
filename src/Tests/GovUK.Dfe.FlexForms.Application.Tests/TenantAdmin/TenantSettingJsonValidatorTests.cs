@@ -179,7 +179,7 @@ public class TenantSettingJsonValidatorTests
         var errors = TenantSettingJsonValidator.Validate(
             "FileValidation",
             "Shared",
-            """{"DefaultMode":"RequirePassed","Templates":{"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee":"FailOnInvalid"}}""");
+            """{"DefaultMode":"RequirePassed","Extensions":[".xlsx","xls"],"Templates":{"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee":"FailOnInvalid"}}""");
 
         Assert.Empty(errors);
     }
@@ -193,5 +193,16 @@ public class TenantSettingJsonValidatorTests
             """{"DefaultMode":"Maybe"}""");
 
         Assert.Contains(errors, e => e.Contains("DefaultMode", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_FileValidation_RejectsInvalidExtensions()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "FileValidation",
+            "Shared",
+            """{"DefaultMode":"Off","Extensions":"xlsx"}""");
+
+        Assert.Contains(errors, e => e.Contains("Extensions", StringComparison.OrdinalIgnoreCase));
     }
 }
