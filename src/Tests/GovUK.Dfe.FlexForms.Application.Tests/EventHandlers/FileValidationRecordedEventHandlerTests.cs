@@ -6,8 +6,10 @@ using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Events;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Mocks;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using MockQueryable.NSubstitute;
 using NSubstitute;
@@ -45,7 +47,8 @@ public class FileValidationRecordedEventHandlerTests
             NullLogger<FileValidationRecordedEventHandler>.Instance,
             userRepo,
             notificationService,
-            signalR);
+            signalR,
+            CreateTenantContext("Transfers"));
 
         var fileId = new FileId(Guid.NewGuid());
         await handler.Handle(
@@ -64,6 +67,7 @@ public class FileValidationRecordedEventHandlerTests
             NotificationType.Error,
             Arg.Is<NotificationOptions>(o =>
                 o.Category == FileValidationRecordedEventHandler.Category
+                && o.Context == "Transfers"
                 && o.UserId == "uploader@example.com"
                 && o.AutoDismiss == false),
             Arg.Any<CancellationToken>());
@@ -101,7 +105,8 @@ public class FileValidationRecordedEventHandlerTests
             NullLogger<FileValidationRecordedEventHandler>.Instance,
             userRepo,
             notificationService,
-            signalR);
+            signalR,
+            CreateTenantContext("Transfers"));
 
         await handler.Handle(
             new FileValidationRecordedEvent(
@@ -135,7 +140,8 @@ public class FileValidationRecordedEventHandlerTests
             NullLogger<FileValidationRecordedEventHandler>.Instance,
             userRepo,
             notificationService,
-            new MockNotificationSignalRService());
+            new MockNotificationSignalRService(),
+            CreateTenantContext("Transfers"));
 
         await handler.Handle(
             new FileValidationRecordedEvent(
@@ -165,4 +171,18 @@ public class FileValidationRecordedEventHandlerTests
             null,
             null,
             null);
+
+    private static ITenantContextAccessor CreateTenantContext(string applicationName)
+    {
+        var settings = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ApplicationName"] = applicationName
+            })
+            .Build();
+        var tenant = new TenantConfiguration(Guid.NewGuid(), "tenant-slug", settings, []);
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        accessor.CurrentTenant.Returns(tenant);
+        return accessor;
+    }
 }

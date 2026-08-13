@@ -7,6 +7,7 @@ using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Events;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -20,7 +21,8 @@ public sealed class FileValidationRecordedEventHandler(
     ILogger<FileValidationRecordedEventHandler> logger,
     IEaRepository<User> userRepository,
     INotificationService notificationService,
-    INotificationSignalRService notificationSignalRService)
+    INotificationSignalRService notificationSignalRService,
+    ITenantContextAccessor tenantContextAccessor)
     : BaseEventHandler<FileValidationRecordedEvent>(logger)
 {
     public const string Category = "file-validation";
@@ -51,7 +53,7 @@ public sealed class FileValidationRecordedEventHandler(
             var options = new NotificationOptions
             {
                 Category = Category,
-                Context = notification.FileId.Value.ToString(),
+                Context = ResolveNotificationContext(tenantContextAccessor.CurrentTenant),
                 AutoDismiss = !failed,
                 AutoDismissSeconds = failed ? 0 : 8,
                 UserId = user.Email,
@@ -105,5 +107,18 @@ public sealed class FileValidationRecordedEventHandler(
     {
         var prefix = $"We could not validate '{fileName}'.";
         return string.IsNullOrWhiteSpace(detail) ? prefix : $"{prefix} {detail.Trim()}";
+    }
+
+    /// <summary>
+    /// Web list/badge queries filter by this context (ApplicationName, else TenantName).
+    /// File-delete and malware notifications use the same value.
+    /// </summary>
+    internal static string ResolveNotificationContext(TenantConfiguration? tenant)
+    {
+        if (tenant is null)
+            return "platform";
+
+        var applicationName = tenant.Settings["ApplicationName"];
+        return string.IsNullOrWhiteSpace(applicationName) ? tenant.Name : applicationName;
     }
 }
