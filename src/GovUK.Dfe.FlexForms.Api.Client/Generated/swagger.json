@@ -5957,6 +5957,18 @@
             "type": "string",
             "nullable": true
           },
+          "tenantId": {
+            "type": "string",
+            "nullable": true
+          },
+          "tenantName": {
+            "type": "string",
+            "nullable": true
+          },
+          "userEmail": {
+            "type": "string",
+            "nullable": true
+          },
           "context": {
             "type": "object",
             "nullable": true,

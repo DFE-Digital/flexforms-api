@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GovUK.Dfe.FlexForms.Api.Client.Settings;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Logging;
 
 namespace GovUK.Dfe.FlexForms.Api.Client.Security
@@ -31,6 +32,16 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security
         /// Correlation header expected by API <c>CorrelationIdMiddleware</c>.
         /// </summary>
         public const string CorrelationIdHeaderName = "x-correlationId";
+
+        /// <summary>
+        /// Form template id for SaaS log correlation on API requests.
+        /// </summary>
+        public const string TemplateIdHeaderName = "X-Template-Id";
+
+        /// <summary>
+        /// Application reference for SaaS log correlation on API requests.
+        /// </summary>
+        public const string ApplicationReferenceHeaderName = "X-Application-Reference";
 
         /// <summary>
         /// Default headers that should be forwarded from incoming requests to API calls if not configured
@@ -152,6 +163,9 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security
                         headersForwarded,
                         request.RequestUri);
                 }
+
+                ForwardTelemetryHeader(request, httpContext, TemplateIdHeaderName, "TemplateId");
+                ForwardTelemetryHeader(request, httpContext, ApplicationReferenceHeaderName, "ApplicationReference");
             }
             else if (!request.Headers.Contains(CorrelationIdHeaderName))
             {
@@ -173,6 +187,36 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security
             var correlationId = Guid.NewGuid().ToString();
             httpContext.Request.Headers[CorrelationIdHeaderName] = correlationId;
             httpContext.Response.Headers[CorrelationIdHeaderName] = correlationId;
+        }
+
+        private static void ForwardTelemetryHeader(
+            HttpRequestMessage request,
+            HttpContext httpContext,
+            string headerName,
+            string sessionKey)
+        {
+            string? value = null;
+
+            if (httpContext.Request.Headers.TryGetValue(headerName, out var fromRequest)
+                && !string.IsNullOrWhiteSpace(fromRequest))
+            {
+                value = fromRequest.ToString();
+            }
+            else
+            {
+                // Early pipeline calls (e.g. tenant resolve) can run before UseSession().
+                var session = httpContext.Features.Get<ISessionFeature>()?.Session;
+                if (session is not null)
+                    value = session.GetString(sessionKey);
+            }
+
+            if (string.IsNullOrWhiteSpace(value))
+                return;
+
+            if (request.Headers.Contains(headerName))
+                request.Headers.Remove(headerName);
+
+            request.Headers.Add(headerName, value);
         }
     }
 }

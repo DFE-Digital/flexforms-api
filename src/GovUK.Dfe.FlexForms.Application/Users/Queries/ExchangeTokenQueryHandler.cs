@@ -285,6 +285,14 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             var tokenSvc = tokenServiceFactory.GetService(currentTenant.Id.ToString());
             var internalToken = await tokenSvc.GetUserTokenModelAsync(mergedUser);
 
+            logger.LogInformation(
+                "ExchangeToken succeeded. UserEmail={UserEmail} TenantId={TenantId} TenantName={TenantName} Role={Role} TemplateCount={TemplateCount}",
+                email,
+                currentTenant.Id,
+                currentTenant.Name,
+                membershipRoleName,
+                accessibleTemplates.Count);
+
             return Result<ExchangeTokenDto>.Success(new ExchangeTokenDto
             {
                 AccessToken = internalToken.AccessToken,

@@ -20,7 +20,7 @@
 		<PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.3" />
 		<PackageReference Include="Azure.Identity" Version="1.21.0" />
 		<PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.2" />
-		<PackageReference Include="GovUK.Dfe.CoreLibs.Http" Version="1.0.11" />
+		<PackageReference Include="GovUK.Dfe.CoreLibs.Http" Version="1.0.12-prerelease.86" />
 		<!-- 2.x required: Serilog.Sinks.ApplicationInsights does not support Application Insights 3.x yet -->
 		<PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.23.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.Certificate" Version="10.0.10" />

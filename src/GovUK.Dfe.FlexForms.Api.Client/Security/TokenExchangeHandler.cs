@@ -124,6 +124,7 @@ public class TokenExchangeHandler(
         }
         catch (Exception ex)
         {
+            logger.LogError(ex, "Token exchange handler failed for user {UserEmail}", userName);
             return UnauthorizedResponse(request);
         }
     }
@@ -159,6 +160,7 @@ public class TokenExchangeHandler(
         }
         catch (Exception ex)
         {
+            logger.LogError(ex, "Failed to exchange external IDP token for OBO token");
             return null;
         }
     }
