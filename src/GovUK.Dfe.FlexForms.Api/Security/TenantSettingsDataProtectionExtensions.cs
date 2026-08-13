@@ -106,9 +106,9 @@ public static class TenantSettingsDataProtectionExtensions
             ExcludeManagedIdentityCredential = true,
             ExcludeWorkloadIdentityCredential = true,
             ExcludeEnvironmentCredential = false,
-            ExcludeAzureCliCredential = false,
-            ExcludeVisualStudioCredential = false,
-            ExcludeAzurePowerShellCredential = false,
+            ExcludeAzureCliCredential = true,
+            ExcludeVisualStudioCredential = true,
+            ExcludeAzurePowerShellCredential = true,
             ExcludeInteractiveBrowserCredential = true
         });
     }

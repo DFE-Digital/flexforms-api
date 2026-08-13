@@ -33,7 +33,11 @@
       "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}/swagger",
       "environmentVariables": {
         "ASPNETCORE_HTTPS_PORTS": "8081",
-        "ASPNETCORE_HTTP_PORTS": "8080"
+        "ASPNETCORE_HTTP_PORTS": "8080",
+        "ConnectionStrings__TenantConfigDatabase": "Server=localhost,1433;Database=TenantConfig;User Id=SA;Password=Pa55w0rd!;TrustServerCertificate=True;",
+        "ConnectionStrings__DefaultConnection": "Server=localhost,1433;Database=ExternalApplications;User Id=SA;Password=Pa55w0rd!;TrustServerCertificate=True;",
+        "ConnectionStrings__ServiceBus": "Endpoint=sb://s184d01-rsdshared.servicebus.windows.net/;SharedAccessKeyName=s184d01-rsdshared;SharedAccessKey=aAwG4UOUr/ASCMUsVsZnCvLm/bqHDe",
+        "ConnectionStrings__Redis": "localhost:6379"
       },
       "publishAllPorts": true,
       "useSSL": true
