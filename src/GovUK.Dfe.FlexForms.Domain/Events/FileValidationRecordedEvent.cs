@@ -10,6 +10,8 @@ public sealed record FileValidationRecordedEvent(
     ApplicationId ApplicationId,
     FileValidationStatus Status,
     string? Message,
+    string OriginalFileName,
+    UserId UploadedBy,
     DateTime RecordedOn) : IDomainEvent
 {
     public DateTime OccurredOn => RecordedOn;

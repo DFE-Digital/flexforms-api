@@ -104,6 +104,8 @@ public sealed class File : BaseAggregateRoot, IEntity<FileId>
             ApplicationId,
             ValidationStatus,
             ValidationMessage,
+            OriginalFileName,
+            UploadedBy,
             reportedAt));
     }
 
