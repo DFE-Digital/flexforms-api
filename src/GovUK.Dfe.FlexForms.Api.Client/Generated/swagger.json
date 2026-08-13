@@ -1489,6 +1489,79 @@
         }
       }
     },
+    "/v1/Applications/{applicationId}/file-validation-gate": {
+      "get": {
+        "tags": [
+          "Applications"
+        ],
+        "summary": "Returns whether file validation currently blocks submit for this application.",
+        "operationId": "Applications_GetFileValidationGate",
+        "parameters": [
+          {
+            "name": "applicationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File validation gate for the application.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileValidationGateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - no valid user token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "User does not have permission to read this application",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Application not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/Applications/reference/{applicationReference}/preview/download": {
       "get": {
         "tags": [
@@ -1645,6 +1718,121 @@
           },
           "403": {
             "description": "Missing Platform.Host.Read app role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/integrations/files/{fileId}/validation-result": {
+      "post": {
+        "tags": [
+          "Integrations"
+        ],
+        "summary": "Records an external tenant function's validation result for an uploaded file.",
+        "operationId": "Integrations_RecordFileValidationResult",
+        "parameters": [
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordFileValidationResultRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "Validation result recorded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - no valid machine credential.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Caller does not have FileValidation Write permission.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "File does not require validation or the application is already submitted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too Many Requests.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5840,7 +6028,8 @@
           "Field",
           "ApplicationFiles",
           "File",
-          "Notifications"
+          "Notifications",
+          "FileValidation"
         ],
         "enum": [
           "Application",
@@ -5852,7 +6041,8 @@
           "Field",
           "ApplicationFiles",
           "File",
-          "Notifications"
+          "Notifications",
+          "FileValidation"
         ]
       },
       "AccessType": {
@@ -6117,6 +6307,86 @@
           "uploadedOn": {
             "type": "string",
             "format": "date-time"
+          },
+          "validationStatus": {
+            "$ref": "#/components/schemas/FileValidationStatus"
+          },
+          "validationMessage": {
+            "type": "string",
+            "nullable": true
+          },
+          "validatedOn": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "FileValidationStatus": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "NotRequired",
+          "Pending",
+          "Passed",
+          "Failed"
+        ],
+        "enum": [
+          "NotRequired",
+          "Pending",
+          "Passed",
+          "Failed"
+        ]
+      },
+      "FileValidationGateDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/FileValidationMode"
+          },
+          "canSubmit": {
+            "type": "boolean"
+          },
+          "blockingFiles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FileValidationBlockDto"
+            }
+          }
+        }
+      },
+      "FileValidationMode": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Off",
+          "FailOnInvalid",
+          "RequirePassed"
+        ],
+        "enum": [
+          "Off",
+          "FailOnInvalid",
+          "RequirePassed"
+        ]
+      },
+      "FileValidationBlockDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "originalFileName": {
+            "type": "string"
+          },
+          "validationStatus": {
+            "$ref": "#/components/schemas/FileValidationStatus"
+          },
+          "validationMessage": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
@@ -6137,6 +6407,27 @@
               "type": "string",
               "nullable": true
             }
+          }
+        }
+      },
+      "RecordFileValidationResultRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "isValid": {
+            "type": "boolean"
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          },
+          "correlationId": {
+            "type": "string",
+            "nullable": true
+          },
+          "source": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

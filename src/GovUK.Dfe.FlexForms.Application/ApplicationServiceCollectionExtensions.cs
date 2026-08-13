@@ -86,6 +86,8 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddTransient<IUserFactory, UserFactory>();
             services.AddTransient<ITemplateFactory, TemplateFactory>();
             services.AddTransient<IFileFactory, FileFactory>();
+            services.AddSingleton<IApplicationFileValidationPolicy, ApplicationFileValidationPolicy>();
+            services.AddScoped<IFileValidationModeResolver, FileValidationModeResolver>();
 
             services.AddTransient<IEmailTemplateResolver, EmailTemplateResolver>();
 

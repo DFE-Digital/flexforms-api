@@ -265,6 +265,26 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations
                         .HasColumnName("UploadedOn")
                         .HasDefaultValueSql("GETDATE()");
 
+                    b.Property<DateTime?>("ValidatedOn")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("ValidatedOn");
+
+                    b.Property<string>("ValidationMessage")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)")
+                        .HasColumnName("ValidationMessage");
+
+                    b.Property<string>("ValidationSource")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
+                        .HasColumnName("ValidationSource");
+
+                    b.Property<string>("ValidationStatus")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasColumnName("ValidationStatus");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ApplicationId")

@@ -160,4 +160,14 @@ public sealed class ClaimBasedPermissionCheckerService(IHttpContextAccessor http
 
         return PermissionClaimEvaluator.CanManageUsers(user);
     }
+
+    /// <inheritdoc />
+    public bool CanWriteFileValidation(string templateId)
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        if (user == null || string.IsNullOrWhiteSpace(templateId))
+            return false;
+
+        return PermissionClaimEvaluator.CanWriteFileValidation(user, templateId);
+    }
 }

@@ -456,6 +456,64 @@ See `scripts/` for TenantConfig import helpers (Web/Api settings upsert). Ensure
 
 ---
 
+## File validation callback (tenant integrations)
+
+Tenants can validate uploaded files in their own Azure Function (for example Excel schema checks) and **block submit** until the file is valid. Virus scanning is unchanged and remains platform-owned.
+
+### Flow
+
+1. Applicant uploads a file. If the template’s `FileValidation` mode is not `Off`, the file is stored as `Pending`.
+2. The existing `FileUploaded` trigger publishes the mapped event (`fileId`, `fileUri`, …).
+3. The tenant function validates the file, then calls:
+
+```http
+POST /v1/integrations/files/{fileId}/validation-result
+X-Tenant-ID: {tenant-guid}
+X-Api-Key: {key}                    # or Entra client-credentials / mTLS
+Content-Type: application/json
+
+{
+  "isValid": false,
+  "message": "Sheet 'Budget' is missing column Amount",
+  "correlationId": "optional-opaque-id",
+  "source": "excel-validator"
+}
+```
+
+4. FlexForms records `Passed` or `Failed` on `ea.Files`. Submit is gated by the template mode.
+
+Do **not** publish onto the FlexForms Service Bus. Tenant identity is taken from the credential, never from the body.
+
+### Authentication
+
+| Caller | How to grant access |
+|--------|---------------------|
+| Entra app | Register the app as a FlexForms User (`ExternalProviderId` = `appid`) and grant `FileValidation:Any:Write` (or a template GUID) |
+| API key / mTLS | AuthProviders entry with `IsServicePrincipal: true` and `Roles: ["FileValidation"]` (emits `FileValidation:Any:Write`) |
+
+Admin / SuperAdmin does **not** imply this grant. `CanWriteApplicationFiles` is not sufficient.
+
+### Tenant setting (`FileValidation`, Target `Shared`)
+
+```json
+{
+  "DefaultMode": "Off",
+  "Templates": {
+    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": "RequirePassed"
+  }
+}
+```
+
+| Mode | Submit behaviour |
+|------|------------------|
+| `Off` | Ignore validation (default) |
+| `FailOnInvalid` | Block only when a file is `Failed` |
+| `RequirePassed` | Every file that required validation must be `Passed` (`Pending` also blocks) |
+
+`RequirePassed` can leave applicants stuck if the tenant function is down. An admin override or “pending older than N hours” escape hatch is a later increment.
+
+---
+
 ## Security checklist
 
 | Concern | Behaviour |

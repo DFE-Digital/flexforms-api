@@ -155,6 +155,19 @@ public static class PermissionClaimEvaluator
         || HasPermissionClaim(user, ResourceType.ApplicationFiles, applicationId, AccessType.Delete);
 
     /// <summary>
+    /// Returns true when a machine identity may report a validation result for the template.
+    /// Does not honour <see cref="HasFullAdminAccess"/> — this grant is never implied by Admin.
+    /// </summary>
+    public static bool CanWriteFileValidation(ClaimsPrincipal user, string templateId) =>
+        HasPermissionClaimOrTenantWide(user, ResourceType.FileValidation, templateId, AccessType.Write);
+
+    /// <summary>
+    /// Returns true when the principal has any FileValidation Write grant (tenant-wide or template-scoped).
+    /// </summary>
+    public static bool CanWriteAnyFileValidation(ClaimsPrincipal user) =>
+        HasAnyPermissionClaim(user, ResourceType.FileValidation, AccessType.Write);
+
+    /// <summary>
     /// Returns true when the user has an exact or tenant-wide (<see cref="PermissionConstants.AnyResourceKey"/>)
     /// permission claim for the resource.
     /// </summary>

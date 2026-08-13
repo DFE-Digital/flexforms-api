@@ -172,4 +172,26 @@ public class TenantSettingJsonValidatorTests
 
         Assert.Empty(errors);
     }
+
+    [Fact]
+    public void Validate_FileValidation_AcceptsKnownModes()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "FileValidation",
+            "Shared",
+            """{"DefaultMode":"RequirePassed","Templates":{"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee":"FailOnInvalid"}}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_FileValidation_RejectsUnknownMode()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "FileValidation",
+            "Shared",
+            """{"DefaultMode":"Maybe"}""");
+
+        Assert.Contains(errors, e => e.Contains("DefaultMode", StringComparison.OrdinalIgnoreCase));
+    }
 }

@@ -76,7 +76,7 @@ public sealed class UpsertSafeTenantSettingCommandHandler(
             return Result<UpsertTenantSettingResponse>.Failure("Settings JSON is required.");
         }
 
-        // EventMappings/SchemaEvents/EventTriggers are read by the API runtime, so they live
+        // EventMappings/SchemaEvents/EventTriggers/FileValidation are read by the API runtime, so they live
         // under the Shared target; everything else stays Web-only.
         var target = TenantSafeSettingCategories.TargetFor(category);
 

@@ -3,6 +3,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Applications.Commands;
 using GovUK.Dfe.FlexForms.Application.Services;
+using File = GovUK.Dfe.FlexForms.Domain.Entities.File;
 using GovUK.Dfe.FlexForms.Application.Tests.Helpers;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
@@ -67,11 +68,10 @@ public class SubmitApplicationCommandHandlerTests
             AccessType.Write)
             .Returns(true);
 
-        var handler = new SubmitApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
             AuthenticatedUserServiceTestHelper.MockReturningUser(userWithExternalId),
             permissionCheckerService,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -132,11 +132,10 @@ public class SubmitApplicationCommandHandlerTests
             AccessType.Write)
             .Returns(true);
 
-        var handler = new SubmitApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
             AuthenticatedUserServiceTestHelper.MockReturningUser(testUser),
             permissionCheckerService,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -161,11 +160,10 @@ public class SubmitApplicationCommandHandlerTests
             Arg.Any<AccessType>())
             .Returns(false);
 
-        var handler = new SubmitApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
             AuthenticatedUserServiceTestHelper.MockReturning(Result<User>.Forbid("Not authenticated")),
             permissionCheckerService,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -201,11 +199,10 @@ public class SubmitApplicationCommandHandlerTests
             AccessType.Write)
             .Returns(true);
 
-        var handler = new SubmitApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
             AuthenticatedUserServiceTestHelper.MockReturningUser(user),
             permissionCheckerService,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -252,11 +249,10 @@ public class SubmitApplicationCommandHandlerTests
             AccessType.Write)
             .Returns(false);
 
-        var handler = new SubmitApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
             AuthenticatedUserServiceTestHelper.MockReturningUser(testUser),
             permissionCheckerService,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -303,11 +299,10 @@ public class SubmitApplicationCommandHandlerTests
             AccessType.Write)
             .Returns(true);
 
-        var handler = new SubmitApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
             AuthenticatedUserServiceTestHelper.MockReturningUser(testUser),
             permissionCheckerService,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -355,16 +350,42 @@ public class SubmitApplicationCommandHandlerTests
             AccessType.Write)
             .Returns(true);
 
-        var handler = new SubmitApplicationCommandHandler(
+        var handler = CreateHandler(
             applicationRepo,
             AuthenticatedUserServiceTestHelper.MockReturningUser(testUser),
             permissionCheckerService,
-            Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("Only the user who created the application can submit it", result.Error);
+    }
+
+    private static SubmitApplicationCommandHandler CreateHandler(
+        IEaRepository<Domain.Entities.Application> applicationRepo,
+        IAuthenticatedUserService authenticatedUserService,
+        IPermissionCheckerService permissionCheckerService,
+        IUnitOfWork unitOfWork,
+        IEaRepository<Domain.Entities.File>? fileRepository = null,
+        IFileValidationModeResolver? modeResolver = null,
+        IApplicationFileValidationPolicy? policy = null)
+    {
+        var files = fileRepository ?? Substitute.For<IEaRepository<Domain.Entities.File>>();
+        var emptyFiles = Array.Empty<Domain.Entities.File>().AsQueryable().BuildMockDbSet();
+        files.Query().Returns(emptyFiles);
+
+        var resolver = modeResolver ?? Substitute.For<IFileValidationModeResolver>();
+        resolver.Resolve(Arg.Any<Guid?>()).Returns(FileValidationMode.Off);
+
+        return new SubmitApplicationCommandHandler(
+            applicationRepo,
+            files,
+            authenticatedUserService,
+            permissionCheckerService,
+            resolver,
+            policy ?? new ApplicationFileValidationPolicy(),
+            Substitute.For<IUserCacheInvalidator>(),
+            unitOfWork);
     }
 }

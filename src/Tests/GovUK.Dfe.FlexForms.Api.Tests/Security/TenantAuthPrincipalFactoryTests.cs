@@ -28,6 +28,24 @@ public class TenantAuthPrincipalFactoryTests
         Assert.True(principal.IsInRole("ServiceCaller"));
         Assert.True(principal.IsInRole("Admin"));
         Assert.Equal(AuthConstants.ApiKey, principal.Identity!.AuthenticationType);
+        Assert.DoesNotContain(principal.Claims, c => c.Type == "permission");
+    }
+
+    [Fact]
+    public void BuildPrincipal_EmitsFileValidationWrite_WhenServiceRoleIsFileValidation()
+    {
+        var provider = new TenantAuthProvider(
+            TenantId: Guid.NewGuid(),
+            Name: "excel-fn",
+            Kind: TenantAuthProviderKind.ApiKey,
+            IsServicePrincipal: true,
+            Roles: new[] { "FileValidation" });
+
+        var principal = TenantAuthPrincipalFactory.BuildPrincipal(provider, AuthConstants.ApiKey);
+
+        Assert.Contains(
+            principal.Claims,
+            c => c.Type == "permission" && c.Value == "FileValidation:Any:Write");
     }
 
     [Fact]

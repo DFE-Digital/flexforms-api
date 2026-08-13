@@ -12,6 +12,7 @@ public static class TenantSafeSettingCategories
     public const string EventMappings = "EventMappings";
     public const string SchemaEvents = "SchemaEvents";
     public const string EventTriggers = "EventTriggers";
+    public const string FileValidation = "FileValidation";
 
     /// <summary>Target used for safe settings that only the Web app reads.</summary>
     public const string DefaultTarget = "Web";
@@ -27,7 +28,8 @@ public static class TenantSafeSettingCategories
     {
         EventMappings,
         SchemaEvents,
-        EventTriggers
+        EventTriggers,
+        FileValidation
     };
 
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -37,7 +39,8 @@ public static class TenantSafeSettingCategories
         Dashboard,
         EventMappings,
         SchemaEvents,
-        EventTriggers
+        EventTriggers,
+        FileValidation
     };
 
     public static bool IsSafe(string? category) =>

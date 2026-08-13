@@ -166,6 +166,14 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
+        /// Returns whether file validation currently blocks submit for this application.
+        /// </summary>
+        /// <returns>File validation gate for the application.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<FileValidationGateDto> GetFileValidationGateAsync(System.Guid applicationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
         /// Generates and downloads a static HTML preview of the application by reference.
         /// </summary>
         /// <returns>Static HTML file.</returns>
@@ -196,6 +204,20 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>Host configuration.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<HostConfigurationDto> GetHostConfigurationAsync(string target = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial interface IIntegrationsClient
+    {
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Records an external tenant function's validation result for an uploaded file.
+        /// </summary>
+        /// <returns>Validation result recorded.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<UploadDto> RecordFileValidationResultAsync(System.Guid fileId, RecordFileValidationResultRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
     }
 
