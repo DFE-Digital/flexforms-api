@@ -21,7 +21,8 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
     public ApplicationStatus? Status { get; private set; }
     public DateTime? LastModifiedOn { get; private set; }
     public DateTime? DeletedOn { get; private set; } = null;
-    public UserId? DeletedBy { get; private set; } = null;
+    public UserId? DeletedBy { get; private set; }
+    public User? DeletedByUser { get; private set; }
     public ApplicationStatus? PreDeletedStatus { get; private set; } = null;
     public UserId? LastModifiedBy { get; private set; }
     public User? LastModifiedByUser { get; private set; }
@@ -42,7 +43,9 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
         UserId createdBy,
         ApplicationStatus? status = null,
         DateTime? lastModifiedOn = null,
-        UserId? lastModifiedBy = null)
+        UserId? lastModifiedBy = null,
+        DateTime? deletedOn = null,
+        UserId? deletedBy = null)
     {
         Id = id ?? throw new ArgumentNullException(nameof(id));
         ApplicationReference = applicationReference?.Trim()
@@ -53,7 +56,10 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
         Status = status;
         LastModifiedOn = lastModifiedOn;
         LastModifiedBy = lastModifiedBy;
-        if(status is null)
+        DeletedOn = deletedOn;
+        DeletedBy = deletedBy;
+
+        if (status is null)
         {
             Status = ApplicationStatus.Created;
         }

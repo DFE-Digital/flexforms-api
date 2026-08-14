@@ -582,6 +582,16 @@ public class ExternalApplicationsContext : DbContext
             .HasColumnName("LastModifiedBy")
             .HasConversion(v => v!.Value, v => new UserId(v))
             .IsRequired(false);
+        b.Property(e => e.DeletedOn)
+            .HasColumnName("DeletedOn")
+            .IsRequired(false);
+        b.Property(e => e.DeletedBy)
+            .HasColumnName("DeletedBy")
+            .HasConversion(v => v!.Value, v => new UserId(v))
+            .IsRequired(false);
+        b.Property(e => e.PreDeletedStatus)
+            .HasColumnName("PreDeletedStatus")
+            .IsRequired(false);
 
         b.HasOne(e => e.TemplateVersion)
             .WithMany()
@@ -593,6 +603,10 @@ public class ExternalApplicationsContext : DbContext
         b.HasOne(e => e.LastModifiedByUser)
             .WithMany()
             .HasForeignKey(e => e.LastModifiedBy)
+            .OnDelete(DeleteBehavior.Restrict);
+        b.HasOne(e => e.DeletedByUser)
+            .WithMany()
+            .HasForeignKey(e => e.DeletedBy)
             .OnDelete(DeleteBehavior.Restrict);
 
         // Index for efficient lookup by ApplicationReference (used by GET /Applications/reference/{applicationReference})
