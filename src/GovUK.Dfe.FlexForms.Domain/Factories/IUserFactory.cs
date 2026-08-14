@@ -16,7 +16,8 @@ public interface IUserFactory
         ApplicationId applicationId,
         string applicationReference,
         TemplateId templateId,
-        DateTime? createdOn = null);
+        DateTime? createdOn = null,
+        Guid? tenantId = null);
 
     User CreateUser(
         UserId id,
@@ -24,7 +25,8 @@ public interface IUserFactory
         string name,
         string email,
         TemplateId? templateId = null,
-        DateTime? createdOn = null);
+        DateTime? createdOn = null,
+        Guid? tenantId = null);
 
     /// <summary>
     /// Creates a new standard user with the User role and access to the given templates.
@@ -35,7 +37,8 @@ public interface IUserFactory
         string email,
         IEnumerable<TemplateId> templateIds,
         UserId grantedBy,
-        DateTime? createdOn = null);
+        DateTime? createdOn = null,
+        Guid? tenantId = null);
 
     /// <summary>
     /// Assigns the User role and standard permissions to an existing user.
@@ -44,7 +47,8 @@ public interface IUserFactory
         User user,
         IEnumerable<TemplateId> templateIds,
         UserId grantedBy,
-        DateTime? grantedOn = null);
+        DateTime? grantedOn = null,
+        Guid? tenantId = null);
 
     /// <summary>
     /// Creates a new admin user with the tenant-scoped Admin role.

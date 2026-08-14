@@ -68,6 +68,7 @@ public static class RolePermissionGrantRules
     /// <item><description>Template — Write: create applications on any template</description></item>
     /// <item><description>Application — Read: CaseReader-style list/read all apps</description></item>
     /// <item><description>ApplicationFiles — Read: read files on all apps</description></item>
+    /// <item><description>FileValidation — Write: report validation results for any file in the tenant</description></item>
     /// <item><description>Template — Manage: tenant-wide template administration</description></item>
     /// <item><description>User — Manage: tenant-wide user administration</description></item>
     /// </list>
@@ -76,6 +77,7 @@ public static class RolePermissionGrantRules
         (resourceType == ResourceType.Template && accessType == AccessType.Write)
         || (resourceType == ResourceType.Application && accessType == AccessType.Read)
         || (resourceType == ResourceType.ApplicationFiles && accessType == AccessType.Read)
+        || (resourceType == ResourceType.FileValidation && accessType == AccessType.Write)
         || (resourceType == ResourceType.Template && accessType == AccessType.Manage)
         || (resourceType == ResourceType.User && accessType == AccessType.Manage);
 
@@ -95,6 +97,7 @@ public static class RolePermissionGrantRules
             "Template — Write (create applications on any template), " +
             "Application — Read (read all applications in the tenant), or " +
             "ApplicationFiles — Read (read files on all applications), " +
+            "FileValidation — Write (report file validation results), " +
             "Template — Manage (administer templates in the tenant), or " +
             "User — Manage (administer users in the tenant). " +
             "For other combinations, use a specific resource id or email.",
@@ -122,6 +125,7 @@ public static class RolePermissionGrantRules
             case ResourceType.ApplicationFiles:
             case ResourceType.Template:
             case ResourceType.File:
+            case ResourceType.FileValidation:
             case ResourceType.Task:
             case ResourceType.TaskGroup:
             case ResourceType.Page:

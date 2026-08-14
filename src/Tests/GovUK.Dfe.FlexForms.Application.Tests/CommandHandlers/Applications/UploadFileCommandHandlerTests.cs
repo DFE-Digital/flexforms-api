@@ -35,6 +35,7 @@ public class UploadFileCommandHandlerTests
     private readonly IFileFactory _fileFactory;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IPermissionCheckerService _permissionCheckerService;
+    private readonly IFileValidationModeResolver _fileValidationModeResolver;
     private readonly UploadFileCommandHandler _handler;
 
     public UploadFileCommandHandlerTests()
@@ -47,6 +48,9 @@ public class UploadFileCommandHandlerTests
         _fileFactory = Substitute.For<IFileFactory>();
         _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         _permissionCheckerService = Substitute.For<IPermissionCheckerService>();
+        _fileValidationModeResolver = Substitute.For<IFileValidationModeResolver>();
+        _fileValidationModeResolver.Resolve(Arg.Any<Guid?>()).Returns(FileValidationMode.Off);
+        _fileValidationModeResolver.IsExtensionSubjectToValidation(Arg.Any<string?>()).Returns(true);
 
         _handler = new UploadFileCommandHandler(
             _uploadRepository,
@@ -56,7 +60,8 @@ public class UploadFileCommandHandlerTests
             _fileStorageService,
             _fileFactory,
             _httpContextAccessor,
-            _permissionCheckerService);
+            _permissionCheckerService,
+            _fileValidationModeResolver);
     }
 
     [Theory]

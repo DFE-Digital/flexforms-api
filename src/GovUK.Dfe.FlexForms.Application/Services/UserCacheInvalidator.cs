@@ -78,10 +78,20 @@ public sealed class UserCacheInvalidator(
     /// <inheritdoc />
     public async Task InvalidateTenantUserClaimsAsync(CancellationToken cancellationToken = default)
     {
-        var pattern = TenantCacheKeyHelper.CreateTenantScopedKey(
-            tenantContextAccessor,
-            "UserClaims_*");
-        await advancedRedisCacheService.RemoveByPatternAsync(pattern);
+        // Web loads permissions via GetMyPermissions (Permissions_All_UserId_*), not UserClaims_* alone.
+        // Clear every tenant-scoped permission cache so role changes apply on the next request.
+        var patterns = new[]
+        {
+            "UserClaims_*",
+            "Permissions_All_UserId_*",
+            "Template_Permissions_ByUiD_*"
+        };
+
+        foreach (var suffix in patterns)
+        {
+            var pattern = TenantCacheKeyHelper.CreateTenantScopedKey(tenantContextAccessor, suffix);
+            await advancedRedisCacheService.RemoveByPatternAsync(pattern);
+        }
     }
 
     private async Task InvalidateInternalTokensAsync(string userKey)

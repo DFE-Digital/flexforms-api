@@ -26,10 +26,10 @@ public sealed class ValidateTenantSettingCommandHandler(
         ValidateTenantSettingCommand request,
         CancellationToken cancellationToken)
     {
-        if (!permissionChecker.IsInteractivePlatformAdmin())
+        if (!permissionChecker.IsInteractiveTenantAdmin())
         {
             return Result<ValidateTenantSettingResponse>.Forbid(
-                "Only interactive SuperAdmin users can validate tenant settings.");
+                "Only interactive tenant administrators can validate tenant settings.");
         }
 
         var currentTenant = tenantContextAccessor.CurrentTenant;

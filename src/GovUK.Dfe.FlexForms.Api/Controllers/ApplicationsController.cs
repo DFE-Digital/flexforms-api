@@ -433,6 +433,27 @@ public class ApplicationsController(ISender sender) : ControllerBase
     }
 
     /// <summary>
+    /// Returns whether file validation currently blocks submit for this application.
+    /// </summary>
+    [HttpGet("{applicationId}/file-validation-gate")]
+    [SwaggerResponse(200, "File validation gate for the application.", typeof(FileValidationGateDto))]
+    [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "User does not have permission to read this application", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "Application not found", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize(Policy = "CanReadApplication")]
+    public async Task<IActionResult> GetFileValidationGateAsync(
+        [FromRoute] Guid applicationId,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetApplicationFileValidationGateQuery(applicationId), cancellationToken);
+        return new ObjectResult(result)
+        {
+            StatusCode = StatusCodes.Status200OK
+        };
+    }
+
+    /// <summary>
     /// Generates and downloads a static HTML preview of the application by reference.
     /// </summary>
     [HttpGet("reference/{applicationReference}/preview/download")]

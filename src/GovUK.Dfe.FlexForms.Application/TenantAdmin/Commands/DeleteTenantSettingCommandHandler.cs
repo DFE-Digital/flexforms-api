@@ -25,10 +25,10 @@ public sealed class DeleteTenantSettingCommandHandler(
         DeleteTenantSettingCommand request,
         CancellationToken cancellationToken)
     {
-        if (!permissionChecker.IsInteractivePlatformAdmin())
+        if (!permissionChecker.IsInteractiveTenantAdmin())
         {
             return Result<DeleteTenantSettingResponse>.Forbid(
-                "Only interactive SuperAdmin users can delete tenant settings.");
+                "Only interactive tenant administrators can delete tenant settings.");
         }
 
         var currentTenant = tenantContextAccessor.CurrentTenant;

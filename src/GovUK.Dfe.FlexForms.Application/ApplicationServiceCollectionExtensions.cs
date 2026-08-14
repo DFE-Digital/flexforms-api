@@ -15,6 +15,9 @@ using Microsoft.Extensions.Configuration;
 using System.Reflection;
 using GovUK.Dfe.CoreLibs.FileStorage;
 using GovUK.Dfe.CoreLibs.Notifications.Extensions;
+using GovUK.Dfe.CoreLibs.Notifications.Interfaces;
+using GovUK.Dfe.CoreLibs.Notifications.Services;
+using GovUK.Dfe.FlexForms.Application.Notifications;
 using GovUK.Dfe.CoreLibs.Utilities.RateLimiting;
 using Microsoft.AspNetCore.Http;
 using GovUK.Dfe.CoreLibs.Email;
@@ -86,6 +89,8 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddTransient<IUserFactory, UserFactory>();
             services.AddTransient<ITemplateFactory, TemplateFactory>();
             services.AddTransient<IFileFactory, FileFactory>();
+            services.AddSingleton<IApplicationFileValidationPolicy, ApplicationFileValidationPolicy>();
+            services.AddScoped<IFileValidationModeResolver, FileValidationModeResolver>();
 
             services.AddTransient<IEmailTemplateResolver, EmailTemplateResolver>();
 
@@ -110,6 +115,13 @@ namespace Microsoft.Extensions.DependencyInjection
             services.PostConfigure<GovUK.Dfe.CoreLibs.Notifications.Options.NotificationServiceOptions>(options =>
             {
                 options.RedisKeyPrefix = FlexFormsCacheKeys.NotificationsKeyPrefix;
+            });
+            services.AddScoped<INotificationService>(sp =>
+            {
+                var inner = ActivatorUtilities.CreateInstance<NotificationService>(sp);
+                return new TenantScopedNotificationService(
+                    inner,
+                    sp.GetRequiredService<ITenantContextAccessor>());
             });
 
             services.AddFileStorage(tenantConfig);

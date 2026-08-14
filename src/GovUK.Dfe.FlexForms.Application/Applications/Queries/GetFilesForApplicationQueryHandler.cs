@@ -75,7 +75,10 @@ public class GetFilesForApplicationQueryHandler(
                 OriginalFileName = u.OriginalFileName,
                 FileName = u.FileName,
                 UploadedOn = u.UploadedOn,
-                FileSize = u.FileSize
+                FileSize = u.FileSize,
+                ValidationStatus = u.ValidationStatus,
+                ValidationMessage = u.ValidationMessage,
+                ValidatedOn = u.ValidatedOn
             })
             .ToListAsync(cancellationToken)).AsReadOnly();
 

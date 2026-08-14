@@ -116,6 +116,7 @@ public static class TenantSettingJsonValidator
             "EventMappings" => true,
             "SchemaEvents" => true,
             "EventTriggers" => true,
+            "FileValidation" => true,
             _ => false
         };
 
@@ -240,6 +241,10 @@ public static class TenantSettingJsonValidator
 
             case "EventTriggers":
                 ValidateEventTriggers(root, errors);
+                break;
+
+            case "FileValidation":
+                ValidateFileValidation(root, errors);
                 break;
 
             default:
@@ -436,6 +441,79 @@ public static class TenantSettingJsonValidator
             JsonValueKind.False => "false",
             _ => null
         };
+    }
+
+    private static readonly HashSet<string> AllowedFileValidationModes =
+        new(StringComparer.OrdinalIgnoreCase) { "Off", "FailOnInvalid", "RequirePassed" };
+
+    private static void ValidateFileValidation(JsonElement root, List<string> errors)
+    {
+        if (root.TryGetProperty("DefaultMode", out var defaultMode)
+            || root.TryGetProperty("defaultMode", out defaultMode))
+        {
+            var value = defaultMode.ValueKind == JsonValueKind.String ? defaultMode.GetString() : null;
+            if (string.IsNullOrWhiteSpace(value) || !AllowedFileValidationModes.Contains(value))
+            {
+                errors.Add("FileValidation.DefaultMode must be Off, FailOnInvalid, or RequirePassed.");
+            }
+        }
+
+        ValidateFileValidationExtensions(root, errors);
+
+        if (!root.TryGetProperty("Templates", out var templates)
+            && !root.TryGetProperty("templates", out templates))
+        {
+            return;
+        }
+
+        if (templates.ValueKind != JsonValueKind.Object)
+        {
+            errors.Add("FileValidation.Templates must be an object keyed by template id.");
+            return;
+        }
+
+        foreach (var template in templates.EnumerateObject())
+        {
+            if (!Guid.TryParse(template.Name, out var templateId) || templateId == Guid.Empty)
+            {
+                errors.Add($"FileValidation.Templates['{template.Name}'] key must be a template GUID.");
+                continue;
+            }
+
+            var mode = template.Value.ValueKind == JsonValueKind.String ? template.Value.GetString() : null;
+            if (string.IsNullOrWhiteSpace(mode) || !AllowedFileValidationModes.Contains(mode))
+            {
+                errors.Add(
+                    $"FileValidation.Templates['{template.Name}'] must be Off, FailOnInvalid, or RequirePassed.");
+            }
+        }
+    }
+
+    private static void ValidateFileValidationExtensions(JsonElement root, List<string> errors)
+    {
+        if (!root.TryGetProperty("Extensions", out var extensions)
+            && !root.TryGetProperty("extensions", out extensions))
+        {
+            return;
+        }
+
+        if (extensions.ValueKind != JsonValueKind.Array)
+        {
+            errors.Add("FileValidation.Extensions must be an array of file extensions (e.g. [\".xlsx\"]).");
+            return;
+        }
+
+        var index = 0;
+        foreach (var item in extensions.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(item.GetString()))
+            {
+                errors.Add($"FileValidation.Extensions[{index}] must be a non-empty string.");
+            }
+
+            index++;
+        }
     }
 
     private static bool? GetBool(JsonElement root, string property)

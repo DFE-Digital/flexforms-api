@@ -221,6 +221,11 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                 {
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.NotificationsPermissionRequirement(AccessType.Delete.ToString()));
+                },
+                ["CanRecordFileValidation"] = pb =>
+                {
+                    pb.RequireAuthenticatedUser();
+                    pb.AddRequirements(new Handlers.FileValidationPermissionRequirement());
                 }
             };
 
@@ -284,6 +289,7 @@ namespace GovUK.Dfe.FlexForms.Api.Security
             services.AddSingleton<IAuthorizationHandler, UserManagePermissionHandler>();
             services.AddSingleton<IAuthorizationHandler, ApplicationFilesPermissionHandler>();
             services.AddSingleton<IAuthorizationHandler, NotificationsPermissionHandler>();
+            services.AddSingleton<IAuthorizationHandler, FileValidationPermissionHandler>();
             services.AddSingleton<IAuthorizationHandler, ServicePrincipalHandler>();
             services.AddSingleton<IAuthorizationHandler, Handlers.TenantAdminUserAuthorizationHandler>();
             services.AddSingleton<IAuthorizationHandler, Handlers.PlatformHostRoleAuthorizationHandler>();

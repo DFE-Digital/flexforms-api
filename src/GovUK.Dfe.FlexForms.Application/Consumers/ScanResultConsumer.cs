@@ -1,15 +1,23 @@
-using GovUK.Dfe.FlexForms.Application.Applications.Commands;
-using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
-using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Enums;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Helpers;
+using GovUK.Dfe.CoreLibs.Notifications;
+using GovUK.Dfe.CoreLibs.Notifications.Interfaces;
+using GovUK.Dfe.CoreLibs.Notifications.Models;
+using GovUK.Dfe.FlexForms.Application.Applications.Commands;
+using GovUK.Dfe.FlexForms.Application.Applications.EventHandlers;
+using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
+using GovUK.Dfe.FlexForms.Application.Messaging;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using MassTransit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using File = GovUK.Dfe.FlexForms.Domain.Entities.File;
 
 namespace GovUK.Dfe.FlexForms.Application.Consumers;
@@ -17,15 +25,19 @@ namespace GovUK.Dfe.FlexForms.Application.Consumers;
 /// <summary>
 /// Consumer for file scan results from the virus scanner service.
 /// Listens to the shared <c>file-scanner-results</c> subscription. Tenant context is set by
-/// <c>TenantContextConsumeFilter</c> from the inbound message headers before this consumer runs,
-/// so this body assumes <see cref="ITenantContextAccessor.CurrentTenant"/> is already populated.
+/// <c>TenantContextConsumeFilter</c> from inbound headers/metadata before this consumer runs.
+/// Tenant, template, and requesting user are then matched in code — not via Service Bus SQL filters.
 /// </summary>
 public sealed class ScanResultConsumer(
     ILogger<ScanResultConsumer> logger,
     IEaRepository<File> fileRepository,
     ITenantContextAccessor tenantContextAccessor,
-    ISender sender) : IConsumer<ScanResultEvent>
+    ISender sender,
+    INotificationService notificationService,
+    INotificationSignalRService notificationSignalRService) : IConsumer<ScanResultEvent>
 {
+    public const string MalwareCategory = "malware-detection";
+
     public async Task Consume(ConsumeContext<ScanResultEvent> context)
     {
         var scanResult = context.Message;
@@ -36,66 +48,89 @@ public sealed class ScanResultConsumer(
             scanResult.Status,
             scanResult.Outcome);
 
-        // LOCAL ENVIRONMENT ONLY: Check if this message is for this instance
-        // This allows developers to run locally without interfering with each other
+        var tenant = tenantContextAccessor.CurrentTenant;
+        if (tenant is null)
+        {
+            logger.LogWarning(
+                "Skipping scan result for {FileId}: tenant context was not resolved",
+                scanResult.FileId);
+            return;
+        }
+
+        var metadataTenantId = ScanEventRouting.GetMetadataGuid(scanResult.Metadata, ScanEventRouting.TenantIdMetadata);
+        if (metadataTenantId is Guid stampedTenantId && stampedTenantId != tenant.Id)
+        {
+            logger.LogWarning(
+                "Skipping scan result for {FileId}: metadata TenantId {MetadataTenantId} does not match resolved tenant {TenantId}",
+                scanResult.FileId,
+                stampedTenantId,
+                tenant.Id);
+            return;
+        }
+
         if (InstanceIdentifierHelper.IsLocalEnvironment())
         {
-            var messageInstanceId = scanResult.Metadata?.ContainsKey("InstanceIdentifier") == true
-                ? scanResult.Metadata["InstanceIdentifier"]?.ToString()
-                : null;
+            var messageInstanceId = ScanEventRouting.GetMetadata(
+                scanResult.Metadata,
+                ScanEventRouting.InstanceIdentifierMetadata);
 
-            var tenantConfiguration = tenantContextAccessor.CurrentTenant?.Settings;
-            if (tenantConfiguration == null)
+            var localInstanceId = InstanceIdentifierHelper.GetInstanceIdentifier(tenant.Settings);
+
+            if (!InstanceIdentifierHelper.IsMessageForThisInstance(messageInstanceId, localInstanceId))
             {
-                logger.LogWarning("No tenant context available for instance identifier check");
-            }
-            else
-            {
-                var localInstanceId = InstanceIdentifierHelper.GetInstanceIdentifier(tenantConfiguration);
+                logger.LogDebug(
+                    "Message {FileId} not for this instance (MessageInstanceId: '{MessageInstanceId}', LocalInstanceId: '{LocalInstanceId}') - throwing exception to requeue for other consumers",
+                    scanResult.FileId,
+                    messageInstanceId ?? "none",
+                    localInstanceId ?? "none");
 
-                if (!InstanceIdentifierHelper.IsMessageForThisInstance(messageInstanceId, localInstanceId))
-                {
-                    logger.LogDebug(
-                        "Message {FileId} not for this instance (MessageInstanceId: '{MessageInstanceId}', LocalInstanceId: '{LocalInstanceId}') - throwing exception to requeue for other consumers",
-                        scanResult.FileId,
-                        messageInstanceId ?? "none",
-                        localInstanceId ?? "none");
-
-                    // Throw exception to prevent acknowledgment and allow other consumers to process
-                    // Service Bus will redeliver this message to another consumer instance
-                    throw new MessageNotForThisInstanceException(
-                        $"Message InstanceIdentifier '{messageInstanceId}' doesn't match local instance '{localInstanceId}'");
-                }
+                throw new MessageNotForThisInstanceException(
+                    $"Message InstanceIdentifier '{messageInstanceId}' doesn't match local instance '{localInstanceId}'");
             }
         }
 
         try
         {
-            // Parse the FileUrl to extract path and filename
-            // FileUrl format: "{applicationReference}/{hashedFileName}"
             if (string.IsNullOrEmpty(scanResult.FileName) || string.IsNullOrEmpty(scanResult.Path))
             {
                 logger.LogWarning("ScanResultEvent has no FileUri, skipping");
                 return;
             }
 
-            var path = scanResult.Path; // Application reference
-            var fileName = scanResult.FileName; // Hashed file name
-
-            var file = await new GetFileByPathAndFileNameQueryObject(path, fileName)
-                .Apply(fileRepository.Query().Include(f => f.UploadedByUser).AsNoTracking())
+            var file = await new GetFileByPathAndFileNameQueryObject(scanResult.Path, scanResult.FileName)
+                .Apply(fileRepository.Query()
+                    .Include(f => f.UploadedByUser)
+                    .Include(f => f.Application!)
+                        .ThenInclude(a => a.TemplateVersion)
+                    .AsNoTracking())
                 .FirstOrDefaultAsync(context.CancellationToken);
 
             if (file == null)
             {
                 logger.LogWarning(
                     "File not found in database - Path: {Path}, FileName: {FileName}",
-                    path,
-                    fileName);
+                    scanResult.Path,
+                    scanResult.FileName);
                 return;
             }
 
-            // Handle based on scan outcome
+            if (!MatchesRequestingUser(context, file))
+            {
+                logger.LogWarning(
+                    "Skipping scan result for {FileId}: requesting user does not match file uploader {UploadedBy}",
+                    scanResult.FileId,
+                    file.UploadedBy.Value);
+                return;
+            }
+
+            if (!MatchesTemplate(context, file))
+            {
+                logger.LogWarning(
+                    "Skipping scan result for {FileId}: template does not match application template",
+                    scanResult.FileId);
+                return;
+            }
+
             switch (scanResult.Outcome)
             {
                 case VirusScanOutcome.Clean:
@@ -112,7 +147,6 @@ public sealed class ScanResultConsumer(
                         scanResult.FileName,
                         scanResult.MalwareName);
 
-                    // Delete the infected file
                     var deleteCommand = new DeleteInfectedFileCommand(file.Id);
                     var result = await sender.Send(deleteCommand, context.CancellationToken);
 
@@ -121,6 +155,11 @@ public sealed class ScanResultConsumer(
                         logger.LogWarning(
                             "Successfully deleted infected file - FileId: {FileId}",
                             file.Id.Value);
+
+                        await NotifyUploaderOfInfectedFileAsync(
+                            file,
+                            scanResult.MalwareName,
+                            context.CancellationToken);
                     }
                     else
                     {
@@ -154,7 +193,115 @@ public sealed class ScanResultConsumer(
                 ex,
                 "Error processing scan result for file: {FileName}",
                 scanResult.FileName);
-            throw; // Let MassTransit handle retries
+            throw;
+        }
+    }
+
+    private static bool MatchesRequestingUser(ConsumeContext<ScanResultEvent> context, File file)
+    {
+        var requestedUserId = ScanEventRouting.ResolveUserId(context.Headers, context.Message.Metadata);
+        return requestedUserId is null || requestedUserId.Value == file.UploadedBy.Value;
+    }
+
+    private static bool MatchesTemplate(ConsumeContext<ScanResultEvent> context, File file)
+    {
+        var requestedTemplateId = ScanEventRouting.ResolveTemplateId(context.Headers, context.Message.Metadata);
+        if (requestedTemplateId is null)
+            return true;
+
+        var fileTemplateId = file.Application?.TemplateVersion?.TemplateId.Value;
+        return fileTemplateId == requestedTemplateId;
+    }
+
+    /// <summary>
+    /// Stores the malware banner and pushes it on the API SignalR hub (the browser connects there).
+    /// Done here because the Web consumer's S2S API calls are unauthenticated and must not own this.
+    /// </summary>
+    private async Task NotifyUploaderOfInfectedFileAsync(
+        File file,
+        string? malwareName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var email = file.UploadedByUser?.Email;
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                logger.LogWarning(
+                    "No uploader email for infected file {FileId}; skipping malware notification.",
+                    file.Id!.Value);
+                return;
+            }
+
+            var displayName = string.IsNullOrWhiteSpace(file.OriginalFileName)
+                ? file.FileName
+                : file.OriginalFileName;
+            var malwareLabel = string.IsNullOrWhiteSpace(malwareName) ? "unknown malware" : malwareName;
+            var appContext = FileValidationRecordedEventHandler.ResolveNotificationContext(
+                tenantContextAccessor.CurrentTenant);
+
+            var options = new NotificationOptions
+            {
+                Category = MalwareCategory,
+                Context = NotificationContextHelper.BuildScopedContext(
+                    appContext,
+                    MalwareCategory,
+                    file.Id!.Value.ToString()),
+                AutoDismiss = false,
+                AutoDismissSeconds = 0,
+                UserId = email,
+                ReplaceExistingContext = true,
+                Priority = NotificationPriority.High,
+                Metadata = new Dictionary<string, object>
+                {
+                    ["fileId"] = file.Id.Value.ToString(),
+                    ["fileName"] = displayName,
+                    ["malwareName"] = malwareLabel,
+                    ["applicationId"] = file.ApplicationId.Value.ToString(),
+                    ["detectedAt"] = DateTimeOffset.UtcNow.ToString("o")
+                }
+            };
+
+            var message =
+                $"The selected file '{displayName}' contains a virus called [{malwareLabel}]. We have deleted the file. Upload a new one.";
+
+            var stored = await notificationService.AddNotificationAsync(
+                message,
+                NotificationType.Error,
+                options,
+                cancellationToken);
+
+            var dto = new NotificationDto
+            {
+                Id = stored.Id,
+                Message = stored.Message,
+                Type = stored.Type,
+                Category = stored.Category ?? options.Category,
+                Context = stored.Context ?? options.Context,
+                IsRead = stored.IsRead,
+                CreatedAt = stored.CreatedAt,
+                AutoDismiss = stored.AutoDismiss,
+                AutoDismissSeconds = stored.AutoDismissSeconds,
+                UserId = stored.UserId ?? email,
+                ActionUrl = stored.ActionUrl,
+                Metadata = stored.Metadata ?? options.Metadata,
+                Priority = stored.Priority
+            };
+
+            await notificationSignalRService.SendNotificationToUserAsync(email, dto, cancellationToken);
+
+            logger.LogInformation(
+                "Created malware notification for infected file {FileId} ({FileName}) user {UserEmail}",
+                file.Id.Value,
+                displayName,
+                email);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Failed to notify uploader about infected file {FileId}",
+                file.Id?.Value);
         }
     }
 }

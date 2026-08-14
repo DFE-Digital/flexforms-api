@@ -34,6 +34,15 @@ public class RolePermissionGrantRulesTests
     }
 
     [Fact]
+    public void EnsureValid_AllowsFileValidationAnyWrite()
+    {
+        RolePermissionGrantRules.EnsureValid(
+            ResourceType.FileValidation,
+            PermissionConstants.AnyResourceKey,
+            AccessType.Write);
+    }
+
+    [Fact]
     public void EnsureValid_AllowsTemplateAnyManage()
     {
         RolePermissionGrantRules.EnsureValid(

@@ -16,10 +16,10 @@ public sealed class GetTenantSettingCategoryCookbookQueryHandler(
         GetTenantSettingCategoryCookbookQuery request,
         CancellationToken cancellationToken)
     {
-        if (!permissionChecker.IsInteractivePlatformAdmin())
+        if (!permissionChecker.IsInteractiveTenantAdmin())
         {
             return Task.FromResult(Result<GetTenantSettingCategoryCookbookResponse>.Forbid(
-                "Only interactive SuperAdmin users can view the category cookbook."));
+                "Only interactive tenant administrators can view the category cookbook."));
         }
 
         var entries = TenantSettingCategoryCookbook.All;

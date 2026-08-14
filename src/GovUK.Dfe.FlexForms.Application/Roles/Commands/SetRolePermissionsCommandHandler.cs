@@ -99,8 +99,8 @@ public sealed class SetRolePermissionsCommandHandler(
             await rolePermissionService.ReplacePermissionsAsync(role, grants, cancellationToken);
             await unitOfWork.CommitAsync(cancellationToken);
 
-            // Role permission claims are cached per user — clear tenant claim caches so
-            // members of this role pick up the new grants on the next request.
+            // Permission queries are cached per user — clear tenant caches so members of this role
+            // pick up new grants on the next request (Web GetMyPermissions + API claim provider).
             await userCacheInvalidator.InvalidateTenantUserClaimsAsync(cancellationToken);
 
             var saved = await rolePermissionService.GetByRoleIdAsync(role.Id!, cancellationToken);

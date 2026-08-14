@@ -94,8 +94,12 @@ public static class TenantSettingCategoryCookbook
             "AuthProviders",
             "Machine/service auth providers (API keys, mTLS, client credentials).",
             ["Api", "Shared"],
-            example: """{"Providers":[]}""",
-            notes: ["Forced secret category"],
+            example: """{"Providers":[{"Name":"file-validation","Kind":"ApiKey","IsServicePrincipal":true,"KeyHash":"<sha256-hex>","Roles":["FileValidation"]}]}""",
+            notes:
+            [
+                "Forced secret category",
+                "Additive: do not copy TokenSettings/Entra/DSI here. API-key rows only."
+            ],
             requiresObject: false),
 
         Entry(
@@ -146,6 +150,21 @@ public static class TenantSettingCategoryCookbook
                 "Saved with Target=Shared so the API runtime can read it",
                 "Use EventKind=Schema in EventTriggers",
                 "Promote successful schemas into CoreLibs when stable"
+            ],
+            requiresObject: true),
+
+        Entry(
+            "FileValidation",
+            "Per-template policy for blocking submit when a tenant function reports a file as invalid.",
+            ["Shared"],
+            example: """{"DefaultMode":"Off","Extensions":[".xlsx"],"Templates":{"00000000-0000-0000-0000-000000000000":"RequirePassed"}}""",
+            notes:
+            [
+                "Non-secret",
+                "Saved with Target=Shared so the API runtime can read it",
+                "Modes: Off (ignore), FailOnInvalid (block Failed only), RequirePassed (Pending also blocks)",
+                "Optional Extensions: only matching uploads are marked Pending (omit or [] = all files)",
+                "Tenant Azure Functions report results via POST /v1/integrations/files/{fileId}/validation-result"
             ],
             requiresObject: true),
 

@@ -90,7 +90,11 @@ public class FileUploadedDomainEventHandlerTests
 
         // Assert
         await _eventPublisher.Received(1).PublishAsync(
-            Arg.Any<GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events.ScanRequestedEvent>(),
+            Arg.Is<GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events.ScanRequestedEvent>(e =>
+                e.Metadata != null
+                && e.Metadata.ContainsKey("TenantId")
+                && e.Metadata.ContainsKey("userId")
+                && e.Metadata.ContainsKey("templateId")),
             Arg.Any<GovUK.Dfe.CoreLibs.Messaging.MassTransit.Models.AzureServiceBusMessageProperties>(),
             Arg.Any<CancellationToken>());
     }

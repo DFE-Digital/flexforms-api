@@ -42,7 +42,7 @@ public sealed class RemoveNotificationCommandHandler(
             if (!canAccess)
                 return Result<bool>.Forbid("User does not have permission to delete notifications");
 
-            await notificationService.RemoveNotificationAsync(request.NotificationId, cancellationToken);
+            await notificationService.RemoveNotificationAsync(request.NotificationId, principalId, cancellationToken);
 
             // Send real-time notification deletion via SignalR
             await notificationSignalRService.SendNotificationDeletionToUserAsync(principalId, request.NotificationId, cancellationToken);

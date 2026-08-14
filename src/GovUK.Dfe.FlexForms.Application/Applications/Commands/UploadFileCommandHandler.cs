@@ -1,6 +1,7 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Application.Applications.Mapping;
 using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
@@ -39,7 +40,8 @@ public class UploadFileCommandHandler(
     ITenantAwareFileStorageService fileStorageService,
     IFileFactory fileFactory,
     IHttpContextAccessor httpContextAccessor,
-    IPermissionCheckerService permissionCheckerService)
+    IPermissionCheckerService permissionCheckerService,
+    IFileValidationModeResolver fileValidationModeResolver)
     : IRequestHandler<UploadFileCommand, Result<UploadDto>>
 {
     public async Task<Result<UploadDto>> Handle(UploadFileCommand request, CancellationToken cancellationToken)
@@ -151,24 +153,16 @@ public class UploadFileCommandHandler(
                 fileHash: fileHash
             );
 
+            var mode = fileValidationModeResolver.Resolve(application.TemplateVersion?.TemplateId.Value);
+            if (mode != FileValidationMode.Off
+                && fileValidationModeResolver.IsExtensionSubjectToValidation(request.OriginalFileName))
+                upload.RequireExternalValidation();
+
             await uploadRepository.AddAsync(upload, cancellationToken);
 
             await unitOfWork.CommitAsync(cancellationToken);
 
-            var dto = new UploadDto
-            {
-                Id = upload.Id!.Value,
-                ApplicationId = upload.ApplicationId.Value,
-                UploadedBy = upload.UploadedBy.Value,
-                Name = upload.Name,
-                Description = upload.Description,
-                OriginalFileName = upload.OriginalFileName,
-                FileName = upload.FileName,
-                UploadedOn = upload.UploadedOn,
-                FileSize = fileSize
-            };
-
-            return Result<UploadDto>.Success(dto);
+            return Result<UploadDto>.Success(UploadDtoMapper.FromFile(upload));
         }
         catch (Exception e)
         {

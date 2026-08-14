@@ -23,7 +23,7 @@ public class GetTenantSettingsQueryHandlerTests
     [Fact]
     public async Task Handle_ShouldForbid_WhenCallerIsNotPlatformAdmin()
     {
-        _permissionChecker.IsInteractivePlatformAdmin().Returns(false);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(false);
 
         var result = await _handler.Handle(
             new GetTenantSettingsQuery(Guid.NewGuid()),
@@ -40,7 +40,7 @@ public class GetTenantSettingsQueryHandlerTests
         var callerTenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
         var otherTenantId = Guid.Parse("22222222-2222-4222-8222-222222222222");
 
-        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(CreateTenant(callerTenantId, "Transfers"));
 
         var result = await _handler.Handle(
@@ -56,7 +56,7 @@ public class GetTenantSettingsQueryHandlerTests
     public async Task Handle_ShouldReturnSettings_WhenSuperAdminViewsOwnTenant()
     {
         var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
-        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
 
         _settingsQuery.ListSettingsAsync(tenantId, Arg.Any<CancellationToken>())
@@ -85,10 +85,41 @@ public class GetTenantSettingsQueryHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ShouldReturnSettings_WhenTenantAdminViewsOwnTenant()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
+        _permissionChecker.IsInteractivePlatformAdmin().Returns(false);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+
+        _settingsQuery.ListSettingsAsync(tenantId, Arg.Any<CancellationToken>())
+            .Returns(new TenantSettingsList(
+                tenantId,
+                "Transfers",
+                [
+                    new TenantSettingRow(
+                        Guid.NewGuid(),
+                        "Layout",
+                        "Web",
+                        """{"ServiceName":"Test"}""",
+                        false,
+                        DateTime.UtcNow)
+                ]));
+
+        var result = await _handler.Handle(
+            new GetTenantSettingsQuery(tenantId),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(tenantId, result.Value!.TenantId);
+        Assert.Single(result.Value.Settings);
+    }
+
+    [Fact]
     public async Task Handle_ShouldReturnNotFound_WhenTenantMissing()
     {
         var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
-        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
         _settingsQuery.ListSettingsAsync(tenantId, Arg.Any<CancellationToken>())
             .Returns((TenantSettingsList?)null);

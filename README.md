@@ -13,11 +13,13 @@ Tenants (products such as Transfers, Visits, LSRP) share one API. Each tenant’
 - **Roles & permissions** — SuperAdmin (platform), Admin / User / custom roles (tenant), claim-based grants
 - **Token exchange** — DfE Sign-In / Entra SSO / test / internal service → tenant-scoped API JWT
 - **Secure files** — Azure File Share + ClamAV scan via Azure Service Bus
+- **Tenant file validation** — Optional per-template callback; status + SignalR notify the uploader
 - **GOV.UK Notify** — Email for submit, invites, feedback
 - **Real-time notifications** — Azure SignalR
 - **Audit** — SQL Server temporal tables on `ea` entities
 - **Redis + memory cache** — Tenant-prefixed keys
 - **NSwag Api.Client** — Strongly typed .NET client for Web and other consumers
+- **Request tracing** — Correlation id, structured Serilog → Application Insights, enriched `ExceptionResponse`, login audit logs
 
 ---
 
@@ -188,6 +190,8 @@ Maps Azure AD **oid** / **appid** of a workload identity to a tenant. Used when 
 
 Web’s Api.Client uses this on every user session (`RequestTokenExchange`).
 
+**Login audit:** successful exchange logs `UserEmail`, `TenantId`, `TenantName`, `Role`, and `TemplateCount` (structured properties for App Insights).
+
 ### Roles
 
 | Role | Scope | Notes |
@@ -212,6 +216,85 @@ Merged from `RolePermissions` + user `Permissions` overrides (`UserPermissionCla
 ### Tenant consistency
 
 Bearer claim `tenant_id` must match the resolved request tenant. Cross-tenant tokens are rejected.
+
+---
+
+## Observability and request tracing
+
+Structured logging uses **Serilog** with `Enrich.FromLogContext()` and an Application Insights sink (`Telemetry/ExceptionTrackingTelemetryConverter`). The default App Insights `ILogger` provider is disabled so exceptions and traces share one pipeline with searchable `customDimensions`.
+
+### CoreLibs building blocks
+
+From `GovUK.Dfe.CoreLibs.Http` (local project reference in dev; NuGet in CI):
+
+| Component | Role |
+|-----------|------|
+| `AddCorrelationId()` / `UseCorrelationId()` | Registers `ICorrelationContext` + `IRequestTelemetryContext`; ensures `x-correlationId` header |
+| `GlobalExceptionHandlerMiddleware` | Standard JSON errors, **ErrorId**, merges telemetry onto `ExceptionResponse` |
+| `LogContextKeys` | Canonical scope names: `CorrelationId`, `ErrorId`, `TenantId`, `TenantName`, `UserEmail`, `UserId`, `ServiceName` |
+| `ExceptionResponse` | First-class `tenantId`, `tenantName`, `userEmail`, `correlationId`; product extras in `context` |
+
+Product-specific dimensions (`TemplateId`, `ApplicationReference`, …) are **not** in CoreLibs — see FlexForms types below.
+
+### FlexForms telemetry (API)
+
+| Type | Location | Purpose |
+|------|----------|---------|
+| `RequestTelemetryEnrichmentMiddleware` | After `UseAuthentication` / `UseAuthorization` | Fills CoreLibs + FlexForms scopes for all subsequent logs |
+| `IFlexFormsRequestScope` | `Telemetry/FlexFormsRequestScope.cs` | `TemplateId`, `ApplicationId`, `ApplicationReference` |
+| `FlexFormsLogContextKeys` | `Telemetry/FlexFormsLogContextKeys.cs` | App Insights property names for form context |
+| `ExceptionTrackingTelemetryConverter` | `Telemetry/` | Prefers Serilog structured properties; regex fallback only |
+| `HeaderForwardingHandler` (Api.Client) | Forwards `X-Template-Id`, `X-Application-Reference` from Web session/headers |
+
+`SharedPostProcessingAction` on the global exception handler copies FlexForms scope into `ExceptionResponse.Context` so Web filters can log `TemplateId` from API errors.
+
+### Request pipeline (middleware order)
+
+```mermaid
+flowchart TD
+    A[Forwarded headers] --> B[TenantResolutionMiddleware]
+    B --> C[CORS / security headers]
+    C --> D[UseCorrelationId]
+    D --> E[GlobalExceptionHandler]
+    E --> F[Routing]
+    F --> G[Authentication]
+    G --> H[Authorization]
+    H --> I[RequestTelemetryEnrichmentMiddleware]
+    I --> J[Controllers / SignalR]
+```
+
+Tenant resolution scopes `TenantId` / `TenantName` early; enrichment after auth adds user claims and template/application headers from Web.
+
+### ExceptionResponse shape (client / support)
+
+```json
+{
+  "errorId": "P-123456",
+  "statusCode": 500,
+  "message": "Something went wrong",
+  "correlationId": "550e8400-e29b-41d4-a716-446655440000",
+  "tenantId": "...",
+  "tenantName": "...",
+  "userEmail": "user@example.org",
+  "context": {
+    "TemplateId": "...",
+    "ApplicationReference": "..."
+  }
+}
+```
+
+### Support queries (Application Insights)
+
+```kusto
+union traces, exceptions
+| where customDimensions.CorrelationId == "<guid>"
+| project timestamp, cloud_RoleName, message,
+          customDimensions.ErrorId, customDimensions.TenantId,
+          customDimensions.UserEmail, customDimensions.TemplateId
+| order by timestamp asc
+```
+
+More examples: `DfE.CoreLibs.Http/ExceptionHandler.md` in the CoreLibs repo.
 
 ---
 
@@ -298,6 +381,7 @@ flowchart LR
 
 - **Shared** Service Bus namespace and SignalR resource for all tenants; tenant stamped on messages (`TenantAwareEventPublisher` / `TenantContextConsumeFilter`).
 - File storage is tenant-aware (`TenantAwareFileStorageService`).
+- Virus scan (`ScanRequestedEvent`) is platform-owned. Tenant Excel/schema checks use the HTTP callback below — not Service Bus.
 
 ---
 
@@ -328,8 +412,19 @@ flowchart LR
 | `Platform:AzureAd` | Platform Bearer for host/tenant-config |
 | `MassTransit` / Service Bus | Messaging (or `SkipMassTransit` for codegen) |
 | `DataProtection` | Secret settings encryption |
+| `GlobalConfiguration:ApplicationInsights:ConnectionString` | Serilog → App Insights sink |
 
 Per-tenant secrets and connections live in **TenantConfig**, not only in appsettings.
+
+### Local project references (development)
+
+While developing against unreleased CoreLibs telemetry:
+
+- `GovUK.Dfe.FlexForms.Api` → project reference to `DfE.CoreLibs/src/GovUK.Dfe.CoreLibs.Http`
+- `GovUK.Dfe.FlexForms.Api.Client` → same CoreLibs project reference
+- `flexforms-web` → project references to local Api.Client + CoreLibs.Http
+
+CI/publish should restore **NuGet** package versions once CoreLibs is released and Api.Client is bumped.
 
 ### Run
 
@@ -363,6 +458,99 @@ See `scripts/` for TenantConfig import helpers (Web/Api settings upsert). Ensure
 
 ---
 
+## File validation callback (tenant integrations)
+
+Tenants can validate uploaded files in their own Azure Function (for example Excel schema checks) and **block submit** until the file is valid. Virus scanning is unchanged and remains platform-owned.
+
+Failed validation **marks** the file (`Failed`); it is not deleted. Infected files from ClamAV are still deleted.
+
+### Flow
+
+```mermaid
+flowchart LR
+    Upload["Upload"] --> Pending["Pending if mode on and extension eligible"]
+    Pending --> Event["FileUploaded trigger"]
+    Event --> Fn["Tenant Azure Function"]
+    Fn --> CB["POST /v1/integrations/files/{fileId}/validation-result"]
+    CB --> Status["Passed or Failed"]
+    Status --> Gate["Submit gate"]
+    Status --> N["Notification + SignalR"]
+```
+
+1. Applicant uploads a file. If the template’s `FileValidation` mode is not `Off` **and** the file’s extension is eligible, the file is stored as `Pending`. Other types stay `NotRequired`.
+2. The existing `FileUploaded` trigger publishes the mapped event (`fileId`, `fileUri`, …).
+3. The tenant function validates the file, then calls:
+
+```http
+POST /v1/integrations/files/{fileId}/validation-result
+X-Tenant-ID: {tenant-guid}
+X-Api-Key: {key}                    # or Entra client-credentials / mTLS
+Content-Type: application/json
+
+{
+  "isValid": false,
+  "message": "Sheet 'Budget' is missing column Amount",
+  "correlationId": "optional-opaque-id",
+  "source": "excel-validator"
+}
+```
+
+4. FlexForms records `Passed` or `Failed` on `ea.Files`. Submit is gated by the template mode.
+5. `FileValidationRecordedEvent` creates a notification for the **uploader** (category `file-validation`, context = tenant `ApplicationName`) and pushes `notification.upserted` over SignalR. The Web banner, badge, `/Notifications` list, and upload Status column update live.
+
+Do **not** publish onto the FlexForms Service Bus. Tenant identity is taken from the credential, never from the body. A notification failure must not fail the callback.
+
+### Authentication
+
+| Caller | How to grant access |
+|--------|---------------------|
+| Entra app | Register the app as a FlexForms User (`ExternalProviderId` = `appid`) and grant `FileValidation:Any:Write` (or a template GUID) |
+| API key / mTLS | AuthProviders entry with `IsServicePrincipal: true` and `Roles: ["FileValidation"]` (emits `FileValidation:Any:Write`) |
+
+Admin / SuperAdmin does **not** imply this grant. `CanWriteApplicationFiles` is not sufficient. Interactive Admin/SuperAdmin callers get **403**. Do not add API-key auth to `GovUK.Dfe.FlexForms.Api.Client` — that package is the first-party Web client. Integrations should use a narrow `HttpClient`.
+
+### Tenant setting (`FileValidation`, Target `Shared`)
+
+```json
+{
+  "DefaultMode": "Off",
+  "Extensions": [ ".xlsx", ".xls" ],
+  "Templates": {
+    "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee": "RequirePassed"
+  }
+}
+```
+
+| Mode | Submit behaviour |
+|------|------------------|
+| `Off` | Ignore validation (default) |
+| `FailOnInvalid` | Block only when a file is `Failed` |
+| `RequirePassed` | Every file that required validation must be `Passed` (`Pending` also blocks) |
+
+`Extensions` is optional. When omitted or empty, every upload is eligible for validation when mode is not `Off`. When set (e.g. `[".xlsx"]`), JPEG/PNG (and other non-listed types) stay `NotRequired` and never block submit; only matching files become `Pending` / `Passed` / `Failed`. Values are case-insensitive; a leading `.` is optional (`xlsx` and `.xlsx` are the same).
+
+`RequirePassed` can leave applicants stuck if the tenant function is down. An admin override or “pending older than N hours” escape hatch is a later increment.
+
+### Statuses
+
+| Status | Meaning |
+|--------|---------|
+| `NotRequired` | Mode is `Off`, or the file’s extension is not in `Extensions` |
+| `Pending` | Eligible upload waiting for the tenant function |
+| `Passed` | Callback reported `isValid: true` |
+| `Failed` | Callback reported `isValid: false` (file kept; submit may be blocked) |
+
+### Notifications
+
+Same store and SignalR path as file-delete / malware banners. Context **must** be the tenant `ApplicationName` (else `TenantName`) so the Web list and unread badge include the item.
+
+| Result | Type | Auto-dismiss | Message |
+|--------|------|--------------|---------|
+| Failed | Error | No | `We could not validate '{fileName}'. {detail}` |
+| Passed | Success | 8 seconds | `The file '{fileName}' has been validated.` |
+
+---
+
 ## Security checklist
 
 | Concern | Behaviour |
@@ -374,6 +562,8 @@ See `scripts/` for TenantConfig import helpers (Web/Api settings upsert). Ensure
 | CORS | Only `TenantFrontendOrigins` |
 | Platform ops | `PlatformBearer` + Entra app roles (`Platform.Host.Read`, `Platform.TenantConfig.Read`) |
 | Permissions | Claim policies; Admin bypass within tenant |
+| Error responses | Global handler; ErrorId + correlation + tenant/user on every unhandled exception |
+| Logging | No PII beyond email and ids needed for support; template/application ids in FlexForms scope only |
 
 ---
 
@@ -384,7 +574,9 @@ See `scripts/` for TenantConfig import helpers (Web/Api settings upsert). Ensure
 | [flexforms-web](https://github.com/DFE-Digital/flexforms-web) | Razor Pages UI + form engine |
 | [rsd-file-scanner-function](https://github.com/DFE-Digital/rsd-file-scanner-function) | AV scan worker |
 | [rsd-clamav-api](https://github.com/DFE-Digital/rsd-clamav-api) | ClamAV sidecar/API |
-| [DfE.CoreLibs](https://github.com/DFE-Digital/DfE.CoreLibs) | Shared contracts, security, caching |
+| [DfE.CoreLibs](https://github.com/DFE-Digital/DfE.CoreLibs) | Shared contracts, security, caching, **Http** (correlation, exception handler, SaaS log keys) |
+
+See also `DfE.CoreLibs.Http/ExceptionHandler.md` for exception middleware configuration and KQL playbooks.
 
 ---
 

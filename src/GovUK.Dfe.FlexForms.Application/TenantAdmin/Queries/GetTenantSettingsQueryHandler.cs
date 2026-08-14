@@ -21,7 +21,7 @@ internal class GetTenantSettingsQueryValidator : AbstractValidator<GetTenantSett
 
 /// <summary>
 /// Lists decrypted TenantConfig settings for the current tenant.
-/// Restricted to interactive SuperAdmin users.
+/// Restricted to interactive tenant Admin and SuperAdmin users.
 /// </summary>
 public sealed class GetTenantSettingsQueryHandler(
     ITenantSettingsQuery settingsQuery,
@@ -33,10 +33,10 @@ public sealed class GetTenantSettingsQueryHandler(
         GetTenantSettingsQuery request,
         CancellationToken cancellationToken)
     {
-        if (!permissionChecker.IsInteractivePlatformAdmin())
+        if (!permissionChecker.IsInteractiveTenantAdmin())
         {
             return Result<GetTenantSettingsResponse>.Forbid(
-                "Only interactive SuperAdmin users can view tenant settings.");
+                "Only interactive tenant administrators can view tenant settings.");
         }
 
         var currentTenant = tenantContextAccessor.CurrentTenant;

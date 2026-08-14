@@ -56,12 +56,35 @@ public class RemoveNotificationCommandHandlerTests
 
         // Assert
         Assert.True(result.IsSuccess);
-        await _notificationService.Received(1).RemoveNotificationAsync(command.NotificationId, Arg.Any<CancellationToken>());
+        await _notificationService.Received(1).RemoveNotificationAsync(command.NotificationId, email, Arg.Any<CancellationToken>());
         
         // Verify SignalR notification was sent
         var mockService = (MockNotificationSignalRService)_notificationSignalRService;
         Assert.Single(mockService.DeletedNotificationIds);
         Assert.Equal(command.NotificationId, mockService.DeletedNotificationIds.First());
+    }
+
+    [Theory]
+    [CustomAutoData]
+    public async Task Handle_ShouldRemoveUsingEmail_WhenNameIdentifierAlsoPresent(
+        RemoveNotificationCommand command)
+    {
+        var httpContext = new DefaultHttpContext();
+        var email = "uploader@example.com";
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, Guid.NewGuid().ToString()),
+            new(ClaimTypes.Email, email)
+        };
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+
+        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Delete).Returns(true);
+
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        await _notificationService.Received(1).RemoveNotificationAsync(command.NotificationId, email, Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -87,7 +110,7 @@ public class RemoveNotificationCommandHandlerTests
         // Assert
         Assert.False(result.IsSuccess);
         Assert.Equal("User does not have permission to delete notifications", result.Error);
-        await _notificationService.DidNotReceive().RemoveNotificationAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _notificationService.DidNotReceive().RemoveNotificationAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -106,7 +129,7 @@ public class RemoveNotificationCommandHandlerTests
         // Assert
         Assert.False(result.IsSuccess);
         Assert.Equal("Not authenticated", result.Error);
-        await _notificationService.DidNotReceive().RemoveNotificationAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _notificationService.DidNotReceive().RemoveNotificationAsync(Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -127,7 +150,7 @@ public class RemoveNotificationCommandHandlerTests
         _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Delete).Returns(true);
 
         var exceptionMessage = "Test exception";
-        _notificationService.RemoveNotificationAsync(command.NotificationId, Arg.Any<CancellationToken>())
+        _notificationService.RemoveNotificationAsync(command.NotificationId, email, Arg.Any<CancellationToken>())
             .ThrowsAsync(new Exception(exceptionMessage));
 
         // Act

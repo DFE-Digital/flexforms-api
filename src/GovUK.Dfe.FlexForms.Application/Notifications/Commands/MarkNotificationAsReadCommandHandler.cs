@@ -42,7 +42,7 @@ public sealed class MarkNotificationAsReadCommandHandler(
             if (!canAccess)
                 return Result<bool>.Forbid("User does not have permission to modify notifications");
 
-            await notificationService.MarkAsReadAsync(request.NotificationId, cancellationToken);
+            await notificationService.MarkAsReadAsync(request.NotificationId, principalId, cancellationToken);
 
             // Send real-time notification update via SignalR
             await notificationSignalRService.SendNotificationListRefreshToUserAsync(principalId, cancellationToken);

@@ -77,6 +77,34 @@ public class DatabaseTenantAuthProviderRegistryTests
     }
 
     [Fact]
+    public void ApiKeyOnlyAuthProviders_StillProjectsLegacyTokenSettingsAndEntra()
+    {
+        var azureTenantId = Guid.NewGuid().ToString();
+        var tenant = BuildTenant(Guid.NewGuid(), new Dictionary<string, string?>
+        {
+            ["Authorization:TokenSettings:SecretKey"] = "AAAA",
+            ["Authorization:TokenSettings:Issuer"] = "21f3ed37-8443-4755-9ed2-c68ca86b4398",
+            ["Authorization:TokenSettings:Audience"] = "20dafd6d-79e5-4caf-8b72-d070dcc9716f",
+            ["AzureAd:TenantId"] = azureTenantId,
+            ["AzureAd:ClientId"] = "client-1",
+            ["AzureAd:Audience"] = "api://client-1",
+            ["AuthProviders:Providers:0:Name"] = "file-validation",
+            ["AuthProviders:Providers:0:Kind"] = "ApiKey",
+            ["AuthProviders:Providers:0:IsServicePrincipal"] = "true",
+            ["AuthProviders:Providers:0:KeyHash"] = "abc123",
+            ["AuthProviders:Providers:0:Roles:0"] = "FileValidation"
+        });
+
+        var registry = CreateRegistry(new[] { tenant }, out _, out _);
+
+        Assert.NotNull(registry.GetByApiKeyHash("abc123"));
+        Assert.True(registry.IsValidAudience(
+            "21f3ed37-8443-4755-9ed2-c68ca86b4398",
+            new[] { "20dafd6d-79e5-4caf-8b72-d070dcc9716f" }));
+        Assert.NotNull(registry.GetByIssuer($"https://sts.windows.net/{azureTenantId}/"));
+    }
+
+    [Fact]
     public void Rebuild_PicksUpNewlyAddedTenant_OnChangedEvent()
     {
         var tenantA = BuildTenant(Guid.NewGuid(), new Dictionary<string, string?>

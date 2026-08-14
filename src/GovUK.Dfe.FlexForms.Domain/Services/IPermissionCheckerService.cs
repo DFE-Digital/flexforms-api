@@ -100,4 +100,10 @@ public interface IPermissionCheckerService
     /// (User Manager / role assignment).
     /// </summary>
     bool CanManageUsers();
+
+    /// <summary>
+    /// Returns true when the current principal may report a file validation result
+    /// for the given template. Admin roles do not imply this grant.
+    /// </summary>
+    bool CanWriteFileValidation(string templateId);
 }

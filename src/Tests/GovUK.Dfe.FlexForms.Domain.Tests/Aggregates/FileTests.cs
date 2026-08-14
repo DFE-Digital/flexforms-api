@@ -221,4 +221,95 @@ public class FileTests
         // Assert
         Assert.Null(file.Description);
     }
+
+    [Theory]
+    [CustomAutoData(typeof(FileCustomization))]
+    public void Constructor_Should_Default_ValidationStatus_To_NotRequired(
+        FileId id,
+        ApplicationId applicationId,
+        string name,
+        string description,
+        string originalFileName,
+        string fileName,
+        long fileSize,
+        string path,
+        DateTime uploadedOn,
+        UserId uploadedBy)
+    {
+        var file = new File(id, applicationId, name, description, originalFileName, fileName, path, uploadedOn, uploadedBy, fileSize);
+
+        Assert.Equal(GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums.FileValidationStatus.NotRequired, file.ValidationStatus);
+        Assert.Null(file.ValidationMessage);
+        Assert.Null(file.ValidatedOn);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(FileCustomization))]
+    public void RequireExternalValidation_Should_Set_Pending(
+        FileId id,
+        ApplicationId applicationId,
+        string name,
+        string description,
+        string originalFileName,
+        string fileName,
+        long fileSize,
+        string path,
+        DateTime uploadedOn,
+        UserId uploadedBy)
+    {
+        var file = new File(id, applicationId, name, description, originalFileName, fileName, path, uploadedOn, uploadedBy, fileSize);
+
+        file.RequireExternalValidation();
+
+        Assert.Equal(GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums.FileValidationStatus.Pending, file.ValidationStatus);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(FileCustomization))]
+    public void RecordValidationResult_Should_Set_Failed_And_Raise_Event(
+        FileId id,
+        ApplicationId applicationId,
+        string name,
+        string description,
+        string originalFileName,
+        string fileName,
+        long fileSize,
+        string path,
+        DateTime uploadedOn,
+        UserId uploadedBy)
+    {
+        var file = new File(id, applicationId, name, description, originalFileName, fileName, path, uploadedOn, uploadedBy, fileSize);
+        file.RequireExternalValidation();
+        var reportedAt = DateTime.UtcNow;
+
+        file.RecordValidationResult(false, "Missing Amount column", reportedAt, "excel-fn");
+
+        Assert.Equal(GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums.FileValidationStatus.Failed, file.ValidationStatus);
+        Assert.Equal("Missing Amount column", file.ValidationMessage);
+        Assert.Equal(reportedAt, file.ValidatedOn);
+        Assert.Equal("excel-fn", file.ValidationSource);
+        Assert.Contains(file.DomainEvents, e => e is GovUK.Dfe.FlexForms.Domain.Events.FileValidationRecordedEvent);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(FileCustomization))]
+    public void RecordValidationResult_Should_Throw_When_NotRequired(
+        FileId id,
+        ApplicationId applicationId,
+        string name,
+        string description,
+        string originalFileName,
+        string fileName,
+        long fileSize,
+        string path,
+        DateTime uploadedOn,
+        UserId uploadedBy)
+    {
+        var file = new File(id, applicationId, name, description, originalFileName, fileName, path, uploadedOn, uploadedBy, fileSize);
+
+        var ex = Assert.Throws<InvalidOperationException>(() =>
+            file.RecordValidationResult(true, null, DateTime.UtcNow, null));
+
+        Assert.Equal("File does not require external validation.", ex.Message);
+    }
 } 

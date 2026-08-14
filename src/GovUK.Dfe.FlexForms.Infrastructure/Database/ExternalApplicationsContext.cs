@@ -701,7 +701,7 @@ public class ExternalApplicationsContext : DbContext
             .IsRequired();
         b.Property(e => e.ResourceKey)
             .HasColumnName("ResourceKey")
-            .HasMaxLength(200)
+            .HasMaxLength(256)
             .IsRequired();
         b.Property(e => e.AccessType)
             .HasColumnName("AccessType")
@@ -890,6 +890,22 @@ public class ExternalApplicationsContext : DbContext
             .HasColumnName("UploadedBy")
             .HasConversion(v => v.Value, v => new UserId(v))
             .IsRequired();
+        b.Property(e => e.ValidationStatus)
+            .HasColumnName("ValidationStatus")
+            .HasConversion<string>()
+            .HasMaxLength(20)
+            .IsRequired();
+        b.Property(e => e.ValidationMessage)
+            .HasColumnName("ValidationMessage")
+            .HasMaxLength(1000)
+            .IsRequired(false);
+        b.Property(e => e.ValidatedOn)
+            .HasColumnName("ValidatedOn")
+            .IsRequired(false);
+        b.Property(e => e.ValidationSource)
+            .HasColumnName("ValidationSource")
+            .HasMaxLength(256)
+            .IsRequired(false);
         b.HasOne(e => e.Application)
             .WithMany(a => a.Files)
             .HasForeignKey(e => e.ApplicationId)

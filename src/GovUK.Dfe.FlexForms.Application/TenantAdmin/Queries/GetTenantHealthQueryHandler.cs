@@ -23,10 +23,10 @@ public sealed class GetTenantHealthQueryHandler(
         GetTenantHealthQuery request,
         CancellationToken cancellationToken)
     {
-        if (!permissionChecker.IsInteractivePlatformAdmin())
+        if (!permissionChecker.IsInteractiveTenantAdmin())
         {
             return Result<TenantHealthDto>.Forbid(
-                "Only interactive SuperAdmin users can view tenant health.");
+                "Only interactive tenant administrators can view tenant health.");
         }
 
         var currentTenant = tenantContextAccessor.CurrentTenant;

@@ -124,7 +124,8 @@ public sealed class AddContributorCommandHandler(
                 applicationId,
                 application.ApplicationReference,
                 application.TemplateVersion!.TemplateId,
-                now);
+                now,
+                currentTenant.Id);
 
             await userRepo.AddAsync(contributor, cancellationToken);
 
@@ -201,7 +202,7 @@ public sealed class AddContributorCommandHandler(
         // Notifications permissions
         userFactory.AddPermissionToUser(
             existingContributor,
-            existingContributor.Email,
+            TenantScopedIdentityKey.Combine(tenantId, existingContributor.Email),
             ResourceType.Notifications,
             new[] { AccessType.Read, AccessType.Write, AccessType.Delete },
             dbUser.Id!,
@@ -288,7 +289,7 @@ public sealed class AddContributorCommandHandler(
                 {
                     ApplicationId = p.ApplicationId?.Value,
                     ResourceType = p.ResourceType,
-                    ResourceKey = p.ResourceKey,
+                    ResourceKey = TenantScopedIdentityKey.ToClaimResourceKey(p.ResourceType, p.ResourceKey),
                     AccessType = p.AccessType
                 })
                 .ToArray(),

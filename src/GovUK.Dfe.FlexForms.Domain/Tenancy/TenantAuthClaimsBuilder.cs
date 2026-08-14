@@ -1,4 +1,7 @@
 using System.Security.Claims;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.FlexForms.Domain.Common;
+using GovUK.Dfe.FlexForms.Domain.Services;
 
 namespace GovUK.Dfe.FlexForms.Domain.Tenancy;
 
@@ -27,6 +30,17 @@ public static class TenantAuthClaimsBuilder
         if (provider.Roles is not null)
         {
             claims.AddRange(provider.Roles.Select(r => new Claim(ClaimTypes.Role, r)));
+
+            if (provider.IsServicePrincipal
+                && provider.Roles.Any(r => string.Equals(r, "FileValidation", StringComparison.OrdinalIgnoreCase)))
+            {
+                claims.Add(new Claim(
+                    PermissionClaimEvaluator.PermissionClaimType,
+                    PermissionClaimEvaluator.FormatPermissionClaim(
+                        ResourceType.FileValidation,
+                        PermissionConstants.AnyResourceKey,
+                        AccessType.Write)));
+            }
         }
 
         if (additionalClaims is not null)

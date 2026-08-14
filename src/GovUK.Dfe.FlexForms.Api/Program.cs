@@ -7,7 +7,6 @@ using GovUK.Dfe.FlexForms.Api.Security;
 using GovUK.Dfe.FlexForms.Api.Swagger;
 using GovUK.Dfe.CoreLibs.Http.Extensions;
 using GovUK.Dfe.CoreLibs.Http.Interfaces;
-using GovUK.Dfe.CoreLibs.Http.Middlewares.CorrelationId;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -22,6 +21,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Linq;
 using GovUK.Dfe.FlexForms.Api.Tenancy;
+using GovUK.Dfe.FlexForms.Api.Telemetry;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Caching;
@@ -186,7 +186,8 @@ namespace GovUK.Dfe.FlexForms.Api
                     "At least one tenant must be configured.");
             }
             builder.Services.AddScoped<ITenantContextAccessor, TenantContextAccessor>();
-            builder.Services.AddScoped<ICorrelationContext, CorrelationContext>();
+            builder.Services.AddCorrelationId();
+            builder.Services.AddScoped<IFlexFormsRequestScope, FlexFormsRequestScope>();
 
             builder.Services.AddCustomExceptionHandler<ValidationExceptionHandler>();
             builder.Services.AddCustomExceptionHandler<JsonExceptionHandler>();
@@ -356,7 +357,7 @@ namespace GovUK.Dfe.FlexForms.Api
                 c.SupportedSubmitMethods(SubmitMethod.Get, SubmitMethod.Post, SubmitMethod.Put, SubmitMethod.Delete);
             });
 
-            app.UseMiddleware<CorrelationIdMiddleware>();
+            app.UseCorrelationId();
             app.UseGlobalExceptionHandler(options =>
             {
                 options.IncludeDetails = builder.Environment.IsDevelopment();
@@ -364,6 +365,22 @@ namespace GovUK.Dfe.FlexForms.Api
                 options.DefaultErrorMessage = "Something went wrong";
                 options.SharedPostProcessingAction = (exception, response) =>
                 {
+                    var httpContext = app.Services.GetRequiredService<IHttpContextAccessor>().HttpContext;
+                    var flexFormsScope = httpContext?.RequestServices.GetService<IFlexFormsRequestScope>();
+                    if (flexFormsScope is not null)
+                    {
+                        response.Context ??= new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                        if (!string.IsNullOrWhiteSpace(flexFormsScope.TemplateId)
+                            && !response.Context.ContainsKey(FlexFormsLogContextKeys.TemplateId))
+                            response.Context[FlexFormsLogContextKeys.TemplateId] = flexFormsScope.TemplateId;
+                        if (!string.IsNullOrWhiteSpace(flexFormsScope.ApplicationId)
+                            && !response.Context.ContainsKey(FlexFormsLogContextKeys.ApplicationId))
+                            response.Context[FlexFormsLogContextKeys.ApplicationId] = flexFormsScope.ApplicationId;
+                        if (!string.IsNullOrWhiteSpace(flexFormsScope.ApplicationReference)
+                            && !response.Context.ContainsKey(FlexFormsLogContextKeys.ApplicationReference))
+                            response.Context[FlexFormsLogContextKeys.ApplicationReference] = flexFormsScope.ApplicationReference;
+                    }
+
                     if (exception is GovUK.Dfe.FlexForms.Application.Common.Exceptions.ValidationException validationException)
                     {
                         response.Details = string.Join("; ",
@@ -386,6 +403,7 @@ namespace GovUK.Dfe.FlexForms.Api
 
             app.UseAuthentication();
             app.UseAuthorization();
+            app.UseMiddleware<RequestTelemetryEnrichmentMiddleware>();
 
             app.UseEndpoints(endpoints =>
             {

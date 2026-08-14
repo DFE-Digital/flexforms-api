@@ -339,6 +339,22 @@ public class PermissionClaimEvaluatorTests
         return user;
     }
 
+    [Fact]
+    public void CanWriteFileValidation_DoesNotHonourAdminRole()
+    {
+        var identity = new ClaimsIdentity([new Claim(ClaimTypes.Role, RoleNames.Admin)], "Test");
+        var user = new ClaimsPrincipal(identity);
+
+        Assert.False(PermissionClaimEvaluator.CanWriteFileValidation(user, Guid.NewGuid().ToString()));
+    }
+
+    [Fact]
+    public void CanWriteFileValidation_ReturnsTrue_ForTenantWideWrite()
+    {
+        var user = CreateUserWithPermissionClaims("FileValidation:Any:Write");
+        Assert.True(PermissionClaimEvaluator.CanWriteFileValidation(user, Guid.NewGuid().ToString()));
+    }
+
     private static ClaimsPrincipal CreateUserWithPermissionClaims(params string[] permissionValues)
     {
         var claims = permissionValues.Select(v => new Claim(PermissionClaimEvaluator.PermissionClaimType, v));

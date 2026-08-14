@@ -130,7 +130,8 @@ public class AddContributorCommandHandlerTests
             new ApplicationId(command.ApplicationId),
             application.ApplicationReference,
             templateVersion.TemplateId,
-            Arg.Any<DateTime>())
+            Arg.Any<DateTime>(),
+            Arg.Any<Guid?>())
             .Returns(contributor);
 
         var handler = new AddContributorCommandHandler(
@@ -298,7 +299,7 @@ public class AddContributorCommandHandlerTests
         // Notifications permissions
         userFactory.Received(1).AddPermissionToUser(
             existingContributor,
-            existingContributor.Email,
+            TenantScopedIdentityKey.Combine(TestTenantId, existingContributor.Email),
             ResourceType.Notifications,
             Arg.Is<AccessType[]>(a => a.Length == 3 && a.Contains(AccessType.Read) && a.Contains(AccessType.Write) && a.Contains(AccessType.Delete)),
             user.Id!,
@@ -452,7 +453,7 @@ public class AddContributorCommandHandlerTests
         // Notifications permissions
         userFactory.Received(1).AddPermissionToUser(
             existingContributor,
-            existingContributor.Email,
+            TenantScopedIdentityKey.Combine(TestTenantId, existingContributor.Email),
             ResourceType.Notifications,
             Arg.Any<AccessType[]>(),
             user.Id!,
@@ -934,7 +935,8 @@ public class AddContributorCommandHandlerTests
             new ApplicationId(command.ApplicationId),
             application.ApplicationReference,
             templateVersion.TemplateId,
-            Arg.Any<DateTime>())
+            Arg.Any<DateTime>(),
+            Arg.Any<Guid?>())
             .Returns(contributor);
 
         var handler = new AddContributorCommandHandler(
@@ -1038,7 +1040,8 @@ public class AddContributorCommandHandlerTests
             new ApplicationId(command.ApplicationId),
             application.ApplicationReference,
             templateVersion.TemplateId,
-            Arg.Any<DateTime>())
+            Arg.Any<DateTime>(),
+            Arg.Any<Guid?>())
             .Returns(contributor);
 
         var handler = new AddContributorCommandHandler(
@@ -1209,7 +1212,8 @@ public class AddContributorCommandHandlerTests
             new ApplicationId(command.ApplicationId),
             application.ApplicationReference,
             templateVersion.TemplateId,
-            Arg.Any<DateTime>())
+            Arg.Any<DateTime>(),
+            Arg.Any<Guid?>())
             .Returns(contributor);
 
         var handler = new AddContributorCommandHandler(

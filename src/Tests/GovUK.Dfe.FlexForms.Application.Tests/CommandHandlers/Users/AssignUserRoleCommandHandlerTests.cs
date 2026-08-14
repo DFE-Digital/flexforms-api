@@ -364,8 +364,9 @@ public class AssignUserRoleCommandHandlerTests
                 Arg.Any<RoleId>(),
                 Arg.Any<string>(),
                 Arg.Any<string>(),
-                Arg.Any<TemplateId?>(),
-                Arg.Any<DateTime?>())
+            Arg.Any<TemplateId?>(),
+            Arg.Any<DateTime?>(),
+            Arg.Any<Guid?>())
             .Returns(createdUser);
 
         var tenantRoleService = CreateTenantRoleService(customRole);

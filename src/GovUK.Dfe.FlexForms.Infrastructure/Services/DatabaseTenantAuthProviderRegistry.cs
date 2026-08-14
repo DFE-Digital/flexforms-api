@@ -312,30 +312,93 @@ public sealed class DatabaseTenantAuthProviderRegistry : ITenantAuthProviderRegi
 
     /// <summary>
     /// Projects a tenant's settings sections into a flat list of <see cref="TenantAuthProvider"/>.
-    /// Prefers the explicit <c>AuthProviders</c> category when it contains at least one
-    /// entry; otherwise falls back to the legacy <c>DfESignIn</c>/<c>EntraSso</c>/<c>AzureAd</c>/
-    /// <c>Authorization:TokenSettings</c> sections so deployments can adopt the new shape lazily.
+    /// Explicit <c>AuthProviders</c> entries are additive (API keys, mTLS). Legacy
+    /// <c>DfESignIn</c>/<c>EntraSso</c>/<c>AzureAd</c>/<c>Authorization:TokenSettings</c>
+    /// providers are still projected unless an explicit row already covers the same
+    /// kind + issuer + audience, so adding a FileValidation API key cannot lock out login.
     /// </summary>
     private static IEnumerable<TenantAuthProvider> ProjectTenantProviders(TenantConfiguration tenant)
     {
-        // 1) Preferred: explicit AuthProviders array.
-        var explicitProviders = tenant.Settings.GetSection("AuthProviders:Providers");
-        var explicitChildren = explicitProviders.GetChildren().ToArray();
-        if (explicitChildren.Length > 0)
+        var explicitProviders = new List<TenantAuthProvider>();
+        foreach (var providerSection in tenant.Settings.GetSection("AuthProviders:Providers").GetChildren())
         {
-            foreach (var providerSection in explicitChildren)
+            var projected = TryProjectExplicit(tenant.Id, providerSection);
+            if (projected is not null)
             {
-                var projected = TryProjectExplicit(tenant.Id, providerSection);
-                if (projected is not null)
-                {
-                    yield return projected;
-                }
+                explicitProviders.Add(projected);
             }
-
-            yield break;
         }
 
-        // 2) Legacy projection (back-compat).
+        foreach (var provider in explicitProviders)
+        {
+            yield return provider;
+        }
+
+        foreach (var legacy in ProjectLegacyProviders(tenant))
+        {
+            if (IsCoveredByExplicit(explicitProviders, legacy))
+            {
+                continue;
+            }
+
+            yield return legacy;
+        }
+    }
+
+    private static bool IsCoveredByExplicit(
+        IReadOnlyList<TenantAuthProvider> explicitProviders,
+        TenantAuthProvider legacy)
+    {
+        foreach (var existing in explicitProviders)
+        {
+            if (existing.Kind != legacy.Kind)
+            {
+                continue;
+            }
+
+            if (string.IsNullOrEmpty(legacy.Issuer)
+                || !string.Equals(existing.Issuer, legacy.Issuer, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (AudiencesOverlap(existing.Audiences, legacy.Audiences))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool AudiencesOverlap(IReadOnlyCollection<string>? left, IReadOnlyCollection<string>? right)
+    {
+        if (left is null || right is null || left.Count == 0 || right.Count == 0)
+        {
+            return false;
+        }
+
+        foreach (var audience in left)
+        {
+            if (string.IsNullOrEmpty(audience))
+            {
+                continue;
+            }
+
+            foreach (var other in right)
+            {
+                if (string.Equals(audience, other, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static IEnumerable<TenantAuthProvider> ProjectLegacyProviders(TenantConfiguration tenant)
+    {
         // Internal HMAC-signed JWT (used by /tokens/exchange) - one per tenant.
         var internalKey = tenant.Settings["Authorization:TokenSettings:SecretKey"];
         var internalIssuer = tenant.Settings["Authorization:TokenSettings:Issuer"];

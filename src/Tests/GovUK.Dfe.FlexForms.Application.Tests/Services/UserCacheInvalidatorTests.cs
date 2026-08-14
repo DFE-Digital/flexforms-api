@@ -51,7 +51,7 @@ public class UserCacheInvalidatorTests
     }
 
     [Fact]
-    public async Task InvalidateTenantUserClaimsAsync_ShouldRemoveUserClaimsPattern()
+    public async Task InvalidateTenantUserClaimsAsync_ShouldRemoveAllTenantPermissionCachePatterns()
     {
         var cacheService = Substitute.For<ICacheService<IRedisCacheType>>();
         var advancedRedisCacheService = Substitute.For<IAdvancedRedisCacheService>();
@@ -64,5 +64,7 @@ public class UserCacheInvalidatorTests
         await invalidator.InvalidateTenantUserClaimsAsync();
 
         await advancedRedisCacheService.Received(1).RemoveByPatternAsync(Arg.Is<string>(p => p.Contains("UserClaims_")));
+        await advancedRedisCacheService.Received(1).RemoveByPatternAsync(Arg.Is<string>(p => p.Contains("Permissions_All_UserId_")));
+        await advancedRedisCacheService.Received(1).RemoveByPatternAsync(Arg.Is<string>(p => p.Contains("Template_Permissions_ByUiD_")));
     }
 }

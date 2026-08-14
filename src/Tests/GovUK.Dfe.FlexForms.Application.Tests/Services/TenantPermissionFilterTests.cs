@@ -2,6 +2,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 
 namespace GovUK.Dfe.FlexForms.Application.Tests.Services;
@@ -87,6 +88,34 @@ public class TenantPermissionFilterTests
             _otherTenantId,
             _currentTenantId,
             tenantTemplateIds));
+    }
+
+    [Fact]
+    public void BelongsToTenant_ShouldKeepOnlyCurrentTenantNotificationPermissions()
+    {
+        var userId = new UserId(Guid.NewGuid());
+        var tenantTemplateIds = new HashSet<Guid> { _tenantTemplateId };
+        var map = new Dictionary<Guid, TenantPermissionFilter.ApplicationOwnership>();
+
+        var current = CreatePermission(
+            userId,
+            ResourceType.Notifications,
+            TenantScopedIdentityKey.Combine(_currentTenantId, "user@example.com"),
+            AccessType.Read);
+        var other = CreatePermission(
+            userId,
+            ResourceType.Notifications,
+            TenantScopedIdentityKey.Combine(_otherTenantId, "user@example.com"),
+            AccessType.Read);
+        var legacy = CreatePermission(
+            userId,
+            ResourceType.Notifications,
+            "user@example.com",
+            AccessType.Read);
+
+        Assert.True(TenantPermissionFilter.BelongsToTenant(current, _currentTenantId, tenantTemplateIds, map));
+        Assert.False(TenantPermissionFilter.BelongsToTenant(other, _currentTenantId, tenantTemplateIds, map));
+        Assert.False(TenantPermissionFilter.BelongsToTenant(legacy, _currentTenantId, tenantTemplateIds, map));
     }
 
     private static Permission CreatePermission(

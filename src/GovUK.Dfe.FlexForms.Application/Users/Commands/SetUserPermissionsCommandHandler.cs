@@ -144,6 +144,11 @@ public sealed class SetUserPermissionsCommandHandler(
             foreach (var grant in grants)
             {
                 var resourceKey = grant.ResourceKey.Trim();
+                if (grant.ResourceType == ResourceType.Notifications)
+                {
+                    resourceKey = TenantScopedIdentityKey.Combine(tenant.Id, resourceKey);
+                }
+
                 ApplicationId? applicationId = null;
                 if ((grant.ResourceType is ResourceType.Application or ResourceType.ApplicationFiles)
                     && Guid.TryParse(resourceKey, out var applicationGuid)
@@ -236,15 +241,19 @@ public sealed class SetUserPermissionsCommandHandler(
             case ResourceType.User:
             case ResourceType.Notifications:
             {
-                if (!key.Contains('@', StringComparison.Ordinal))
+                var identity = resourceType == ResourceType.Notifications
+                    ? TenantScopedIdentityKey.ToClaimResourceKey(ResourceType.Notifications, key)
+                    : key;
+
+                if (!identity.Contains('@', StringComparison.Ordinal))
                     return null;
 
-                var user = await new GetUserByEmailQueryObject(key.ToLowerInvariant())
+                var user = await new GetUserByEmailQueryObject(identity.ToLowerInvariant())
                     .Apply(userRepository.Query().AsNoTracking())
                     .FirstOrDefaultAsync(cancellationToken);
 
                 return user is null
-                    ? $"User '{key}' was not found."
+                    ? $"User '{identity}' was not found."
                     : null;
             }
 
@@ -270,7 +279,7 @@ public sealed class SetUserPermissionsCommandHandler(
     internal static UserPermissionDto Map(Permission permission) => new()
     {
         ApplicationId = permission.ApplicationId?.Value,
-        ResourceKey = permission.ResourceKey,
+        ResourceKey = TenantScopedIdentityKey.ToClaimResourceKey(permission.ResourceType, permission.ResourceKey),
         ResourceType = permission.ResourceType,
         AccessType = permission.AccessType
     };
