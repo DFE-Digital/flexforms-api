@@ -1,5 +1,7 @@
 using GovUK.Dfe.FlexForms.Application.Common.Pipeline;
+using GovUK.Dfe.FlexForms.Application.Messaging;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using MassTransit;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -40,7 +42,7 @@ public class TenantContextConsumeFilterTests
     }
 
     [Fact]
-    public async Task Send_ShouldNotSetTenant_WhenHeaderMissing()
+    public async Task Send_ShouldSkip_WhenHeaderMissing()
     {
         var context = CreateConsumeContext(null);
         var next = Substitute.For<IPipe<ConsumeContext<TestMessage>>>();
@@ -48,11 +50,11 @@ public class TenantContextConsumeFilterTests
         await _filter.Send(context, next);
 
         _tenantContextAccessor.DidNotReceive().CurrentTenant = Arg.Any<TenantConfiguration>();
-        await next.Received(1).Send(context);
+        await next.DidNotReceive().Send(context);
     }
 
     [Fact]
-    public async Task Send_ShouldNotSetTenant_WhenHeaderIsNotAGuid()
+    public async Task Send_ShouldSkip_WhenHeaderIsNotAGuid()
     {
         var context = CreateConsumeContext("not-a-guid");
         var next = Substitute.For<IPipe<ConsumeContext<TestMessage>>>();
@@ -60,11 +62,11 @@ public class TenantContextConsumeFilterTests
         await _filter.Send(context, next);
 
         _tenantContextAccessor.DidNotReceive().CurrentTenant = Arg.Any<TenantConfiguration>();
-        await next.Received(1).Send(context);
+        await next.DidNotReceive().Send(context);
     }
 
     [Fact]
-    public async Task Send_ShouldNotSetTenant_WhenTenantUnknown()
+    public async Task Send_ShouldSkip_WhenTenantUnknown()
     {
         var tenantId = Guid.NewGuid();
         _tenantConfigurationProvider.GetTenant(tenantId).Returns((TenantConfiguration?)null);
@@ -75,6 +77,39 @@ public class TenantContextConsumeFilterTests
         await _filter.Send(context, next);
 
         _tenantContextAccessor.DidNotReceive().CurrentTenant = Arg.Any<TenantConfiguration>();
+        await next.DidNotReceive().Send(context);
+    }
+
+    [Fact]
+    public async Task Send_ShouldResolveTenantFromScanResultMetadata_WhenHeaderMissing()
+    {
+        var tenantId = Guid.NewGuid();
+        var tenant = CreateTenant(tenantId);
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        var provider = Substitute.For<ITenantConfigurationProvider>();
+        provider.GetTenant(tenantId).Returns(tenant);
+        var logger = Substitute.For<ILogger<TenantContextConsumeFilter<ScanResultEvent>>>();
+        var filter = new TenantContextConsumeFilter<ScanResultEvent>(accessor, provider, logger);
+
+        var scanResult = new ScanResultEvent(
+            ServiceName: "extapi",
+            FileUri: "uri",
+            FileName: "file.pdf",
+            Metadata: new Dictionary<string, object>
+            {
+                [ScanEventRouting.TenantIdMetadata] = tenantId.ToString()
+            });
+
+        var context = Substitute.For<ConsumeContext<ScanResultEvent>>();
+        var headers = Substitute.For<Headers>();
+        headers.Get<string>(ScanEventRouting.TenantIdHeader).Returns((string?)null);
+        context.Headers.Returns(headers);
+        context.Message.Returns(scanResult);
+        var next = Substitute.For<IPipe<ConsumeContext<ScanResultEvent>>>();
+
+        await filter.Send(context, next);
+
+        accessor.Received(1).CurrentTenant = tenant;
         await next.Received(1).Send(context);
     }
 

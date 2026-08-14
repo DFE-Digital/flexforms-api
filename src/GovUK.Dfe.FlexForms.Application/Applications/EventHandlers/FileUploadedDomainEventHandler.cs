@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
 using GovUK.Dfe.FlexForms.Application.Common.EventHandlers;
+using GovUK.Dfe.FlexForms.Application.Messaging;
 using GovUK.Dfe.FlexForms.Application.Options;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
@@ -59,6 +60,9 @@ public sealed class FileUploadedDomainEventHandler(
         var tenant = tenantContextAccessor.CurrentTenant 
             ?? throw new InvalidOperationException("Tenant context is required to publish file upload events.");
 
+        var templateId = await TryResolveTemplateIdAsync(file.ApplicationId, cancellationToken);
+        var userId = file.UploadedBy.Value.ToString();
+
         // Create the integration event
         var fileUploadedEvent = new GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events.ScanRequestedEvent(
             FileId:file.Id?.Value.ToString(),
@@ -71,22 +75,29 @@ public sealed class FileUploadedDomainEventHandler(
             ServiceName: $"extapi-{tenant.Name}",
             Metadata: new Dictionary<string, object>
             {
-                { "TenantId", tenant.Id.ToString() },
-                { "TenantName", tenant.Name },
-                { "ApplicationName", tenant.Settings["ApplicationName"] ?? tenant.Name },
-                { "Reference", file.Application!.ApplicationReference },
-                { "applicationId", file.ApplicationId.Value },
-                { "userId", file.UploadedBy.Value },
-                { "originalFileName", file.OriginalFileName },
-                { "InstanceIdentifier", InstanceIdentifierHelper.GetInstanceIdentifier(tenant.Settings) ?? "" },
+                { ScanEventRouting.TenantIdMetadata, tenant.Id.ToString() },
+                { ScanEventRouting.TenantNameMetadata, tenant.Name },
+                { ScanEventRouting.ApplicationNameMetadata, tenant.Settings["ApplicationName"] ?? tenant.Name },
+                { ScanEventRouting.ReferenceMetadata, file.Application!.ApplicationReference },
+                { ScanEventRouting.ApplicationIdMetadata, file.ApplicationId.Value },
+                { ScanEventRouting.UserIdMetadata, file.UploadedBy.Value },
+                { ScanEventRouting.OriginalFileNameMetadata, file.OriginalFileName },
+                { ScanEventRouting.InstanceIdentifierMetadata, InstanceIdentifierHelper.GetInstanceIdentifier(tenant.Settings) ?? "" },
+                { ScanEventRouting.TemplateIdMetadata, templateId ?? string.Empty },
             }
         );
 
-        // Build Azure Service Bus message properties
-        var messageProperties = AzureServiceBusMessagePropertiesBuilder
+        // TenantId/TenantName headers are stamped by TenantAwareEventPublisher.
+        // Template and user are scan-specific so generic EventTriggers publishing is unchanged.
+        var propertiesBuilder = AzureServiceBusMessagePropertiesBuilder
             .Create()
             .AddCustomProperty("serviceName", $"extapi-{tenant.Name}")
-            .Build();
+            .AddCustomProperty(ScanEventRouting.UserIdHeader, userId);
+
+        if (!string.IsNullOrWhiteSpace(templateId))
+            propertiesBuilder.AddCustomProperty(ScanEventRouting.TemplateIdHeader, templateId);
+
+        var messageProperties = propertiesBuilder.Build();
 
         // Publish to Azure Service Bus via MassTransit — hardcoded platform guarantee.
         await publishEndpoint.PublishAsync(
@@ -166,6 +177,28 @@ public sealed class FileUploadedDomainEventHandler(
                 ex,
                 "Error dispatching FileUploaded events for application {ApplicationId}",
                 file.ApplicationId.Value);
+        }
+    }
+
+    private async Task<string?> TryResolveTemplateIdAsync(
+        Domain.ValueObjects.ApplicationId applicationId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var application = await applicationRepository.Query()
+                .AsNoTracking()
+                .FirstOrDefaultAsync(a => a.Id == applicationId, cancellationToken);
+
+            return application?.TemplateVersion?.TemplateId.Value.ToString();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Could not resolve template for scan request metadata on application {ApplicationId}",
+                applicationId.Value);
+            return null;
         }
     }
 

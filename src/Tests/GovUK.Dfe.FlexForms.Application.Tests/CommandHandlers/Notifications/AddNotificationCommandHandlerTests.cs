@@ -7,6 +7,9 @@ using GovUK.Dfe.FlexForms.Application.Notifications.Commands;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using GovUK.Dfe.FlexForms.Domain.ValueObjects;
+using MockQueryable;
 using Microsoft.AspNetCore.Http;
 using NSubstitute;
 using System.Security.Claims;
@@ -32,6 +35,7 @@ public class AddNotificationCommandHandlerTests
         _notificationSignalRService = new MockNotificationSignalRService();
         _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         _userRepository = Substitute.For<IEaRepository<User>>();
+        _userRepository.Query().Returns(new List<User>().AsQueryable().BuildMock());
 
         _handler = new AddNotificationCommandHandler(
             _notificationService,
@@ -205,6 +209,8 @@ public class AddNotificationCommandHandlerTests
 
         _permissionCheckerService.HasPermission(ResourceType.Notifications, appId, AccessType.Write).Returns(true);
 
+        command = command with { ToUserId = null };
+
         notification.UserId = appId;
         _notificationService.AddNotificationAsync(
                 Arg.Any<string>(),
@@ -308,5 +314,110 @@ public class AddNotificationCommandHandlerTests
         Assert.Single(mockService.SentNotifications);
         var sentNotification = mockService.SentNotifications.First();
         Assert.NotNull(sentNotification);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldTargetToUser_WhenCallerIsServicePrincipal()
+    {
+        var targetUserId = new UserId(Guid.NewGuid());
+        var targetUser = new User(
+            targetUserId,
+            new RoleId(Guid.NewGuid()),
+            "Target User",
+            "uploader@example.com",
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var httpContext = new DefaultHttpContext();
+        var appId = "scan-consumer-app";
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim("appid", appId),
+            new Claim(TenantAuthClaimTypes.IsService, "true")
+        ], "TestAuth"));
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+
+        _permissionCheckerService.HasPermission(ResourceType.Notifications, appId, AccessType.Write).Returns(true);
+        _permissionCheckerService.IsAdmin().Returns(false);
+        _userRepository.Query().Returns(new List<User> { targetUser }.AsQueryable().BuildMock());
+
+        var notification = new Notification
+        {
+            Id = Guid.NewGuid().ToString(),
+            Message = "infected",
+            Type = NotificationType.Error,
+            UserId = targetUser.Email,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _notificationService.AddNotificationAsync(
+                Arg.Any<string>(),
+                Arg.Any<NotificationType>(),
+                Arg.Any<NotificationOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(notification);
+
+        var command = new AddNotificationCommand(
+            "infected",
+            NotificationType.Error,
+            ToUserId: targetUserId);
+
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        await _notificationService.Received(1).AddNotificationAsync(
+            Arg.Any<string>(),
+            Arg.Any<NotificationType>(),
+            Arg.Is<NotificationOptions>(opts => opts.UserId == "uploader@example.com"),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldNotTargetToUser_WhenInteractiveCallerIsNotAdmin()
+    {
+        var targetUserId = new UserId(Guid.NewGuid());
+        var email = "user@example.com";
+        var httpContext = new DefaultHttpContext();
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.Email, email)
+        ], "TestAuth"));
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+
+        _permissionCheckerService.HasPermission(ResourceType.Notifications, email, AccessType.Write).Returns(true);
+        _permissionCheckerService.IsAdmin().Returns(false);
+
+        var notification = new Notification
+        {
+            Id = Guid.NewGuid().ToString(),
+            Message = "hello",
+            Type = NotificationType.Info,
+            UserId = email,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        _notificationService.AddNotificationAsync(
+                Arg.Any<string>(),
+                Arg.Any<NotificationType>(),
+                Arg.Any<NotificationOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(notification);
+
+        var command = new AddNotificationCommand(
+            "hello",
+            NotificationType.Info,
+            ToUserId: targetUserId);
+
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        await _notificationService.Received(1).AddNotificationAsync(
+            Arg.Any<string>(),
+            Arg.Any<NotificationType>(),
+            Arg.Is<NotificationOptions>(opts => opts.UserId == email),
+            Arg.Any<CancellationToken>());
+        _userRepository.DidNotReceive().Query();
     }
 }

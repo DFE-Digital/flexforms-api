@@ -33,6 +33,13 @@ public class ScanResultConsumerTests
         _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
         _sender = Substitute.For<ISender>();
 
+        var tenant = new TenantConfiguration(
+            Guid.NewGuid(),
+            "TestTenant",
+            new Microsoft.Extensions.Configuration.ConfigurationBuilder().Build(),
+            Array.Empty<string>());
+        _tenantContextAccessor.CurrentTenant.Returns(tenant);
+
         _consumer = new ScanResultConsumer(
             _logger, _fileRepository, _tenantContextAccessor, _sender);
     }
@@ -191,4 +198,59 @@ public class ScanResultConsumerTests
             Arg.Any<DeleteInfectedFileCommand>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task Consume_ShouldSkip_WhenTenantContextMissing()
+    {
+        _tenantContextAccessor.CurrentTenant.Returns((TenantConfiguration?)null);
+
+        var scanResult = new ScanResultEvent(
+            ServiceName: "test-service",
+            FileUri: "some/path/file.pdf",
+            FileName: "file.pdf",
+            FileId: Guid.NewGuid().ToString(),
+            Path: "some/path",
+            Outcome: VirusScanOutcome.Infected,
+            MalwareName: "TestMalware");
+
+        await _consumer.Consume(CreateConsumeContext(scanResult));
+
+        _fileRepository.DidNotReceive().Query();
+        await _sender.DidNotReceive().Send(
+            Arg.Any<DeleteInfectedFileCommand>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(FileCustomization), typeof(UserCustomization))]
+    public async Task Consume_ShouldSkip_WhenUserDoesNotMatchUploader(
+        File file, User user, long fileSize)
+    {
+        var fileId = new FileId(Guid.NewGuid());
+        var fileWithId = new File(
+            fileId, file.ApplicationId, file.Name, file.Description,
+            file.OriginalFileName, file.FileName, file.Path,
+            file.UploadedOn, file.UploadedBy, fileSize);
+
+        var userProp = typeof(File).GetProperty("UploadedByUser");
+        userProp?.SetValue(fileWithId, user);
+
+        _fileRepository.Query().Returns(new List<File> { fileWithId }.AsQueryable().BuildMock());
+
+        var scanResult = new ScanResultEvent(
+            ServiceName: "test-service",
+            FileUri: $"{fileWithId.Path}/{fileWithId.FileName}",
+            FileName: fileWithId.FileName,
+            FileId: fileId.Value.ToString(),
+            Path: fileWithId.Path,
+            Outcome: VirusScanOutcome.Infected,
+            MalwareName: "TestMalware",
+            Metadata: new Dictionary<string, object>
+            {
+                ["userId"] = Guid.NewGuid()
+            });
+
+        await _consumer.Consume(CreateConsumeContext(scanResult));
+
+        await _sender.DidNotReceive().Send(
+            Arg.Any<DeleteInfectedFileCommand>(), Arg.Any<CancellationToken>());
+    }
 }

@@ -7,11 +7,12 @@ using System.Security.Claims;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Notifications.Interfaces;
 using GovUK.Dfe.CoreLibs.Notifications.Models;
-using GovUK.Dfe.FlexForms.Domain.Services;
-using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 
 namespace GovUK.Dfe.FlexForms.Application.Notifications.Commands;
@@ -63,11 +64,15 @@ public sealed class AddNotificationCommandHandler(
 
             User? toUser = null;
 
-            if (request.ToUserId != null && permissionCheckerService.IsAdmin())
+            if (request.ToUserId != null && CanTargetOtherUser(user))
             {
-                toUser = await (new GetUserByIdQueryObject(request.ToUserId))
-                    .Apply(userRepo.Query().AsNoTracking())
-                    .FirstOrDefaultAsync(cancellationToken);
+                var users = userRepo.Query();
+                if (users is not null)
+                {
+                    toUser = await (new GetUserByIdQueryObject(request.ToUserId))
+                        .Apply(users.AsNoTracking())
+                        .FirstOrDefaultAsync(cancellationToken);
+                }
             }
 
             var options = new NotificationOptions
@@ -115,5 +120,25 @@ public sealed class AddNotificationCommandHandler(
         {
             return Result<NotificationDto>.Failure(ex.Message);
         }
+    }
+
+    private bool CanTargetOtherUser(ClaimsPrincipal caller) =>
+        permissionCheckerService.IsAdmin() || IsServiceIdentity(caller);
+
+    private static bool IsServiceIdentity(ClaimsPrincipal caller)
+    {
+        if (caller.HasClaim(c =>
+                c.Type == TenantAuthClaimTypes.IsService
+                && string.Equals(c.Value, "true", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        var email = caller.FindFirstValue(ClaimTypes.Email);
+        if (!string.IsNullOrEmpty(email))
+            return false;
+
+        return !string.IsNullOrEmpty(caller.FindFirstValue("appid"))
+            || !string.IsNullOrEmpty(caller.FindFirstValue("azp"));
     }
 }
