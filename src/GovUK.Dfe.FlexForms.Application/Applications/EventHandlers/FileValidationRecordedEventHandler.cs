@@ -1,5 +1,6 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.CoreLibs.Notifications;
 using GovUK.Dfe.CoreLibs.Notifications.Interfaces;
 using GovUK.Dfe.CoreLibs.Notifications.Models;
 using GovUK.Dfe.FlexForms.Application.Common.EventHandlers;
@@ -50,10 +51,14 @@ public sealed class FileValidationRecordedEventHandler(
                 ? BuildFailedMessage(notification.OriginalFileName, notification.Message)
                 : $"The file '{notification.OriginalFileName}' has been validated.";
 
+            var appContext = ResolveNotificationContext(tenantContextAccessor.CurrentTenant);
             var options = new NotificationOptions
             {
                 Category = Category,
-                Context = ResolveNotificationContext(tenantContextAccessor.CurrentTenant),
+                Context = NotificationContextHelper.BuildScopedContext(
+                    appContext,
+                    "file-validation",
+                    notification.FileId.Value.ToString()),
                 AutoDismiss = !failed,
                 AutoDismissSeconds = failed ? 0 : 8,
                 UserId = user.Email,

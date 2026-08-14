@@ -162,8 +162,17 @@ public class MockNotificationService : GovUK.Dfe.CoreLibs.Notifications.Interfac
         return Task.FromResult<IEnumerable<Notification>>(new List<Notification>());
     }
 
-    public Task MarkAsReadAsync(string notificationId, CancellationToken cancellationToken = default)
+    public Task MarkAsReadAsync(string notificationId, string? userId = null, CancellationToken cancellationToken = default)
     {
+        if (!string.IsNullOrEmpty(userId) && _userNotifications.TryGetValue(userId, out var scopedNotifications))
+        {
+            var notification = scopedNotifications.FirstOrDefault(n => n.Id == notificationId);
+            if (notification != null)
+                notification.IsRead = true;
+
+            return Task.CompletedTask;
+        }
+
         foreach (var userNotifications in _userNotifications.Values)
         {
             var notification = userNotifications.FirstOrDefault(n => n.Id == notificationId);
@@ -198,8 +207,17 @@ public class MockNotificationService : GovUK.Dfe.CoreLibs.Notifications.Interfac
         return Task.CompletedTask;
     }
 
-    public Task RemoveNotificationAsync(string notificationId, CancellationToken cancellationToken = default)
+    public Task RemoveNotificationAsync(string notificationId, string? userId = null, CancellationToken cancellationToken = default)
     {
+        if (!string.IsNullOrEmpty(userId) && _userNotifications.TryGetValue(userId, out var scopedNotifications))
+        {
+            var notification = scopedNotifications.FirstOrDefault(n => n.Id == notificationId);
+            if (notification != null)
+                scopedNotifications.Remove(notification);
+
+            return Task.CompletedTask;
+        }
+
         foreach (var userNotifications in _userNotifications.Values)
         {
             var notification = userNotifications.FirstOrDefault(n => n.Id == notificationId);

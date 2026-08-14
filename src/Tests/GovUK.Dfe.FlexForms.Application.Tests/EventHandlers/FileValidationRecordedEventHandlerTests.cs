@@ -67,9 +67,10 @@ public class FileValidationRecordedEventHandlerTests
             NotificationType.Error,
             Arg.Is<NotificationOptions>(o =>
                 o.Category == FileValidationRecordedEventHandler.Category
-                && o.Context == "Transfers"
+                && o.Context == $"Transfers|file-validation|{fileId.Value}"
                 && o.UserId == "uploader@example.com"
-                && o.AutoDismiss == false),
+                && o.AutoDismiss == false
+                && o.ReplaceExistingContext == true),
             Arg.Any<CancellationToken>());
 
         Assert.Single(signalR.SentNotifications);
