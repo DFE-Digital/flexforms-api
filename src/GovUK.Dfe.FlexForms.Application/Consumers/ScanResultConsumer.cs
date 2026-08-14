@@ -239,14 +239,12 @@ public sealed class ScanResultConsumer(
             var malwareLabel = string.IsNullOrWhiteSpace(malwareName) ? "unknown malware" : malwareName;
             var appContext = FileValidationRecordedEventHandler.ResolveNotificationContext(
                 tenantContextAccessor.CurrentTenant);
-            var templateId = file.Application?.TemplateVersion?.TemplateId.Value;
 
             var options = new NotificationOptions
             {
                 Category = MalwareCategory,
                 Context = NotificationContextHelper.BuildScopedContext(
                     appContext,
-                    templateId?.ToString(),
                     MalwareCategory,
                     file.Id!.Value.ToString()),
                 AutoDismiss = false,
