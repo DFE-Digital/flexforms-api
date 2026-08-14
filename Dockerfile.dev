@@ -18,15 +18,16 @@ COPY ["src/GovUK.Dfe.FlexForms.Application/GovUK.Dfe.FlexForms.Application.cspro
 COPY ["src/GovUK.Dfe.FlexForms.Domain/GovUK.Dfe.FlexForms.Domain.csproj", "src/GovUK.Dfe.FlexForms.Domain/"]
 COPY ["src/GovUK.Dfe.FlexForms.Utils/GovUK.Dfe.FlexForms.Utils.csproj", "src/GovUK.Dfe.FlexForms.Utils/"]
 COPY ["src/GovUK.Dfe.FlexForms.Infrastructure/GovUK.Dfe.FlexForms.Infrastructure.csproj", "src/GovUK.Dfe.FlexForms.Infrastructure/"]
+COPY ["src/LocalPackages", "src/LocalPackages"]
 RUN dotnet restore "./src/GovUK.Dfe.FlexForms.Api/GovUK.Dfe.FlexForms.Api.csproj"
 COPY . .
 WORKDIR "/src/src/GovUK.Dfe.FlexForms.Api"
-RUN dotnet build "./GovUK.Dfe.FlexForms.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "./GovUK.Dfe.FlexForms.Api.csproj" -c $BUILD_CONFIGURATION -p:SkipDockerCompose=true -o /app/build
 
 # This stage is used to publish the service project to be copied to the final stage
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Debug
-RUN dotnet publish "./GovUK.Dfe.FlexForms.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "./GovUK.Dfe.FlexForms.Api.csproj" -c $BUILD_CONFIGURATION -p:SkipDockerCompose=true -o /app/publish /p:UseAppHost=false
 
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final

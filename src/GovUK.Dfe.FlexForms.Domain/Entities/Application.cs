@@ -20,6 +20,9 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
     public User? CreatedByUser { get; private set; }
     public ApplicationStatus? Status { get; private set; }
     public DateTime? LastModifiedOn { get; private set; }
+    public DateTime? DeletedOn { get; private set; } = null;
+    public UserId? DeletedBy { get; private set; } = null;
+    public ApplicationStatus? PreDeletedStatus { get; private set; } = null;
     public UserId? LastModifiedBy { get; private set; }
     public User? LastModifiedByUser { get; private set; }
     public IReadOnlyCollection<ApplicationResponse> Responses => _responses.AsReadOnly();
@@ -117,5 +120,60 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
             userEmail,
             userFullName,
             submittedOn));
+    }
+
+    /// <summary>
+    /// Reverts the deletion of an application, setting its status to the pre-deleted status and updating last modified tracking.
+    /// </summary>
+    public void UnDelete(DateTime undeletedOn, string userEmail, string userFullName, UserId undeletedBy, ApplicationStatus? preDeletedStatus)
+    { 
+        Status = preDeletedStatus;
+        DeletedOn = null;
+        DeletedBy = null;
+        PreDeletedStatus = null;
+        LastModifiedOn = undeletedOn;
+        LastModifiedBy = undeletedBy;
+
+        // Raise domain event
+        AddDomainEvent(new ApplicationDeletedEvent(
+            Id!,
+            ApplicationReference,
+            TemplateVersion!.TemplateId,
+            undeletedBy,
+            userEmail,
+            userFullName,
+            undeletedOn));
+    }
+
+    /// <summary>
+    /// Deletes the application, setting its status to Deleted and updating last modified tracking.
+    /// </summary>
+    public void Delete(DateTime deletedOn, UserId deletedBy, string userEmail, string userFullName, ApplicationStatus? preDeletedStatus)
+    {
+        if (deletedBy == null)
+            throw new ArgumentNullException(nameof(deletedBy));
+
+        if (string.IsNullOrWhiteSpace(userEmail))
+            throw new ArgumentException("User email cannot be null or empty", nameof(userEmail));
+
+        if (string.IsNullOrWhiteSpace(userFullName))
+            throw new ArgumentException("User full name cannot be null or empty", nameof(userFullName));
+
+        Status = ApplicationStatus.Deleted;
+        DeletedOn = deletedOn;
+        DeletedBy = deletedBy;
+        PreDeletedStatus = preDeletedStatus;
+        LastModifiedOn = deletedOn;
+        LastModifiedBy = deletedBy;
+
+        // Raise domain event
+        AddDomainEvent(new ApplicationDeletedEvent(
+            Id!,
+            ApplicationReference,
+            TemplateVersion!.TemplateId,
+            deletedBy,
+            userEmail,
+            userFullName,
+            deletedOn));
     }
 }
