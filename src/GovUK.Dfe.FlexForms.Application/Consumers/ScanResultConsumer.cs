@@ -1,16 +1,23 @@
-using GovUK.Dfe.FlexForms.Application.Applications.Commands;
-using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
-using GovUK.Dfe.FlexForms.Application.Messaging;
-using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Enums;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Helpers;
+using GovUK.Dfe.CoreLibs.Notifications;
+using GovUK.Dfe.CoreLibs.Notifications.Interfaces;
+using GovUK.Dfe.CoreLibs.Notifications.Models;
+using GovUK.Dfe.FlexForms.Application.Applications.Commands;
+using GovUK.Dfe.FlexForms.Application.Applications.EventHandlers;
+using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
+using GovUK.Dfe.FlexForms.Application.Messaging;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using MassTransit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using File = GovUK.Dfe.FlexForms.Domain.Entities.File;
 
 namespace GovUK.Dfe.FlexForms.Application.Consumers;
@@ -25,8 +32,12 @@ public sealed class ScanResultConsumer(
     ILogger<ScanResultConsumer> logger,
     IEaRepository<File> fileRepository,
     ITenantContextAccessor tenantContextAccessor,
-    ISender sender) : IConsumer<ScanResultEvent>
+    ISender sender,
+    INotificationService notificationService,
+    INotificationSignalRService notificationSignalRService) : IConsumer<ScanResultEvent>
 {
+    public const string MalwareCategory = "malware-detection";
+
     public async Task Consume(ConsumeContext<ScanResultEvent> context)
     {
         var scanResult = context.Message;
@@ -144,6 +155,11 @@ public sealed class ScanResultConsumer(
                         logger.LogWarning(
                             "Successfully deleted infected file - FileId: {FileId}",
                             file.Id.Value);
+
+                        await NotifyUploaderOfInfectedFileAsync(
+                            file,
+                            scanResult.MalwareName,
+                            context.CancellationToken);
                     }
                     else
                     {
@@ -195,5 +211,99 @@ public sealed class ScanResultConsumer(
 
         var fileTemplateId = file.Application?.TemplateVersion?.TemplateId.Value;
         return fileTemplateId == requestedTemplateId;
+    }
+
+    /// <summary>
+    /// Stores the malware banner and pushes it on the API SignalR hub (the browser connects there).
+    /// Done here because the Web consumer's S2S API calls are unauthenticated and must not own this.
+    /// </summary>
+    private async Task NotifyUploaderOfInfectedFileAsync(
+        File file,
+        string? malwareName,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var email = file.UploadedByUser?.Email;
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                logger.LogWarning(
+                    "No uploader email for infected file {FileId}; skipping malware notification.",
+                    file.Id!.Value);
+                return;
+            }
+
+            var displayName = string.IsNullOrWhiteSpace(file.OriginalFileName)
+                ? file.FileName
+                : file.OriginalFileName;
+            var malwareLabel = string.IsNullOrWhiteSpace(malwareName) ? "unknown malware" : malwareName;
+            var appContext = FileValidationRecordedEventHandler.ResolveNotificationContext(
+                tenantContextAccessor.CurrentTenant);
+            var templateId = file.Application?.TemplateVersion?.TemplateId.Value;
+
+            var options = new NotificationOptions
+            {
+                Category = MalwareCategory,
+                Context = NotificationContextHelper.BuildScopedContext(
+                    appContext,
+                    templateId?.ToString(),
+                    MalwareCategory,
+                    file.Id!.Value.ToString()),
+                AutoDismiss = false,
+                AutoDismissSeconds = 0,
+                UserId = email,
+                ReplaceExistingContext = true,
+                Priority = NotificationPriority.High,
+                Metadata = new Dictionary<string, object>
+                {
+                    ["fileId"] = file.Id.Value.ToString(),
+                    ["fileName"] = displayName,
+                    ["malwareName"] = malwareLabel,
+                    ["applicationId"] = file.ApplicationId.Value.ToString(),
+                    ["detectedAt"] = DateTimeOffset.UtcNow.ToString("o")
+                }
+            };
+
+            var message =
+                $"The selected file '{displayName}' contains a virus called [{malwareLabel}]. We have deleted the file. Upload a new one.";
+
+            var stored = await notificationService.AddNotificationAsync(
+                message,
+                NotificationType.Error,
+                options,
+                cancellationToken);
+
+            var dto = new NotificationDto
+            {
+                Id = stored.Id,
+                Message = stored.Message,
+                Type = stored.Type,
+                Category = stored.Category ?? options.Category,
+                Context = stored.Context ?? options.Context,
+                IsRead = stored.IsRead,
+                CreatedAt = stored.CreatedAt,
+                AutoDismiss = stored.AutoDismiss,
+                AutoDismissSeconds = stored.AutoDismissSeconds,
+                UserId = stored.UserId ?? email,
+                ActionUrl = stored.ActionUrl,
+                Metadata = stored.Metadata ?? options.Metadata,
+                Priority = stored.Priority
+            };
+
+            await notificationSignalRService.SendNotificationToUserAsync(email, dto, cancellationToken);
+
+            logger.LogInformation(
+                "Created malware notification for infected file {FileId} ({FileName}) user {UserEmail}",
+                file.Id.Value,
+                displayName,
+                email);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Failed to notify uploader about infected file {FileId}",
+                file.Id?.Value);
+        }
     }
 }

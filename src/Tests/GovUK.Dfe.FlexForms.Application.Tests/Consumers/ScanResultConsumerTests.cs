@@ -5,10 +5,15 @@ using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
+using GovUK.Dfe.FlexForms.Tests.Common.Mocks;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Enums;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
+using GovUK.Dfe.CoreLibs.Notifications.Interfaces;
+using GovUK.Dfe.CoreLibs.Notifications.Models;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
+using FluentAssertions;
 using MassTransit;
 using MediatR;
 using Microsoft.Extensions.Logging;
@@ -24,6 +29,8 @@ public class ScanResultConsumerTests
     private readonly IEaRepository<File> _fileRepository;
     private readonly ITenantContextAccessor _tenantContextAccessor;
     private readonly ISender _sender;
+    private readonly INotificationService _notificationService;
+    private readonly MockNotificationSignalRService _signalR;
     private readonly ScanResultConsumer _consumer;
 
     public ScanResultConsumerTests()
@@ -32,6 +39,22 @@ public class ScanResultConsumerTests
         _fileRepository = Substitute.For<IEaRepository<File>>();
         _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
         _sender = Substitute.For<ISender>();
+        _notificationService = Substitute.For<INotificationService>();
+        _signalR = new MockNotificationSignalRService();
+
+        _notificationService.AddNotificationAsync(
+                Arg.Any<string>(),
+                Arg.Any<NotificationType>(),
+                Arg.Any<NotificationOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ci => new Notification
+            {
+                Id = "n-malware",
+                Message = ci.ArgAt<string>(0),
+                Type = ci.ArgAt<NotificationType>(1),
+                UserId = ci.ArgAt<NotificationOptions>(2).UserId,
+                CreatedAt = DateTime.UtcNow
+            });
 
         var tenant = new TenantConfiguration(
             Guid.NewGuid(),
@@ -41,7 +64,12 @@ public class ScanResultConsumerTests
         _tenantContextAccessor.CurrentTenant.Returns(tenant);
 
         _consumer = new ScanResultConsumer(
-            _logger, _fileRepository, _tenantContextAccessor, _sender);
+            _logger,
+            _fileRepository,
+            _tenantContextAccessor,
+            _sender,
+            _notificationService,
+            _signalR);
     }
 
     private ConsumeContext<ScanResultEvent> CreateConsumeContext(ScanResultEvent message, Guid? tenantId = null)
@@ -173,6 +201,121 @@ public class ScanResultConsumerTests
         await _sender.Received(1).Send(
             Arg.Is<DeleteInfectedFileCommand>(cmd => cmd.FileId == fileId),
             Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(FileCustomization), typeof(UserCustomization))]
+    public async Task Consume_ShouldNotifyUploader_WhenInfectedFileIsDeleted(
+        File file, User user, long fileSize)
+    {
+        var fileId = new FileId(Guid.NewGuid());
+        var fileWithId = new File(
+            fileId, file.ApplicationId, file.Name, file.Description,
+            file.OriginalFileName, file.FileName, file.Path,
+            file.UploadedOn, file.UploadedBy, fileSize);
+
+        typeof(File).GetProperty("UploadedByUser")?.SetValue(fileWithId, user);
+
+        _fileRepository.Query().Returns(new List<File> { fileWithId }.AsQueryable().BuildMock());
+        _sender.Send(Arg.Any<DeleteInfectedFileCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result<bool>.Success(true));
+
+        var scanResult = new ScanResultEvent(
+            ServiceName: "test-service",
+            FileUri: $"{fileWithId.Path}/{fileWithId.FileName}",
+            FileName: fileWithId.FileName,
+            FileId: fileId.Value.ToString(),
+            Path: fileWithId.Path,
+            Status: ScanStatus.Completed,
+            Outcome: VirusScanOutcome.Infected,
+            MalwareName: "TestMalware");
+
+        await _consumer.Consume(CreateConsumeContext(scanResult));
+
+        await _notificationService.Received(1).AddNotificationAsync(
+            Arg.Is<string>(m => m.Contains(fileWithId.OriginalFileName) && m.Contains("TestMalware")),
+            NotificationType.Error,
+            Arg.Is<NotificationOptions>(o =>
+                o.Category == ScanResultConsumer.MalwareCategory
+                && o.Context == $"TestTenant|{ScanResultConsumer.MalwareCategory}|{fileId.Value}"
+                && o.UserId == user.Email
+                && o.AutoDismiss == false
+                && o.ReplaceExistingContext == true),
+            Arg.Any<CancellationToken>());
+
+        Assert.Single(_signalR.SentNotifications);
+        Assert.Equal("n-malware", _signalR.SentNotifications[0].Id);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(FileCustomization), typeof(UserCustomization))]
+    public async Task Consume_ShouldNotNotify_WhenInfectedFileDeleteFails(
+        File file, User user, long fileSize)
+    {
+        var fileId = new FileId(Guid.NewGuid());
+        var fileWithId = new File(
+            fileId, file.ApplicationId, file.Name, file.Description,
+            file.OriginalFileName, file.FileName, file.Path,
+            file.UploadedOn, file.UploadedBy, fileSize);
+
+        typeof(File).GetProperty("UploadedByUser")?.SetValue(fileWithId, user);
+
+        _fileRepository.Query().Returns(new List<File> { fileWithId }.AsQueryable().BuildMock());
+        _sender.Send(Arg.Any<DeleteInfectedFileCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result<bool>.Failure("storage error"));
+
+        var scanResult = new ScanResultEvent(
+            ServiceName: "test-service",
+            FileUri: $"{fileWithId.Path}/{fileWithId.FileName}",
+            FileName: fileWithId.FileName,
+            FileId: fileId.Value.ToString(),
+            Path: fileWithId.Path,
+            Outcome: VirusScanOutcome.Infected,
+            MalwareName: "TestMalware");
+
+        await _consumer.Consume(CreateConsumeContext(scanResult));
+
+        await _notificationService.DidNotReceive().AddNotificationAsync(
+            Arg.Any<string>(),
+            Arg.Any<NotificationType>(),
+            Arg.Any<NotificationOptions>(),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(FileCustomization), typeof(UserCustomization))]
+    public async Task Consume_ShouldNotThrow_WhenMalwareNotificationFails(
+        File file, User user, long fileSize)
+    {
+        var fileId = new FileId(Guid.NewGuid());
+        var fileWithId = new File(
+            fileId, file.ApplicationId, file.Name, file.Description,
+            file.OriginalFileName, file.FileName, file.Path,
+            file.UploadedOn, file.UploadedBy, fileSize);
+
+        typeof(File).GetProperty("UploadedByUser")?.SetValue(fileWithId, user);
+
+        _fileRepository.Query().Returns(new List<File> { fileWithId }.AsQueryable().BuildMock());
+        _sender.Send(Arg.Any<DeleteInfectedFileCommand>(), Arg.Any<CancellationToken>())
+            .Returns(Result<bool>.Success(true));
+        _notificationService.AddNotificationAsync(
+                Arg.Any<string>(),
+                Arg.Any<NotificationType>(),
+                Arg.Any<NotificationOptions>(),
+                Arg.Any<CancellationToken>())
+            .Returns<Notification>(_ => throw new InvalidOperationException("redis down"));
+
+        var scanResult = new ScanResultEvent(
+            ServiceName: "test-service",
+            FileUri: $"{fileWithId.Path}/{fileWithId.FileName}",
+            FileName: fileWithId.FileName,
+            FileId: fileId.Value.ToString(),
+            Path: fileWithId.Path,
+            Outcome: VirusScanOutcome.Infected,
+            MalwareName: "TestMalware");
+
+        var consume = () => _consumer.Consume(CreateConsumeContext(scanResult));
+        await consume.Should().NotThrowAsync();
     }
 
     [Fact]
