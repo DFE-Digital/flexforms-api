@@ -92,7 +92,8 @@ public class RegisterUserCommandHandlerTests
             Arg.Any<string>(),
             email,
             Arg.Any<TemplateId?>(),
-            Arg.Any<DateTime?>())
+            Arg.Any<DateTime?>(),
+            Arg.Any<Guid?>())
             .Returns(newUser);
     }
 
@@ -143,7 +144,8 @@ public class RegisterUserCommandHandlerTests
             Arg.Any<string>(),  // Changed from specific 'name' to Any to match handler behavior
             email,
             Arg.Any<TemplateId?>(),
-            Arg.Any<DateTime?>())
+            Arg.Any<DateTime?>(),
+            Arg.Any<Guid?>())
             .Returns(newUser);
 
                 var templateId = Guid.NewGuid();
@@ -309,7 +311,8 @@ public class RegisterUserCommandHandlerTests
             Arg.Any<string>(),  // Changed from specific email to Any to match handler behavior
             email,
             Arg.Any<TemplateId?>(),
-            Arg.Any<DateTime?>())
+            Arg.Any<DateTime?>(),
+            Arg.Any<Guid?>())
             .Returns(newUser);
 
         var templateId = Guid.NewGuid();
@@ -344,7 +347,8 @@ public class RegisterUserCommandHandlerTests
             email, // Name should be email
             email,
             Arg.Any<TemplateId?>(),
-            Arg.Any<DateTime?>());
+            Arg.Any<DateTime?>(),
+            Arg.Any<Guid?>());
     }
 
     [Theory]
@@ -394,7 +398,8 @@ public class RegisterUserCommandHandlerTests
             Arg.Any<string>(),  // Changed from specific 'name' to Any to match handler behavior
             email,
             Arg.Any<TemplateId?>(),
-            Arg.Any<DateTime?>())
+            Arg.Any<DateTime?>(),
+            Arg.Any<Guid?>())
             .Returns(newUser);
 
         var templateId = Guid.NewGuid();
@@ -636,7 +641,8 @@ public class RegisterUserCommandHandlerTests
             Arg.Any<string>(),  // Changed from specific 'name' to Any to match handler behavior
             email,
             Arg.Any<TemplateId?>(),
-            Arg.Any<DateTime?>())
+            Arg.Any<DateTime?>(),
+            Arg.Any<Guid?>())
             .Returns(newUser);
 
         var templateId = Guid.NewGuid();

@@ -39,7 +39,7 @@ public class UpsertTenantSettingCommandHandlerTests
     [Fact]
     public async Task Handle_ShouldForbid_WhenCallerIsNotSuperAdmin()
     {
-        _permissionChecker.IsInteractivePlatformAdmin().Returns(false);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(false);
 
         var result = await _handler.Handle(
             new UpsertTenantSettingCommand(Guid.NewGuid(), "Layout", "Web", ToBase64("{}"), false),
@@ -57,7 +57,7 @@ public class UpsertTenantSettingCommandHandlerTests
         var callerTenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
         var otherTenantId = Guid.Parse("22222222-2222-4222-8222-222222222222");
 
-        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(CreateTenant(callerTenantId, "Transfers"));
 
         var result = await _handler.Handle(
@@ -74,7 +74,7 @@ public class UpsertTenantSettingCommandHandlerTests
     public async Task Handle_ShouldUpsertAndRefresh_WhenSuperAdminUpdatesOwnTenant()
     {
         var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
-        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
 
         _writer.UpsertSettingAsync(
@@ -98,7 +98,7 @@ public class UpsertTenantSettingCommandHandlerTests
     public async Task Handle_ShouldForceSecret_WhenCategoryRequiresEncryption()
     {
         var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
-        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
 
         var json = """{"SecretKey":"k","Issuer":"i","Audience":"a"}""";
@@ -119,7 +119,7 @@ public class UpsertTenantSettingCommandHandlerTests
     public async Task Handle_ShouldFail_WhenSettingsJsonIsNotBase64()
     {
         var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
-        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
 
         var result = await _handler.Handle(
@@ -135,7 +135,7 @@ public class UpsertTenantSettingCommandHandlerTests
     public async Task Handle_ShouldValidateCategoryJson()
     {
         var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
-        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
 
         var result = await _handler.Handle(
@@ -156,7 +156,7 @@ public class UpsertTenantSettingCommandHandlerTests
     public async Task Handle_ShouldRejectEnablingTestAuthentication_InProduction()
     {
         var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
-        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
         _hostEnvironment.EnvironmentName.Returns("Production");
 
@@ -179,7 +179,7 @@ public class UpsertTenantSettingCommandHandlerTests
     public async Task Handle_ShouldRejectTestAuthenticationScheme_InProduction()
     {
         var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
-        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
         _hostEnvironment.EnvironmentName.Returns("Prod");
 

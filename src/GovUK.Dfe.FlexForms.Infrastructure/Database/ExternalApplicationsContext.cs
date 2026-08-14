@@ -701,7 +701,7 @@ public class ExternalApplicationsContext : DbContext
             .IsRequired();
         b.Property(e => e.ResourceKey)
             .HasColumnName("ResourceKey")
-            .HasMaxLength(200)
+            .HasMaxLength(256)
             .IsRequired();
         b.Property(e => e.AccessType)
             .HasColumnName("AccessType")

@@ -327,8 +327,8 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations
 
                     b.Property<string>("ResourceKey")
                         .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)")
                         .HasColumnName("ResourceKey");
 
                     b.Property<byte>("ResourceType")

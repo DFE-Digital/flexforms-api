@@ -2,6 +2,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
@@ -27,9 +28,6 @@ public sealed class TenantPermissionFilter(
         var tenantTemplateIds = (await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken))
             .Select(id => id.Value)
             .ToHashSet();
-
-        if (tenantTemplateIds.Count == 0)
-            return Array.Empty<Permission>();
 
         var permissionList = permissions.ToList();
         if (permissionList.Count == 0)
@@ -123,8 +121,12 @@ public sealed class TenantPermissionFilter(
                     currentTenantId,
                     tenantTemplateIds);
 
-            case ResourceType.User:
             case ResourceType.Notifications:
+                return TenantScopedIdentityKey.NotificationsBelongToTenant(
+                    permission.ResourceKey,
+                    currentTenantId);
+
+            case ResourceType.User:
             default:
                 return true;
         }

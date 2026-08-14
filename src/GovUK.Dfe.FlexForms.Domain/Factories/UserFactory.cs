@@ -2,6 +2,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Events;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using System.Security;
 using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
@@ -19,7 +20,8 @@ public class UserFactory : IUserFactory
         ApplicationId applicationId,
         string applicationReference,
         TemplateId templateId,
-        DateTime? createdOn = null)
+        DateTime? createdOn = null,
+        Guid? tenantId = null)
     {
         if (id == null)
             throw new ArgumentException("Id cannot be null", nameof(id));
@@ -92,7 +94,7 @@ public class UserFactory : IUserFactory
         // Notifications permissions
         AddPermissionToUser(
             contributor,
-            email,
+            NotificationResourceKey(email, tenantId),
             ResourceType.Notifications,
             new[] { AccessType.Read, AccessType.Write, AccessType.Delete },
             createdBy,
@@ -125,7 +127,8 @@ public class UserFactory : IUserFactory
         string name,
         string email,
         TemplateId? templateId = null,
-        DateTime? createdOn = null)
+        DateTime? createdOn = null,
+        Guid? tenantId = null)
     {
         if (id == null)
             throw new ArgumentException("Id cannot be null", nameof(id));
@@ -164,7 +167,7 @@ public class UserFactory : IUserFactory
         // Add notification permissions for the user's own email
         AddPermissionToUser(
             user,
-            email,
+            NotificationResourceKey(email, tenantId),
             ResourceType.Notifications,
             new[] { AccessType.Read, AccessType.Write, AccessType.Delete },
             id, // User grants permission to themselves
@@ -197,7 +200,8 @@ public class UserFactory : IUserFactory
         string email,
         IEnumerable<TemplateId> templateIds,
         UserId grantedBy,
-        DateTime? createdOn = null)
+        DateTime? createdOn = null,
+        Guid? tenantId = null)
     {
         if (id == null)
             throw new ArgumentException("Id cannot be null", nameof(id));
@@ -227,7 +231,7 @@ public class UserFactory : IUserFactory
             null,
             null);
 
-        GrantStandardUserPermissions(user, templateIdList, grantedBy, when);
+        GrantStandardUserPermissions(user, templateIdList, grantedBy, when, tenantId);
         user.AddDomainEvent(new UserCreatedEvent(user, when));
         return user;
     }
@@ -237,7 +241,8 @@ public class UserFactory : IUserFactory
         User user,
         IEnumerable<TemplateId> templateIds,
         UserId grantedBy,
-        DateTime? grantedOn = null)
+        DateTime? grantedOn = null,
+        Guid? tenantId = null)
     {
         if (user == null)
             throw new ArgumentException("User cannot be null", nameof(user));
@@ -252,7 +257,7 @@ public class UserFactory : IUserFactory
         var when = grantedOn ?? DateTime.UtcNow;
 
         user.AssignRole(new RoleId(RoleConstants.UserRoleId));
-        GrantStandardUserPermissions(user, templateIdList, grantedBy, when);
+        GrantStandardUserPermissions(user, templateIdList, grantedBy, when, tenantId);
     }
 
     /// <inheritdoc />
@@ -335,7 +340,8 @@ public class UserFactory : IUserFactory
         User user,
         IReadOnlyCollection<TemplateId> templateIds,
         UserId grantedBy,
-        DateTime when)
+        DateTime when,
+        Guid? tenantId)
     {
         AddPermissionToUser(
             user,
@@ -348,7 +354,7 @@ public class UserFactory : IUserFactory
 
         AddPermissionToUser(
             user,
-            user.Email,
+            NotificationResourceKey(user.Email, tenantId),
             ResourceType.Notifications,
             new[] { AccessType.Read, AccessType.Write, AccessType.Delete },
             grantedBy,
@@ -377,6 +383,9 @@ public class UserFactory : IUserFactory
             null,
             when);
     }
+
+    private static string NotificationResourceKey(string email, Guid? tenantId) =>
+        tenantId is Guid id ? TenantScopedIdentityKey.Combine(id, email) : email;
 
     public void AddPermissionToUser(
         User user,

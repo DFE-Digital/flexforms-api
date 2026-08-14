@@ -184,7 +184,8 @@ public sealed class AssignUserRoleCommandHandler(
                     templateIds,
                     grantedById,
                     now,
-                    tenantRoleId);
+                    tenantRoleId,
+                    currentTenant.Id);
 
                 if (existingUser is null)
                 {
@@ -210,7 +211,8 @@ public sealed class AssignUserRoleCommandHandler(
                             email,
                             templateIds,
                             grantedById,
-                            now);
+                            now,
+                            currentTenant.Id);
                     }
                     else
                     {
@@ -220,7 +222,8 @@ public sealed class AssignUserRoleCommandHandler(
                             name,
                             email,
                             null,
-                            now);
+                            now,
+                            currentTenant.Id);
                         userFactory.AddPermissionToUser(
                             user,
                             email,
@@ -238,7 +241,7 @@ public sealed class AssignUserRoleCommandHandler(
                     existingUser.AssignRole(new RoleId(RoleConstants.UserRoleId));
                     if (templateIds.Count > 0)
                     {
-                        userFactory.GrantStandardUserAccess(existingUser, templateIds, grantedById, now);
+                        userFactory.GrantStandardUserAccess(existingUser, templateIds, grantedById, now, currentTenant.Id);
                     }
 
                     user = existingUser;

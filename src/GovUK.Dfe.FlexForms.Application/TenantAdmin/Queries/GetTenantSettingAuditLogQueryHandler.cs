@@ -18,10 +18,10 @@ public sealed class GetTenantSettingAuditLogQueryHandler(
         GetTenantSettingAuditLogQuery request,
         CancellationToken cancellationToken)
     {
-        if (!permissionChecker.IsInteractivePlatformAdmin())
+        if (!permissionChecker.IsInteractiveTenantAdmin())
         {
             return Result<GetTenantSettingAuditLogDto>.Forbid(
-                "Only interactive SuperAdmin users can view tenant setting audit logs.");
+                "Only interactive tenant administrators can view tenant setting audit logs.");
         }
 
         var currentTenant = tenantContextAccessor.CurrentTenant;

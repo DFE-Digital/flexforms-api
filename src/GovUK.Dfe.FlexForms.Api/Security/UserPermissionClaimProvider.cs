@@ -111,7 +111,10 @@ public class UserPermissionClaimProvider(
                     CancellationToken.None);
 
                 var userGrants = tenantUserPermissions
-                    .Select(p => new PermissionClaimMerger.Grant(p.ResourceType, p.ResourceKey, p.AccessType))
+                    .Select(p => new PermissionClaimMerger.Grant(
+                        p.ResourceType,
+                        TenantScopedIdentityKey.ToClaimResourceKey(p.ResourceType, p.ResourceKey),
+                        p.AccessType))
                     .ToList();
 
                 return PermissionClaimMerger.Merge(roleGrants, userGrants).ToList();

@@ -24,7 +24,7 @@ public sealed record UpsertTenantSettingCommand(
 
 /// <summary>
 /// Upserts a TenantConfig settings category for a tenant.
-/// Callers must be interactive SuperAdmins and may only mutate the tenant resolved for the current request.
+/// Callers must be interactive tenant Admin or SuperAdmin and may only mutate the tenant resolved for the current request.
 /// </summary>
 public sealed class UpsertTenantSettingCommandHandler(
     ITenantSettingsWriter settingsWriter,
@@ -40,10 +40,10 @@ public sealed class UpsertTenantSettingCommandHandler(
         UpsertTenantSettingCommand request,
         CancellationToken cancellationToken)
     {
-        if (!permissionChecker.IsInteractivePlatformAdmin())
+        if (!permissionChecker.IsInteractiveTenantAdmin())
         {
             return Result<UpsertTenantSettingResponse>.Forbid(
-                "Only interactive SuperAdmin users can update tenant settings. Client-credentials / service tokens are not allowed.");
+                "Only interactive tenant administrators can update tenant settings. Client-credentials / service tokens are not allowed.");
         }
 
         var currentTenant = tenantContextAccessor.CurrentTenant;

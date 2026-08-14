@@ -100,14 +100,19 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                         var userGrants = (await tenantPermissionFilter.FilterToCurrentTenantAsync(
                                 userWithPermissions?.Permissions ?? [],
                                 cancellationToken))
-                            .Select(p => new PermissionClaimMerger.Grant(p.ResourceType, p.ResourceKey, p.AccessType));
+                            .Select(p => new PermissionClaimMerger.Grant(
+                                p.ResourceType,
+                                TenantScopedIdentityKey.ToClaimResourceKey(p.ResourceType, p.ResourceKey),
+                                p.AccessType));
 
                         var mergedClaims = PermissionClaimMerger.Merge(roleGrants, userGrants);
 
                         // Preserve ApplicationId on user-owned application grants for web consumers.
                         var applicationIdsByKey = userWithPermissions.Permissions
                             .Where(p => p.ApplicationId is not null)
-                            .GroupBy(p => $"{p.ResourceType}:{p.ResourceKey}:{p.AccessType}", StringComparer.OrdinalIgnoreCase)
+                            .GroupBy(
+                                p => $"{p.ResourceType}:{TenantScopedIdentityKey.ToClaimResourceKey(p.ResourceType, p.ResourceKey)}:{p.AccessType}",
+                                StringComparer.OrdinalIgnoreCase)
                             .ToDictionary(g => g.Key, g => g.First().ApplicationId!.Value, StringComparer.OrdinalIgnoreCase);
 
                         var permissions = mergedClaims

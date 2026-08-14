@@ -277,4 +277,25 @@ public class UserFactoryTests
             p.ResourceType == ResourceType.Application
             && p.ResourceKey == PermissionConstants.AnyResourceKey);
     }
+
+    [Fact]
+    public void CreateUser_WithTenantId_ShouldPrefixNotificationPermissionKeys()
+    {
+        var tenantId = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+
+        var user = _userFactory.CreateUser(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.UserRoleId),
+            "Registered User",
+            "registered.user@example.com",
+            tenantId: tenantId);
+
+        Assert.Contains(user.Permissions, p =>
+            p.ResourceType == ResourceType.Notifications
+            && p.ResourceKey == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee:registered.user@example.com"
+            && p.AccessType == AccessType.Read);
+        Assert.DoesNotContain(user.Permissions, p =>
+            p.ResourceType == ResourceType.Notifications
+            && p.ResourceKey == "registered.user@example.com");
+    }
 } 

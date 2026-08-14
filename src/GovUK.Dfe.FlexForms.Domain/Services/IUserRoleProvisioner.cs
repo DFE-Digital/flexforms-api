@@ -42,4 +42,5 @@ public sealed record RoleAssignmentRequest(
     IReadOnlyCollection<TemplateId> TemplateIds,
     UserId GrantedBy,
     DateTime GrantedOn,
-    RoleId? TenantRoleId = null);
+    RoleId? TenantRoleId = null,
+    Guid? TenantId = null);

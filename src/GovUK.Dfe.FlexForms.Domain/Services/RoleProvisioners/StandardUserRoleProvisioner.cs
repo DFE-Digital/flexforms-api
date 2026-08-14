@@ -27,7 +27,8 @@ public sealed class StandardUserRoleProvisioner(IUserFactory userFactory) : IUse
             request.Email,
             request.TemplateIds,
             request.GrantedBy,
-            request.GrantedOn);
+            request.GrantedOn,
+            request.TenantId);
     }
 
     /// <inheritdoc />
@@ -39,7 +40,8 @@ public sealed class StandardUserRoleProvisioner(IUserFactory userFactory) : IUse
             user,
             request.TemplateIds,
             request.GrantedBy,
-            request.GrantedOn);
+            request.GrantedOn,
+            request.TenantId);
     }
 
     private static void ValidateTemplateIds(IReadOnlyCollection<TemplateId> templateIds)

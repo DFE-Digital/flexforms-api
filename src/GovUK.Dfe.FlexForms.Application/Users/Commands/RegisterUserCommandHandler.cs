@@ -375,7 +375,9 @@ public sealed class RegisterUserCommandHandler(
 
                 primaryTemplate,
 
-                now);
+                now,
+
+                currentTenant.Id);
 
 
 
