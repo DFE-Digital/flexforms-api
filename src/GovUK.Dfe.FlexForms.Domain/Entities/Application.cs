@@ -23,7 +23,6 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
     public DateTime? DeletedOn { get; private set; } = null;
     public UserId? DeletedBy { get; private set; }
     public User? DeletedByUser { get; private set; }
-    public ApplicationStatus? PreDeletedStatus { get; private set; } = null;
     public UserId? LastModifiedBy { get; private set; }
     public User? LastModifiedByUser { get; private set; }
     public IReadOnlyCollection<ApplicationResponse> Responses => _responses.AsReadOnly();
@@ -129,32 +128,9 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
     }
 
     /// <summary>
-    /// Reverts the deletion of an application, setting its status to the pre-deleted status and updating last modified tracking.
-    /// </summary>
-    public void UnDelete(DateTime undeletedOn, string userEmail, string userFullName, UserId undeletedBy, ApplicationStatus? preDeletedStatus)
-    { 
-        Status = preDeletedStatus;
-        DeletedOn = null;
-        DeletedBy = null;
-        PreDeletedStatus = null;
-        LastModifiedOn = undeletedOn;
-        LastModifiedBy = undeletedBy;
-
-        // Raise domain event
-        AddDomainEvent(new ApplicationDeletedEvent(
-            Id!,
-            ApplicationReference,
-            TemplateVersion!.TemplateId,
-            undeletedBy,
-            userEmail,
-            userFullName,
-            undeletedOn));
-    }
-
-    /// <summary>
     /// Deletes the application, setting its status to Deleted and updating last modified tracking.
     /// </summary>
-    public void Delete(DateTime deletedOn, UserId deletedBy, string userEmail, string userFullName, ApplicationStatus? preDeletedStatus)
+    public void Delete(DateTime deletedOn, UserId deletedBy, string userEmail, string userFullName)
     {
         if (deletedBy == null)
             throw new ArgumentNullException(nameof(deletedBy));
@@ -168,7 +144,6 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
         Status = ApplicationStatus.Deleted;
         DeletedOn = deletedOn;
         DeletedBy = deletedBy;
-        PreDeletedStatus = preDeletedStatus;
         LastModifiedOn = deletedOn;
         LastModifiedBy = deletedBy;
 

@@ -74,9 +74,6 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations
                         .HasColumnType("datetime2")
                         .HasColumnName("PeriodStart");
 
-                    b.Property<int?>("PreDeletedStatus")
-                        .HasColumnType("int");
-
                     b.Property<int?>("Status")
                         .HasColumnType("int")
                         .HasColumnName("Status");

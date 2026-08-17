@@ -1,5 +1,4 @@
-﻿using System;
-using Microsoft.EntityFrameworkCore.Migrations;
+﻿using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -23,13 +22,6 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations
                 schema: "ea",
                 table: "Applications",
                 type: "datetime2",
-                nullable: true);
-
-            migrationBuilder.AddColumn<int>(
-                name: "PreDeletedStatus",
-                schema: "ea",
-                table: "Applications",
-                type: "int",
                 nullable: true);
 
             migrationBuilder.CreateIndex(
@@ -69,11 +61,6 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations
 
             migrationBuilder.DropColumn(
                 name: "DeletedOn",
-                schema: "ea",
-                table: "Applications");
-
-            migrationBuilder.DropColumn(
-                name: "PreDeletedStatus",
                 schema: "ea",
                 table: "Applications");
         }

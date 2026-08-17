@@ -193,31 +193,6 @@ public class ApplicationsController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-    /// UnDeletes an application, changing its status to the previous status.
-    /// </summary>
-    [HttpPut("{applicationId}/un-delete")]
-    [SwaggerResponse(200, "Application un-deleted successfully.", typeof(ApplicationDto))]
-    [SwaggerResponse(400, "Invalid request data or application not found.", typeof(ExceptionResponse))]
-    [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
-    [SwaggerResponse(403, "User does not have permission to un-delete this application", typeof(ExceptionResponse))]
-    [SwaggerResponse(404, "Application not found", typeof(ExceptionResponse))]
-    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
-    [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
-    [Authorize(Policy = "CanUpdateApplication")]
-    public async Task<IActionResult> UnDeleteApplicationAsync(
-        [FromRoute] Guid applicationId,
-        CancellationToken cancellationToken)
-    {
-        var command = new UnDeleteApplicationCommand(applicationId);
-        var result = await sender.Send(command, cancellationToken);
-
-        return new ObjectResult(result)
-        {
-            StatusCode = StatusCodes.Status200OK
-        };
-    }
-
-    /// <summary>
     /// Submits an application, changing its status to Submitted.
     /// </summary>
     [HttpPost("{applicationId}/submit")]

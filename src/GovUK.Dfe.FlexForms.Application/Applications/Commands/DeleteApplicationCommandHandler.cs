@@ -58,7 +58,7 @@ public sealed class DeleteApplicationCommandHandler(
                 return Result<ApplicationDto>.NotFound("Application not found");
 
             var now = DateTime.UtcNow;
-            application.Delete(now, dbUser.Id!, dbUser.Email, dbUser.Name, application.Status); 
+            application.Delete(now, dbUser.Id!, dbUser.Email, dbUser.Name); 
 
             await unitOfWork.CommitAsync(cancellationToken);
 

@@ -589,9 +589,6 @@ public class ExternalApplicationsContext : DbContext
             .HasColumnName("DeletedBy")
             .HasConversion(v => v!.Value, v => new UserId(v))
             .IsRequired(false);
-        b.Property(e => e.PreDeletedStatus)
-            .HasColumnName("PreDeletedStatus")
-            .IsRequired(false);
 
         b.HasOne(e => e.TemplateVersion)
             .WithMany()

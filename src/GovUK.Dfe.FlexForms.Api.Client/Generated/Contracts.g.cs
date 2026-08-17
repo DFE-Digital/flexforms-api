@@ -110,14 +110,6 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// UnDeletes an application, changing its status to the previous status.
-        /// </summary>
-        /// <returns>Application un-deleted successfully.</returns>
-        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<ApplicationDto> UnDeleteApplicationAsync(System.Guid applicationId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
-
-        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        /// <summary>
         /// Submits an application, changing its status to Submitted.
         /// </summary>
         /// <returns>Application submitted successfully.</returns>
