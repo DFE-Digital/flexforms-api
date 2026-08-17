@@ -2,6 +2,7 @@ using System.Security.Claims;
 using GovUK.Dfe.FlexForms.Application.Common.Attributes;
 using GovUK.Dfe.FlexForms.Application.Common.Behaviours;
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Application.Templates.QueryObjects;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Factories;
@@ -90,6 +91,17 @@ public sealed class CreateTemplateCommandHandler(
             if (dbUser is null)
             {
                 return Result<TemplateDto>.NotFound("User not found");
+            }
+
+            var trimmedName = request.Name.Trim();
+            var duplicateName = await new GetTemplateByTenantAndNameQueryObject(tenant.Id, trimmedName)
+                .Apply(templateRepository.Query().AsNoTracking())
+                .AnyAsync(cancellationToken);
+
+            if (duplicateName)
+            {
+                return Result<TemplateDto>.Failure(
+                    $"A template named '{trimmedName}' already exists in this tenant.");
             }
 
             string? decodedSchema = null;

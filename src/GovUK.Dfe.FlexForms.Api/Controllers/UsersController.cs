@@ -79,10 +79,11 @@ public class UsersController(ISender sender) : ControllerBase
     [Authorize(Policy = "CanManageUsers")]
     public async Task<ActionResult<UserDto>> AssignUserRoleAsync(
         [FromBody] AssignUserRoleRequest request,
-        CancellationToken cancellationToken)
+        [FromQuery] bool createOnly = false,
+        CancellationToken cancellationToken = default)
     {
         var result = await sender.Send(
-            new AssignUserRoleCommand(request.Email, request.Name, request.Role, request.TemplateIds),
+            new AssignUserRoleCommand(request.Email, request.Name, request.Role, request.TemplateIds, createOnly),
             cancellationToken);
 
         if (!result.IsSuccess)

@@ -78,6 +78,9 @@ public class CreateTemplateCommandHandlerTests
         var users = new List<User> { user }.AsQueryable().BuildMockDbSet();
         _userRepo.Query().Returns(users);
 
+        var templates = new List<Template>().AsQueryable().BuildMockDbSet();
+        _templateRepo.Query().Returns(templates);
+
         var templateId = new TemplateId(Guid.NewGuid());
         var template = new Template(templateId, "New Template", DateTime.UtcNow, userId, tenantId: tenantId);
         _templateFactory.CreateTemplate("New Template", userId, tenantId, Arg.Any<DateTime?>()).Returns(template);
@@ -95,5 +98,45 @@ public class CreateTemplateCommandHandlerTests
             Arg.Any<string?>(),
             userId,
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldFail_WhenTemplateNameAlreadyExistsInTenant()
+    {
+        _permissionChecker.CanManageTemplates().Returns(true);
+        var tenantId = Guid.NewGuid();
+        _tenantContextAccessor.CurrentTenant.Returns(new TenantConfiguration(
+            tenantId,
+            "Transfers",
+            new ConfigurationBuilder().Build(),
+            []));
+
+        var userId = new UserId(Guid.NewGuid());
+        var email = "admin@education.gov.uk";
+        var user = new User(userId, new RoleId(Guid.NewGuid()), "Admin", email, DateTime.UtcNow, null, null, null);
+
+        var httpContext = Substitute.For<HttpContext>();
+        httpContext.User.Returns(new ClaimsPrincipal(new ClaimsIdentity(
+            new[] { new Claim(ClaimTypes.Email, email) },
+            authenticationType: "Bearer")));
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var users = new List<User> { user }.AsQueryable().BuildMockDbSet();
+        _userRepo.Query().Returns(users);
+
+        var existingTemplate = new Template(
+            new TemplateId(Guid.NewGuid()),
+            "Existing Template",
+            DateTime.UtcNow,
+            userId,
+            tenantId: tenantId);
+        var templates = new List<Template> { existingTemplate }.AsQueryable().BuildMockDbSet();
+        _templateRepo.Query().Returns(templates);
+
+        var result = await _handler.Handle(new CreateTemplateCommand("existing template"), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("already exists", result.Error, StringComparison.OrdinalIgnoreCase);
+        await _templateRepo.DidNotReceive().AddAsync(Arg.Any<Template>(), Arg.Any<CancellationToken>());
     }
 }

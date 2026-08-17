@@ -10421,7 +10421,7 @@ namespace GovUK.Dfe.FlexForms.Api.Client
         /// </summary>
         /// <returns>Role assigned successfully.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<UserDto> AssignUserRoleAsync(AssignUserRoleRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<UserDto> AssignUserRoleAsync(AssignUserRoleRequest request, bool? createOnly = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             if (request == null)
                 throw new System.ArgumentNullException("request");
@@ -10443,6 +10443,12 @@ namespace GovUK.Dfe.FlexForms.Api.Client
                     if (!string.IsNullOrEmpty(_baseUrl)) urlBuilder_.Append(_baseUrl);
                     // Operation Path: "v1/Users/roles"
                     urlBuilder_.Append("v1/Users/roles");
+                    urlBuilder_.Append('?');
+                    if (createOnly != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("createOnly")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(createOnly, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    urlBuilder_.Length--;
 
                     PrepareRequest(client_, request_, urlBuilder_);
 

@@ -539,6 +539,11 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations
 
                     b.HasIndex("TenantId");
 
+                    b.HasIndex("TenantId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Templates_TenantId_Name")
+                        .HasFilter("[TenantId] IS NOT NULL");
+
                     b.ToTable("Templates", "ea");
 
                     b.ToTable(tb => tb.IsTemporal(ttb =>

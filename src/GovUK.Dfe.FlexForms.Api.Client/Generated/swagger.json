@@ -5193,6 +5193,17 @@
         ],
         "summary": "Assigns a predefined role to a user, creating the user when they do not already exist.",
         "operationId": "Users_AssignUserRole",
+        "parameters": [
+          {
+            "name": "createOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean",
+              "default": false
+            },
+            "x-position": 2
+          }
+        ],
         "requestBody": {
           "x-name": "request",
           "content": {

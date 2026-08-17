@@ -603,6 +603,76 @@ public class AssignUserRoleCommandHandlerTests
         Assert.Contains("was not found", result.Error, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [CustomAutoData(typeof(UserCustomization))]
+    public async Task Handle_ShouldFail_WhenCreateOnlyAndUserAlreadyInTenant(
+        string adminEmail,
+        string email,
+        string name,
+        UserId adminUserId,
+        IEaRepository<User> userRepo,
+        IUnitOfWork unitOfWork,
+        IPermissionCheckerService permissionCheckerService,
+        IUserRoleProvisionerRegistry roleProvisionerRegistry,
+        IHttpContextAccessor httpContextAccessor)
+    {
+        permissionCheckerService.CanManageUsers().Returns(true);
+        SetupHttpContext(httpContextAccessor, adminEmail);
+
+        var adminUser = new User(
+            adminUserId,
+            new RoleId(RoleConstants.AdminRoleId),
+            "Admin",
+            adminEmail,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var existingUser = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.UserRoleId),
+            name,
+            email,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var users = new List<User> { adminUser, existingUser }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+
+        var membershipService = Substitute.For<ITenantMembershipService>();
+        membershipService.GetActiveMembershipAsync(Arg.Any<Guid>(), existingUser.Id!, Arg.Any<CancellationToken>())
+            .Returns(new TenantMembership(
+                new TenantMembershipId(Guid.NewGuid()),
+                Guid.NewGuid(),
+                existingUser.Id!,
+                new RoleId(RoleConstants.UserRoleId),
+                DateTime.UtcNow));
+
+        var handler = new AssignUserRoleCommandHandler(
+            userRepo,
+            unitOfWork,
+            permissionCheckerService,
+            roleProvisionerRegistry,
+            CreateTenantContext(),
+            membershipService,
+            CreateTenantRoleService(),
+            Substitute.For<IUserFactory>(),
+            httpContextAccessor,
+            Substitute.For<IUserCacheInvalidator>(),
+            Substitute.For<ITenantAccessAuditWriter>());
+
+        var result = await handler.Handle(
+            new AssignUserRoleCommand(email, name, RoleNames.User, [Guid.NewGuid()], CreateOnly: true),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Contains("already exists", result.Error, StringComparison.OrdinalIgnoreCase);
+        await unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
+
     private static void SetupHttpContext(IHttpContextAccessor httpContextAccessor, string adminEmail)
     {
         var claims = new List<Claim> { new(ClaimTypes.Email, adminEmail) };

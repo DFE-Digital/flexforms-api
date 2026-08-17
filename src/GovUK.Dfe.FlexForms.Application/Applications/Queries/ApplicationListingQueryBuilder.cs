@@ -37,7 +37,11 @@ internal static class ApplicationListingQueryBuilder
                 .Apply(appRepo.Query().AsNoTracking());
 
         if (templateIdsFilter.Count == 0)
-            return query.Where(_ => false);
+        {
+            // User may still have explicit application permissions after losing template access
+            // (e.g. template write removed). Do not hide their existing applications.
+            return query;
+        }
 
         return new GetApplicationsByTemplateIdsQueryObject(templateIdsFilter)
             .Apply(query);

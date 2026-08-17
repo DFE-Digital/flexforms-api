@@ -24,7 +24,8 @@ public sealed record AssignUserRoleCommand(
     string Email,
     string Name,
     string Role,
-    IReadOnlyCollection<Guid>? TemplateIds)
+    IReadOnlyCollection<Guid>? TemplateIds,
+    bool CreateOnly = false)
     : IRequest<Result<UserDto>>;
 
 /// <summary>
@@ -116,6 +117,20 @@ public sealed class AssignUserRoleCommandHandler(
 
         if (existingUser is not null)
         {
+            if (command.CreateOnly && existingUser.Id is not null)
+            {
+                var activeMembership = await tenantMembershipService.GetActiveMembershipAsync(
+                    currentTenant.Id,
+                    existingUser.Id,
+                    cancellationToken);
+
+                if (activeMembership is not null)
+                {
+                    return Result<UserDto>.Failure(
+                        "A user with this email address already exists in this tenant.");
+                }
+            }
+
             string? currentRoleName = null;
             if (existingUser.Id is not null)
             {
