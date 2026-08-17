@@ -92,7 +92,7 @@ public sealed class TenantDuplicatorService(
             throw new InvalidOperationException($"Tenant name '{newTenantName}' is already in use.");
 
         if (await dbContext.TenantHostnames.AnyAsync(
-                h => h.Hostname == hostname, cancellationToken))
+                h => h.Hostname.ToLower() == hostname, cancellationToken))
             throw new InvalidOperationException($"Hostname '{hostname}' is already assigned to another tenant.");
 
         if (await dbContext.TenantFrontendOrigins.AnyAsync(
