@@ -141,6 +141,9 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
         if (string.IsNullOrWhiteSpace(userFullName))
             throw new ArgumentException("User full name cannot be null or empty", nameof(userFullName));
 
+        if (Status == ApplicationStatus.Deleted)
+            throw new InvalidOperationException("Application has already been deleted");
+
         Status = ApplicationStatus.Deleted;
         DeletedOn = deletedOn;
         DeletedBy = deletedBy;
