@@ -87,4 +87,56 @@ public class ApplicationListingQueryBuilderTests
 
         Assert.NotNull(query);
     }
+
+    [Fact]
+    public void BuildMyApplicationsQuery_ShouldReturnApplications_WhenTemplateFilterEmptyButUserHasApplicationPermissions()
+    {
+        var userId = new UserId(Guid.NewGuid());
+        var applicationId = new ApplicationId(Guid.NewGuid());
+        var templateVersionId = new TemplateVersionId(Guid.NewGuid());
+
+        var user = new User(
+            userId,
+            new RoleId(RoleConstants.UserRoleId),
+            "User",
+            "user@example.com",
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var permissions = user.GetType()
+            .GetField("_permissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!;
+        permissions.SetValue(user, new List<Permission>
+        {
+            new(
+                new PermissionId(Guid.NewGuid()),
+                userId,
+                applicationId,
+                applicationId.Value.ToString(),
+                ResourceType.Application,
+                AccessType.Read,
+                DateTime.UtcNow,
+                userId)
+        });
+
+        var application = new Domain.Entities.Application(
+            applicationId,
+            "APP-001",
+            templateVersionId,
+            DateTime.UtcNow,
+            userId,
+            ApplicationStatus.InProgress);
+
+        var appRepo = Substitute.For<IEaRepository<Domain.Entities.Application>>();
+        appRepo.Query().Returns(new List<Domain.Entities.Application> { application }.AsQueryable());
+
+        var query = ApplicationListingQueryBuilder.BuildMyApplicationsQuery(
+            appRepo,
+            user,
+            Array.Empty<TemplateId>());
+
+        Assert.Single(query);
+        Assert.Equal("APP-001", query.Single().ApplicationReference);
+    }
 }

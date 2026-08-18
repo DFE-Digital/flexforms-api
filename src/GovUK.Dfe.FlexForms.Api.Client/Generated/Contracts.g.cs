@@ -703,7 +703,7 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// </summary>
         /// <returns>Role assigned successfully.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<UserDto> AssignUserRoleAsync(AssignUserRoleRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+        System.Threading.Tasks.Task<UserDto> AssignUserRoleAsync(AssignUserRoleRequest request, bool? createOnly = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>

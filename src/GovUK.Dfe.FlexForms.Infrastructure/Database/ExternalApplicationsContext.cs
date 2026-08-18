@@ -462,6 +462,11 @@ public class ExternalApplicationsContext : DbContext
             .IsRequired(false);
         b.HasIndex(e => e.TenantId);
 
+        b.HasIndex(e => new { e.TenantId, e.Name })
+            .IsUnique()
+            .HasDatabaseName("IX_Templates_TenantId_Name")
+            .HasFilter("[TenantId] IS NOT NULL");
+
         b.HasOne(e => e.CreatedByUser)
             .WithMany()
             .HasForeignKey(e => e.CreatedBy)
