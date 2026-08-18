@@ -38,7 +38,8 @@ public sealed class GetApplicationsByTemplateQueryHandler(
     IApplicationRepository applicationRepository,
     ICacheService<IRedisCacheType> cacheService,
     ITenantContextAccessor tenantContextAccessor,
-    ITenantTemplateResolver tenantTemplateResolver)
+    ITenantTemplateResolver tenantTemplateResolver,
+    IPermissionCheckerService permissionCheckerService)
     : IRequestHandler<GetApplicationsByTemplateQuery, Result<PagedResult<ApplicationDto>>>
 {
     public async Task<Result<PagedResult<ApplicationDto>>> Handle(
@@ -61,7 +62,7 @@ public sealed class GetApplicationsByTemplateQueryHandler(
             var templateId = new TemplateId(request.TemplateId);
             var searchKey = request.Search?.ToCacheKeySuffix() ?? "";
             var baseCacheKey =
-                $"Applications_ByTemplate_{request.TemplateId}_{searchKey}_p{request.PageNumber}_ps{request.PageSize}_{CacheKeyHelper.GenerateHashedCacheKey(principalId)}";
+                $"Applications_ByTemplate_{request.TemplateId}_{searchKey}_p{request.PageNumber}_ps{request.PageSize}_{CacheKeyHelper.GenerateHashedCacheKey(principalId)}_claimList";
             var cacheKey = TenantCacheKeyHelper.CreateTenantScopedKey(tenantContextAccessor, baseCacheKey);
             var methodName = nameof(GetApplicationsByTemplateQueryHandler);
 
@@ -80,7 +81,15 @@ public sealed class GetApplicationsByTemplateQueryHandler(
                         return Result<PagedResult<ApplicationDto>>.Forbid(
                             "Template does not belong to the current tenant");
 
-                    if (!ApplicationAccessResolver.CanListAllApplicationsForTemplate(userWithAuthorization, templateId))
+                    // Custom-role grants live on RolePermissions and are issued as JWT claims
+                    // (Application:Any:Read). User.Permissions only has per-user overrides, so
+                    // honour the claim as well as the DB resolver used for Admin / user-level Any.
+                    var canListAll = permissionCheckerService.CanReadAllApplications()
+                        || ApplicationAccessResolver.CanListAllApplicationsForTemplate(
+                            userWithAuthorization,
+                            templateId);
+
+                    if (!canListAll)
                         return Result<PagedResult<ApplicationDto>>.Forbid(
                             "User does not have permission to list all applications for this template");
 

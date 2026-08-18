@@ -2,10 +2,12 @@ using GovUK.Dfe.FlexForms.Application.Applications.Queries;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
@@ -148,5 +150,28 @@ internal static class ApplicationListingTestHelper
             cache,
             tenantContextAccessor,
             accessibleTemplateService);
+    }
+
+    internal static GetApplicationsByTemplateQueryHandler CreateGetApplicationsByTemplateQueryHandler(
+        IHttpContextAccessor httpContextAccessor,
+        IEaRepository<User> userRepo,
+        IEaRepository<Domain.Entities.Application> appRepo,
+        ITenantContextAccessor tenantContextAccessor,
+        ITenantTemplateResolver tenantTemplateResolver,
+        IPermissionCheckerService permissionCheckerService,
+        ICacheService<IRedisCacheType>? cache = null)
+    {
+        cache ??= Substitute.For<ICacheService<IRedisCacheType>>();
+        ConfigurePassthroughCache(cache, nameof(GetApplicationsByTemplateQueryHandler));
+
+        return new GetApplicationsByTemplateQueryHandler(
+            httpContextAccessor,
+            userRepo,
+            appRepo,
+            CreateApplicationRepository(),
+            cache,
+            tenantContextAccessor,
+            tenantTemplateResolver,
+            permissionCheckerService);
     }
 }
