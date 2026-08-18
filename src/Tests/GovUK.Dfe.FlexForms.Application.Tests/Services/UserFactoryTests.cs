@@ -55,6 +55,20 @@ public class UserFactoryTests
             && p.ResourceKey == "john@example.com"
             && p.AccessType == AccessType.Read);
 
+        Assert.Contains(contributor.Permissions, p =>
+            p.ResourceType == ResourceType.Application
+            && p.ResourceKey == applicationId.Value.ToString()
+            && p.AccessType == AccessType.Write);
+
+        Assert.Contains(contributor.Permissions, p =>
+            p.ResourceType == ResourceType.Template
+            && p.ResourceKey == templateId.Value.ToString()
+            && p.AccessType == AccessType.Read);
+
+        Assert.DoesNotContain(contributor.Permissions, p =>
+            p.ResourceType == ResourceType.Template
+            && p.AccessType == AccessType.Write);
+
         // Check that domain event was raised (permissions will be added in the event handler)
         var domainEvents = contributor.DomainEvents.ToList();
         Assert.Single(domainEvents);

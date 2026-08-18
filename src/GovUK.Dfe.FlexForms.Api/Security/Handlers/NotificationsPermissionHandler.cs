@@ -1,5 +1,6 @@
 using GovUK.Dfe.FlexForms.Domain.Services;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
 using System.Security.Claims;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 
@@ -34,13 +35,21 @@ namespace GovUK.Dfe.FlexForms.Api.Security.Handlers
             if (string.IsNullOrWhiteSpace(resourceKey))
                 return Task.CompletedTask;
 
-            var expected = $"{ResourceType.Notifications}:{resourceKey}:{requirement.Action}";
-            var hasClaim = context.User.Claims.Any(c =>
-                c.Type == "permission" &&
-                string.Equals(c.Value, expected, StringComparison.OrdinalIgnoreCase));
+            var expectedAccess = Enum.TryParse<AccessType>(requirement.Action, ignoreCase: true, out var accessType)
+                ? accessType
+                : (AccessType?)null;
 
-            if (hasClaim)
+            if (expectedAccess is null)
+                return Task.CompletedTask;
+
+            if (PermissionClaimEvaluator.HasPermissionClaim(
+                    context.User,
+                    ResourceType.Notifications,
+                    resourceKey,
+                    expectedAccess.Value))
+            {
                 context.Succeed(requirement);
+            }
 
             return Task.CompletedTask;
         }

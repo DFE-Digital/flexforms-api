@@ -310,7 +310,7 @@ public class AddContributorCommandHandlerTests
         userFactory.Received(1).AddTemplatePermissionToUser(
             existingContributor,
             templateVersion.TemplateId.Value.ToString(),
-            Arg.Is<AccessType[]>(a => a.Length == 2 && a.Contains(AccessType.Read) && a.Contains(AccessType.Write)),
+            Arg.Is<AccessType[]>(a => a.Length == 1 && a.Contains(AccessType.Read) && !a.Contains(AccessType.Write)),
             user.Id!,
             Arg.Any<DateTime>());
 
@@ -470,6 +470,145 @@ public class AddContributorCommandHandlerTests
 
         // CommitAsync should still be called
         await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(ApplicationCustomization))]
+    public async Task Handle_ShouldPreserveExistingTemplateWriteAndMembership_WhenExistingUserIsInvited(
+        AddContributorCommand command,
+        IEaRepository<Domain.Entities.Application> applicationRepo,
+        IEaRepository<User> userRepo,
+        IPermissionCheckerService permissionCheckerService,
+        IUnitOfWork unitOfWork)
+    {
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        var httpContext = new DefaultHttpContext();
+        var ownerEmail = "owner@example.com";
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Email, ownerEmail)],
+            "TestAuth"));
+        httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var owner = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(Guid.NewGuid()),
+            "Owner",
+            ownerEmail,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var invitedTemplateId = new TemplateId(Guid.NewGuid());
+        var otherTemplateId = new TemplateId(Guid.NewGuid());
+        var otherTenantTemplateId = new TemplateId(Guid.NewGuid());
+        var ownApplicationId = new ApplicationId(Guid.NewGuid());
+
+        var existingUser = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.UserRoleId),
+            command.Name,
+            command.Email,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var realUserFactory = new UserFactory();
+        realUserFactory.AddTemplatePermissionToUser(
+            existingUser,
+            invitedTemplateId.Value.ToString(),
+            [AccessType.Read, AccessType.Write],
+            existingUser.Id!);
+        realUserFactory.AddTemplatePermissionToUser(
+            existingUser,
+            otherTemplateId.Value.ToString(),
+            [AccessType.Read, AccessType.Write],
+            existingUser.Id!);
+        realUserFactory.AddTemplatePermissionToUser(
+            existingUser,
+            otherTenantTemplateId.Value.ToString(),
+            [AccessType.Read, AccessType.Write],
+            existingUser.Id!);
+        realUserFactory.AddPermissionToUser(
+            existingUser,
+            ownApplicationId.Value.ToString(),
+            ResourceType.Application,
+            [AccessType.Read, AccessType.Write],
+            existingUser.Id!,
+            ownApplicationId);
+
+        var application = new Domain.Entities.Application(
+            new ApplicationId(command.ApplicationId),
+            "APP-001",
+            new TemplateVersionId(Guid.NewGuid()),
+            DateTime.UtcNow,
+            owner.Id!);
+        var templateVersion = new TemplateVersion(
+            new TemplateVersionId(Guid.NewGuid()),
+            invitedTemplateId,
+            "1.0.0",
+            "{}",
+            DateTime.UtcNow,
+            owner.Id!);
+        application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
+
+        var users = new[] { owner, existingUser }.AsQueryable().BuildMockDbSet();
+        var applications = new[] { application }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        applicationRepo.Query().Returns(applications);
+        permissionCheckerService.IsApplicationOwner(application, owner.Id!.Value.ToString()).Returns(true);
+
+        var existingMembership = new TenantMembership(
+            new TenantMembershipId(Guid.NewGuid()),
+            TestTenantId,
+            existingUser.Id!,
+            existingUser.RoleId,
+            DateTime.UtcNow,
+            isActive: true);
+        var membershipService = Substitute.For<ITenantMembershipService>();
+        membershipService.GetActiveMembershipAsync(TestTenantId, existingUser.Id!, Arg.Any<CancellationToken>())
+            .Returns(existingMembership);
+
+        var handler = new AddContributorCommandHandler(
+            applicationRepo,
+            userRepo,
+            httpContextAccessor,
+            permissionCheckerService,
+            realUserFactory,
+            Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            membershipService,
+            unitOfWork);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Contains(existingUser.Permissions, p =>
+            p.ResourceType == ResourceType.Template
+            && p.ResourceKey == invitedTemplateId.Value.ToString()
+            && p.AccessType == AccessType.Write);
+        Assert.Contains(existingUser.Permissions, p =>
+            p.ResourceType == ResourceType.Template
+            && p.ResourceKey == otherTemplateId.Value.ToString()
+            && p.AccessType == AccessType.Write);
+        Assert.Contains(existingUser.Permissions, p =>
+            p.ResourceType == ResourceType.Template
+            && p.ResourceKey == otherTenantTemplateId.Value.ToString()
+            && p.AccessType == AccessType.Write);
+        Assert.Contains(existingUser.Permissions, p =>
+            p.ResourceType == ResourceType.Application
+            && p.ApplicationId == ownApplicationId
+            && p.AccessType == AccessType.Write);
+        Assert.Contains(existingUser.Permissions, p =>
+            p.ResourceType == ResourceType.Application
+            && p.ApplicationId == new ApplicationId(command.ApplicationId)
+            && p.AccessType == AccessType.Write);
+        await membershipService.DidNotReceive().UpsertMembershipAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<UserId>(),
+            Arg.Any<string>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Theory]

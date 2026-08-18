@@ -123,9 +123,9 @@ public class TenantPermissionFilterTests
             "user@example.com",
             AccessType.Read);
 
-        Assert.True(TenantPermissionFilter.BelongsToTenant(current, _currentTenantId, tenantTemplateIds, map));
-        Assert.False(TenantPermissionFilter.BelongsToTenant(other, _currentTenantId, tenantTemplateIds, map));
-        Assert.False(TenantPermissionFilter.BelongsToTenant(legacy, _currentTenantId, tenantTemplateIds, map));
+            Assert.True(TenantPermissionFilter.BelongsToTenant(current, _currentTenantId, tenantTemplateIds, map));
+            Assert.False(TenantPermissionFilter.BelongsToTenant(other, _currentTenantId, tenantTemplateIds, map));
+            Assert.True(TenantPermissionFilter.BelongsToTenant(legacy, _currentTenantId, tenantTemplateIds, map));
     }
 
     [Fact]

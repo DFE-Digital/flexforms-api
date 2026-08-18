@@ -64,6 +64,11 @@ public sealed class GrantTemplateAccessToAllUsersCommandHandler(
             return Result<GrantTemplateAccessToAllUsersResponse>.NotFound(
                 $"Template '{command.TemplateId}' was not found in the current tenant");
 
+        var tenantTemplateIds = (await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken))
+            .Select(id => id.Value)
+            .ToHashSet();
+        tenantTemplateIds.Add(command.TemplateId);
+
         var grantedById = await ResolveGrantedByUserIdAsync(cancellationToken);
         if (grantedById is null)
             return Result<GrantTemplateAccessToAllUsersResponse>.Failure(
@@ -92,11 +97,20 @@ public sealed class GrantTemplateAccessToAllUsersCommandHandler(
 
         foreach (var user in users)
         {
-            if (UserTemplateAccess.HasAccess(user, templateId))
+            // Only Template:Write (or Any) counts as full access. Invite adds Template:Read
+            // so an existing member who can already start apps on other forms here must
+            // still receive Write when an admin grants this template to everyone.
+            if (UserTemplateAccess.HasWrite(user, templateId))
             {
                 alreadyHad++;
                 continue;
             }
+
+            // Invite-only on this tenant: template Read + application grants, and no
+            // Template:Write on any form in this tenant. Write on other tenants is ignored
+            // so an invite here cannot look like full membership of this tenant.
+            if (UserTemplateAccess.IsApplicationInviteOnly(user, tenantTemplateIds))
+                continue;
 
             userFactory.EnsureUserHasTemplatePermission(user, templateId, grantedById, now);
             granted++;
