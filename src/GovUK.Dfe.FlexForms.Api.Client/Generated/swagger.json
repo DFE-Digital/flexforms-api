@@ -715,7 +715,7 @@
       }
     },
     "/v1/Applications/{applicationId}/delete": {
-      "put": {
+      "delete": {
         "tags": [
           "Applications"
         ],
@@ -5996,6 +5996,19 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "dateDeleted": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "deletedBy": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UserDto"
+              }
+            ]
           },
           "createdBy": {
             "nullable": true,

@@ -9,6 +9,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
+using GovUK.Dfe.FlexForms.Domain.Services;
 
 namespace GovUK.Dfe.FlexForms.Application.Tests.Helpers;
 
@@ -112,6 +113,7 @@ internal static class ApplicationListingTestHelper
 
     internal static GetApplicationsForUserQueryHandler CreateGetApplicationsForUserQueryHandler(
         IEaRepository<User> userRepo,
+        IPermissionCheckerService permissionCheckerService,
         IEaRepository<Domain.Entities.Application> appRepo,
         ITenantContextAccessor tenantContextAccessor,
         IUserAccessibleTemplateService accessibleTemplateService,
@@ -123,6 +125,7 @@ internal static class ApplicationListingTestHelper
         return new GetApplicationsForUserQueryHandler(
             userRepo,
             appRepo,
+            permissionCheckerService,
             CreateApplicationRepository(),
             cache,
             tenantContextAccessor,

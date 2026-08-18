@@ -14,13 +14,12 @@
   </PropertyGroup>
 
 	<ItemGroup>
-		<None Include="Directory.Build.targets.user" />
 		<None Include="readme.md" Pack="true" PackagePath="\" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<PackageReference Include="GovUK.Dfe.CoreLibs.Contracts" Version="1.0.98" />
+		<PackageReference Include="GovUK.Dfe.CoreLibs.Contracts" Version="1.0.99" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Http" Version="1.0.12-prerelease.86" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.29-prerelease.16" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />

@@ -35,6 +35,7 @@ public sealed class GetApplicationsByTemplateQueryHandler(
     IHttpContextAccessor httpContextAccessor,
     IEaRepository<User> userRepo,
     IEaRepository<Domain.Entities.Application> appRepo,
+    IPermissionCheckerService permissionCheckerService,
     IApplicationRepository applicationRepository,
     ICacheService<IRedisCacheType> cacheService,
     ITenantContextAccessor tenantContextAccessor,
@@ -91,7 +92,7 @@ public sealed class GetApplicationsByTemplateQueryHandler(
                     query = ApplicationListingQueryBuilder.ApplySearchFilters(
                         query,
                         request.Search,
-                        excludeStatus: request.Search?.Status is not null);
+                        excludeStatus: (request.Search?.Status is not null) || (request.Search?.Status == ApplicationStatus.Deleted && !permissionCheckerService.IsAdmin()));
 
                     var pagedResult = await ApplicationListingQueryBuilder.MapPagedResultAsync(
                         query,

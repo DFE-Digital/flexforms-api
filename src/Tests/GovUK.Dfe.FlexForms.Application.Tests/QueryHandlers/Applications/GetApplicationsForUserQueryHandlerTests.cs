@@ -9,6 +9,7 @@ using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Tests.Helpers;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
@@ -27,6 +28,7 @@ public class GetApplicationsForUserQueryHandlerTests
         PermissionCustomization permCustom,
         ApplicationCustomization appCustom,
         [Frozen] IEaRepository<User> userRepo,
+        [Frozen] IPermissionCheckerService permissionCheckerService,
         [Frozen] IEaRepository<Domain.Entities.Application> appRepo,
         [Frozen] ITenantContextAccessor tenantContextAccessor)
     {
@@ -67,6 +69,7 @@ public class GetApplicationsForUserQueryHandlerTests
 
         var handler = ApplicationListingTestHelper.CreateGetApplicationsForUserQueryHandler(
             userRepo,
+            permissionCheckerService,
             appRepo,
             tenantContextAccessor,
             ApplicationListingTestHelper.CreateAccessibleTemplateService(template.Id!));
@@ -90,7 +93,8 @@ public class GetApplicationsForUserQueryHandlerTests
         ApplicationCustomization appCustom,
         [Frozen] IEaRepository<User> userRepo,
         [Frozen] IEaRepository<Domain.Entities.Application> appRepo,
-        [Frozen] ITenantContextAccessor tenantContextAccessor)
+        [Frozen] ITenantContextAccessor tenantContextAccessor,
+        [Frozen] IPermissionCheckerService permissionCheckerService)
     {
         userCustom.OverrideEmail = rawEmail;
         userCustom.OverridePermissions = Array.Empty<Permission>();
@@ -118,6 +122,7 @@ public class GetApplicationsForUserQueryHandlerTests
 
         var handler = ApplicationListingTestHelper.CreateGetApplicationsForUserQueryHandler(
             userRepo,
+            permissionCheckerService,
             appRepo,
             tenantContextAccessor,
             ApplicationListingTestHelper.CreateAccessibleTemplateService(template.Id!));
@@ -137,7 +142,8 @@ public class GetApplicationsForUserQueryHandlerTests
         ApplicationCustomization appCustom,
         [Frozen] IEaRepository<User> userRepo,
         [Frozen] IEaRepository<Domain.Entities.Application> appRepo,
-        [Frozen] ITenantContextAccessor tenantContextAccessor)
+        [Frozen] ITenantContextAccessor tenantContextAccessor,
+        [Frozen] IPermissionCheckerService permissionCheckerService)
     {
         userCustom.OverrideEmail = rawEmail;
         userCustom.OverridePermissions = Array.Empty<Permission>();
@@ -165,6 +171,7 @@ public class GetApplicationsForUserQueryHandlerTests
 
         var handler = ApplicationListingTestHelper.CreateGetApplicationsForUserQueryHandler(
             userRepo,
+            permissionCheckerService,
             appRepo,
             tenantContextAccessor,
             ApplicationListingTestHelper.CreateAccessibleTemplateService(template.Id!));
@@ -182,7 +189,8 @@ public class GetApplicationsForUserQueryHandlerTests
         UserCustomization userCustom,
         [Frozen] IEaRepository<User> userRepo,
         [Frozen] IEaRepository<Domain.Entities.Application> appRepo,
-        [Frozen] ITenantContextAccessor tenantContextAccessor)
+        [Frozen] ITenantContextAccessor tenantContextAccessor,
+        [Frozen] IPermissionCheckerService permissionCheckerService)
     {
         var userQ = new List<User>().AsQueryable().BuildMock();
         userRepo.Query().Returns(userQ);
@@ -190,6 +198,7 @@ public class GetApplicationsForUserQueryHandlerTests
 
         var handler = ApplicationListingTestHelper.CreateGetApplicationsForUserQueryHandler(
             userRepo,
+            permissionCheckerService,
             appRepo,
             tenantContextAccessor,
             ApplicationListingTestHelper.CreateAccessibleTemplateService(new TemplateId(Guid.NewGuid())));
@@ -207,7 +216,8 @@ public class GetApplicationsForUserQueryHandlerTests
         ApplicationCustomization appCustom,
         [Frozen] IEaRepository<User> userRepo,
         [Frozen] IEaRepository<Domain.Entities.Application> appRepo,
-        [Frozen] ITenantContextAccessor tenantContextAccessor)
+        [Frozen] ITenantContextAccessor tenantContextAccessor,
+        [Frozen] IPermissionCheckerService permissionCheckerService)
     {
         userCustom.OverrideEmail = rawEmail;
         userCustom.OverridePermissions = Array.Empty<Permission>();
@@ -234,6 +244,7 @@ public class GetApplicationsForUserQueryHandlerTests
 
         var handler = ApplicationListingTestHelper.CreateGetApplicationsForUserQueryHandler(
             userRepo,
+            permissionCheckerService,
             appRepo,
             tenantContextAccessor,
             ApplicationListingTestHelper.CreateAccessibleTemplateService(templateId));
@@ -255,7 +266,8 @@ public class GetApplicationsForUserQueryHandlerTests
         ApplicationCustomization appCustom,
         [Frozen] IEaRepository<User> userRepo,
         [Frozen] IEaRepository<Domain.Entities.Application> appRepo,
-        [Frozen] ITenantContextAccessor tenantContextAccessor)
+        [Frozen] ITenantContextAccessor tenantContextAccessor,
+        [Frozen] IPermissionCheckerService permissionCheckerService)
     {
         userCustom.OverrideEmail = rawEmail;
         userCustom.OverridePermissions = Array.Empty<Permission>();
@@ -282,6 +294,7 @@ public class GetApplicationsForUserQueryHandlerTests
 
         var handler = ApplicationListingTestHelper.CreateGetApplicationsForUserQueryHandler(
             userRepo,
+            permissionCheckerService,
             appRepo,
             tenantContextAccessor,
             ApplicationListingTestHelper.CreateAccessibleTemplateService(templateId));
@@ -304,7 +317,8 @@ public class GetApplicationsForUserQueryHandlerTests
         [Frozen] IEaRepository<User> userRepo,
         [Frozen] IEaRepository<Domain.Entities.Application> appRepo,
         [Frozen] ICacheService<IRedisCacheType> cache,
-        [Frozen] ITenantContextAccessor tenantContextAccessor)
+        [Frozen] ITenantContextAccessor tenantContextAccessor,
+        [Frozen] IPermissionCheckerService permissionCheckerService)
     {
         userCustom.OverrideEmail = rawEmail;
         userCustom.OverridePermissions = Array.Empty<Permission>();
@@ -334,6 +348,7 @@ public class GetApplicationsForUserQueryHandlerTests
 
         var handler = ApplicationListingTestHelper.CreateGetApplicationsForUserQueryHandler(
             userRepo,
+            permissionCheckerService,
             appRepo,
             tenantContextAccessor,
             ApplicationListingTestHelper.CreateAccessibleTemplateService(templateId),
@@ -353,7 +368,8 @@ public class GetApplicationsForUserQueryHandlerTests
         UserCustomization userCustom,
         [Frozen] IEaRepository<User> userRepo,
         [Frozen] IEaRepository<Domain.Entities.Application> appRepo,
-        [Frozen] ITenantContextAccessor tenantContextAccessor)
+        [Frozen] ITenantContextAccessor tenantContextAccessor,
+        [Frozen] IPermissionCheckerService permissionCheckerService)
     {
         userCustom.OverrideEmail = rawEmail;
         userCustom.OverridePermissions = Array.Empty<Permission>();
@@ -368,6 +384,7 @@ public class GetApplicationsForUserQueryHandlerTests
 
         var handler = ApplicationListingTestHelper.CreateGetApplicationsForUserQueryHandler(
             userRepo,
+            permissionCheckerService,
             appRepo,
             tenantContextAccessor,
             ApplicationListingTestHelper.CreateEmptyAccessibleTemplateService());

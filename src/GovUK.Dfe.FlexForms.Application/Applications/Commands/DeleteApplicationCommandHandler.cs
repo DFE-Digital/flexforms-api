@@ -76,7 +76,7 @@ public sealed class DeleteApplicationCommandHandler(
                 TemplateName = application.TemplateVersion?.Template?.Name ?? string.Empty,
                 Status = application.Status,
                 DateCreated = application.CreatedOn,
-                DateSubmitted = application.LastModifiedOn,
+                DateDeleted = application.LastModifiedOn,
                 LatestResponse = null,
                 TemplateSchema = null
             });
