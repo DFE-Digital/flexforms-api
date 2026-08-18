@@ -74,7 +74,8 @@ public class AssignUserRoleCommandHandlerTests
         IHttpContextAccessor httpContextAccessor,
         ITenantRoleService? tenantRoleService = null,
         IUserFactory? userFactory = null,
-        IUserCacheInvalidator? userCacheInvalidator = null)
+        IUserCacheInvalidator? userCacheInvalidator = null,
+        ITenantAccessAuditWriter? accessAuditWriter = null)
     {
         return new AssignUserRoleCommandHandler(
             userRepo,
@@ -87,7 +88,7 @@ public class AssignUserRoleCommandHandlerTests
             userFactory ?? Substitute.For<IUserFactory>(),
             httpContextAccessor,
             userCacheInvalidator ?? Substitute.For<IUserCacheInvalidator>(),
-            Substitute.For<ITenantAccessAuditWriter>());
+            accessAuditWriter ?? Substitute.For<ITenantAccessAuditWriter>());
     }
 
     [Theory]
@@ -456,6 +457,79 @@ public class AssignUserRoleCommandHandlerTests
         provisioner.Received(1).AssignToExistingUser(existingUser, Arg.Any<RoleAssignmentRequest>());
         await userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
         await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(UserCustomization))]
+    public async Task Handle_ShouldNotAuditRoleAssigned_WhenExistingUserKeepsSameRole(
+        string adminEmail,
+        string email,
+        string name,
+        UserId adminUserId,
+        UserId existingUserId,
+        IEaRepository<User> userRepo,
+        IUnitOfWork unitOfWork,
+        IPermissionCheckerService permissionCheckerService,
+        IUserRoleProvisioner provisioner,
+        IUserRoleProvisionerRegistry roleProvisionerRegistry,
+        IHttpContextAccessor httpContextAccessor)
+    {
+        permissionCheckerService.CanManageUsers().Returns(true);
+
+        var grantedOn = DateTime.UtcNow;
+        var adminUser = new User(
+            adminUserId,
+            new RoleId(RoleConstants.AdminRoleId),
+            "Admin",
+            adminEmail,
+            grantedOn,
+            null,
+            null,
+            null);
+
+        var existingUser = new User(
+            existingUserId,
+            new RoleId(RoleConstants.UserRoleId),
+            name,
+            email,
+            grantedOn,
+            null,
+            null,
+            null);
+
+        var users = new List<User> { adminUser, existingUser }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+
+        SetupHttpContext(httpContextAccessor, adminEmail);
+
+        provisioner.RoleName.Returns(RoleNames.User);
+        provisioner.RequiresTemplateIds.Returns(true);
+        roleProvisionerRegistry.GetProvisioner(RoleNames.User).Returns(provisioner);
+
+        var auditWriter = Substitute.For<ITenantAccessAuditWriter>();
+        var handler = CreateHandler(
+            userRepo,
+            unitOfWork,
+            permissionCheckerService,
+            roleProvisionerRegistry,
+            httpContextAccessor,
+            accessAuditWriter: auditWriter);
+
+        var result = await handler.Handle(
+            new AssignUserRoleCommand(email, name, RoleNames.User, [Guid.NewGuid()]),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        await auditWriter.DidNotReceive().AppendAsync(
+            Arg.Any<Guid>(),
+            Arg.Any<UserId>(),
+            Arg.Any<string>(),
+            "RoleAssigned",
+            Arg.Any<string>(),
+            Arg.Any<UserId>(),
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Theory]

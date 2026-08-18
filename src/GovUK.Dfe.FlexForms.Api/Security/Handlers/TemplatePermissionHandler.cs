@@ -17,6 +17,15 @@ namespace GovUK.Dfe.FlexForms.Api.Security.Handlers
                 return Task.CompletedTask;
             }
 
+            // Caseworker-style roles have Application:Any:Read but not Template:*:Read.
+            // They still need custom status labels (and other template reads) on /applications.
+            if (requirement.Action.Equals("Read", StringComparison.OrdinalIgnoreCase)
+                && PermissionClaimEvaluator.CanReadAllApplications(context.User))
+            {
+                context.Succeed(requirement);
+                return Task.CompletedTask;
+            }
+
             var templateId = accessor.HttpContext?.Request.RouteValues["templateId"]?.ToString();
             if (!string.IsNullOrWhiteSpace(templateId)
                 && PermissionClaimEvaluator.CanManageTemplate(context.User, templateId))

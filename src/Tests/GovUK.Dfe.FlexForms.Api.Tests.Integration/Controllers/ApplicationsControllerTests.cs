@@ -853,6 +853,11 @@ public class ApplicationsControllerTests
             permissions.Permissions,
             p => p.ResourceType == ResourceType.Template
                  && p.ResourceKey == EaContextSeeder.TemplateId
+                 && p.AccessType == AccessType.Read);
+        Assert.DoesNotContain(
+            permissions.Permissions,
+            p => p.ResourceType == ResourceType.Template
+                 && p.ResourceKey == EaContextSeeder.TemplateId
                  && p.AccessType == AccessType.Write);
 
         var encodedBody = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(responseBody));

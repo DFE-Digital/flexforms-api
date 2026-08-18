@@ -209,11 +209,13 @@ public sealed class AddContributorCommandHandler(
             applicationId,
             DateTime.UtcNow);
 
-        // Template permissions for the application's form only (not all tenant forms).
+        // Schema read for this form only. Do not grant Template:Write — that would let a
+        // new invitee create other applications. AddPermission is additive: existing
+        // Template:Write on this form, other forms, or other tenants is left untouched.
         userFactory.AddTemplatePermissionToUser(
             existingContributor,
             application.TemplateVersion!.TemplateId.Value.ToString(),
-            new[] { AccessType.Read, AccessType.Write },
+            new[] { AccessType.Read },
             dbUser.Id!,
             DateTime.UtcNow);
 

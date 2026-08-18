@@ -50,7 +50,7 @@ public class ApplicationListPermissionHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ShouldFail_WhenUserHasOnlyApplicationAnyReadWildcard()
+    public async Task Handle_ShouldSucceed_WhenUserHasApplicationAnyReadWildcard()
     {
         var requirement = new ApplicationListPermissionRequirement("Read");
         var claims = new[] { new Claim("permission", "Application:Any:Read") };
@@ -60,6 +60,6 @@ public class ApplicationListPermissionHandlerTests
 
         await handler.HandleAsync(context);
 
-        Assert.False(context.HasSucceeded);
+        Assert.True(context.HasSucceeded);
     }
 }

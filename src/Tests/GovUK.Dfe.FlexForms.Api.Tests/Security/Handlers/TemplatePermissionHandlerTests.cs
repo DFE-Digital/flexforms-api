@@ -43,4 +43,40 @@ public class TemplatePermissionHandlerTests
 
         Assert.False(context.HasSucceeded);
     }
+
+    [Fact]
+    public async Task Handle_ShouldSucceed_WhenUserHasApplicationAnyReadClaim()
+    {
+        var requirement = new TemplatePermissionRequirement("Read");
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.RouteValues["templateId"] = "t1";
+        var accessor = Substitute.For<IHttpContextAccessor>();
+        accessor.HttpContext.Returns(httpContext);
+        var claims = new[] { new Claim("permission", "Application:Any:Read") };
+        var user = new ClaimsPrincipal(new ClaimsIdentity(claims));
+        var context = new AuthorizationHandlerContext([requirement], user, null);
+        var handler = new TemplatePermissionHandler(accessor);
+
+        await handler.HandleAsync(context);
+
+        Assert.True(context.HasSucceeded);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldNotGrantWrite_WhenUserHasApplicationAnyReadClaim()
+    {
+        var requirement = new TemplatePermissionRequirement("Write");
+        var httpContext = new DefaultHttpContext();
+        httpContext.Request.RouteValues["templateId"] = "t1";
+        var accessor = Substitute.For<IHttpContextAccessor>();
+        accessor.HttpContext.Returns(httpContext);
+        var claims = new[] { new Claim("permission", "Application:Any:Read") };
+        var user = new ClaimsPrincipal(new ClaimsIdentity(claims));
+        var context = new AuthorizationHandlerContext([requirement], user, null);
+        var handler = new TemplatePermissionHandler(accessor);
+
+        await handler.HandleAsync(context);
+
+        Assert.False(context.HasSucceeded);
+    }
 }

@@ -50,6 +50,13 @@ public static class TenantScopedIdentityKey
         return TrySplit(resourceKey, out _, out var identity) ? identity : resourceKey;
     }
 
-    public static bool NotificationsBelongToTenant(string resourceKey, Guid tenantId) =>
-        TrySplit(resourceKey, out var scopedTenantId, out _) && scopedTenantId == tenantId;
+    public static bool NotificationsBelongToTenant(string resourceKey, Guid tenantId)
+    {
+        if (TrySplit(resourceKey, out var scopedTenantId, out _))
+            return scopedTenantId == tenantId;
+
+        // Legacy unscoped email/client-id keys predate tenant prefixes. Dropping them
+        // silently removed notification access for existing users (including lead applicants).
+        return !string.IsNullOrWhiteSpace(resourceKey);
+    }
 }

@@ -101,11 +101,11 @@ public class UserFactory : IUserFactory
             applicationId,
             when);
 
-        // Template permissions
+        // Schema read for this form only. Write would let the invitee start other applications.
         AddTemplatePermissionToUser(
             contributor,
             templateId.Value.ToString(),
-            new[] { AccessType.Read, AccessType.Write },
+            new[] { AccessType.Read },
             createdBy,
             when);
 

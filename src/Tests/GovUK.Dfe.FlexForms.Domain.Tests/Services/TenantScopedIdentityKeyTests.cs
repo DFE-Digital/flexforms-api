@@ -67,6 +67,6 @@ public class TenantScopedIdentityKeyTests
 
         Assert.True(TenantScopedIdentityKey.NotificationsBelongToTenant(key, tenantId));
         Assert.False(TenantScopedIdentityKey.NotificationsBelongToTenant(key, otherTenantId));
-        Assert.False(TenantScopedIdentityKey.NotificationsBelongToTenant("user@example.com", tenantId));
+        Assert.True(TenantScopedIdentityKey.NotificationsBelongToTenant("user@example.com", tenantId));
     }
 }

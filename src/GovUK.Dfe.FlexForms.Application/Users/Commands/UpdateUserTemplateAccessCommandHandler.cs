@@ -7,6 +7,7 @@ using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -33,7 +34,9 @@ public sealed class UpdateUserTemplateAccessCommandHandler(
     IUserFactory userFactory,
     ITenantTemplateCatalogue tenantTemplateCatalogue,
     IPermissionCheckerService permissionCheckerService,
-    IHttpContextAccessor httpContextAccessor)
+    IHttpContextAccessor httpContextAccessor,
+    ITenantContextAccessor tenantContextAccessor,
+    ITenantAccessAuditWriter accessAuditWriter)
     : IRequestHandler<UpdateUserTemplateAccessCommand, Result<TenantUserDto>>
 {
     public async Task<Result<TenantUserDto>> Handle(
@@ -96,6 +99,25 @@ public sealed class UpdateUserTemplateAccessCommandHandler(
         var roleName = user.Role?.Name
             ?? Domain.Common.RoleNames.FromRoleId(user.RoleId.Value)
             ?? string.Empty;
+
+        var currentTenant = tenantContextAccessor.CurrentTenant;
+        if (currentTenant is not null)
+        {
+            var actorEmail = httpContextAccessor.HttpContext?.User?.FindFirstValue(ClaimTypes.Email)
+                ?? httpContextAccessor.HttpContext?.User?.Identity?.Name
+                ?? "unknown";
+
+            await accessAuditWriter.AppendAsync(
+                currentTenant.Id,
+                user.Id,
+                user.Email,
+                "FormAccessUpdated",
+                roleName,
+                grantedById,
+                actorEmail,
+                $"Form access updated ({desiredIds.Count} template(s))",
+                cancellationToken);
+        }
 
         return Result<TenantUserDto>.Success(new TenantUserDto
         {
