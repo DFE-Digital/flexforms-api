@@ -66,7 +66,7 @@ public class TemplatePermissionsClaimProviderTests
         }));
         var userRepo = Substitute.For<IEaRepository<User>>();
 
-        userRepo.Query().Returns(Array.Empty<User>().AsQueryable().BuildMockDbSet());
+        ReturnsUsers(userRepo);
 
         var logger = Substitute.For<ILogger<TemplatePermissionsClaimProvider>>();
         var provider = CreateProvider(logger, userRepo);
@@ -98,7 +98,7 @@ public class TemplatePermissionsClaimProviderTests
             lastModifiedOn: null,
             lastModifiedBy: null,
             externalProviderId: "cid");
-        userRepo.Query().Returns(new[] { user }.AsQueryable().BuildMockDbSet());
+        ReturnsUsers(userRepo, user);
 
         var logger = Substitute.For<ILogger<TemplatePermissionsClaimProvider>>();
         var provider = CreateProvider(logger, userRepo);
@@ -141,7 +141,7 @@ public class TemplatePermissionsClaimProviderTests
             lastModifiedBy: null,
             externalProviderId: "cid",
             initialPermissions: [templatePermission]);
-        userRepo.Query().Returns(new[] { user }.AsQueryable().BuildMockDbSet());
+        ReturnsUsers(userRepo, user);
 
         var logger = Substitute.For<ILogger<TemplatePermissionsClaimProvider>>();
         var provider = CreateProvider(logger, userRepo);
@@ -151,5 +151,11 @@ public class TemplatePermissionsClaimProviderTests
         Assert.Single(result);
         Assert.Equal("permission", result[0].Type);
         Assert.Equal($"Template:{templateId}:Read", result[0].Value);
+    }
+
+    private static void ReturnsUsers(IEaRepository<User> userRepo, params User[] users)
+    {
+        var dbSet = users.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(dbSet);
     }
 }

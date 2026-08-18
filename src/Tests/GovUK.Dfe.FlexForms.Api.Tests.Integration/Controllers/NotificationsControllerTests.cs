@@ -31,7 +31,8 @@ public class NotificationsControllerTests
         factory.TestClaims = new List<Claim>
         {
             new(ClaimTypes.Email, EaContextSeeder.BobEmail),
-            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write")
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write"),
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Delete")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =
@@ -96,7 +97,8 @@ public class NotificationsControllerTests
         factory.TestClaims = new List<Claim>
         {
             new(ClaimTypes.Email, EaContextSeeder.BobEmail),
-            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write")
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write"),
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Delete")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =
@@ -126,6 +128,7 @@ public class NotificationsControllerTests
         {
             new(ClaimTypes.Email, EaContextSeeder.BobEmail),
             new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write"),
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Delete"),
             new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Read")
         };
 
@@ -245,7 +248,8 @@ public class NotificationsControllerTests
         factory.TestClaims = new List<Claim>
         {
             new(ClaimTypes.Email, EaContextSeeder.BobEmail),
-            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write")
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write"),
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Delete")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =
@@ -278,7 +282,8 @@ public class NotificationsControllerTests
         factory.TestClaims = new List<Claim>
         {
             new(ClaimTypes.Email, EaContextSeeder.BobEmail),
-            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write")
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write"),
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Delete")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =
@@ -302,7 +307,8 @@ public class NotificationsControllerTests
         factory.TestClaims = new List<Claim>
         {
             new(ClaimTypes.Email, EaContextSeeder.BobEmail),
-            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write")
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write"),
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Delete")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =
@@ -335,7 +341,8 @@ public class NotificationsControllerTests
         factory.TestClaims = new List<Claim>
         {
             new(ClaimTypes.Email, EaContextSeeder.BobEmail),
-            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write")
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write"),
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Delete")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =
@@ -359,7 +366,8 @@ public class NotificationsControllerTests
         factory.TestClaims = new List<Claim>
         {
             new(ClaimTypes.Email, EaContextSeeder.BobEmail),
-            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write")
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write"),
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Delete")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =
@@ -383,7 +391,8 @@ public class NotificationsControllerTests
         factory.TestClaims = new List<Claim>
         {
             new(ClaimTypes.Email, EaContextSeeder.BobEmail),
-            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write")
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Write"),
+            new("permission", $"Notifications:{EaContextSeeder.BobEmail}:Delete")
         };
 
         httpClient.DefaultRequestHeaders.Authorization =

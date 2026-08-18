@@ -13,22 +13,37 @@
     {
       "Controller": "UsersController",
       "Action": "AssignUserRoleAsync",
-      "ExpectedSecurity": "Authorize: Roles=Admin"
+      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
+    },
+    {
+      "Controller": "UsersController",
+      "Action": "GetAccessAuditLogAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
     },
     {
       "Controller": "UsersController",
       "Action": "GetTenantUsersAsync",
-      "ExpectedSecurity": "Authorize: Roles=Admin"
+      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
+    },
+    {
+      "Controller": "UsersController",
+      "Action": "GetUserPermissionsAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
+    },
+    {
+      "Controller": "UsersController",
+      "Action": "SetUserPermissionsAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
     },
     {
       "Controller": "UsersController",
       "Action": "UpdateUserTemplateAccessAsync",
-      "ExpectedSecurity": "Authorize: Roles=Admin"
+      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
     },
     {
       "Controller": "UsersController",
       "Action": "RemoveUserFromTenantAsync",
-      "ExpectedSecurity": "Authorize: Roles=Admin"
+      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
     },
     {
       "Controller": "TemplatesController",
@@ -63,7 +78,7 @@
     {
       "Controller": "TemplatesController",
       "Action": "CreateTemplateVersionAsync",
-      "ExpectedSecurity": "Authorize: Policy=CanWriteTemplate"
+      "ExpectedSecurity": "Authorize: Policy=CanCreateTemplate"
     },
     {
       "Controller": "TemplatesController",
@@ -73,7 +88,12 @@
     {
       "Controller": "TemplatesController",
       "Action": "CreateCustomApplicationStatusAsync",
-      "ExpectedSecurity": "Authorize: Policy=CanWriteTemplate"
+      "ExpectedSecurity": "Authorize: Policy=CanCreateTemplate"
+    },
+    {
+      "Controller": "TemplatesController",
+      "Action": "GrantTemplateAccessToAllUsersAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanCreateTemplate"
     },
     {
       "Controller": "TokensController",
@@ -154,6 +174,51 @@
       "Controller": "ApplicationsController",
       "Action": "DownloadApplicationPreviewHtmlAsync",
       "ExpectedSecurity": "Authorize: Policy=CanReadAnyApplication"
+    },
+    {
+      "Controller": "ApplicationsController",
+      "Action": "GetFileValidationGateAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanReadApplication"
+    },
+    {
+      "Controller": "IntegrationsController",
+      "Action": "RecordFileValidationResultAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanRecordFileValidation"
+    },
+    {
+      "Controller": "RolesController",
+      "Action": "ListAsync",
+      "ExpectedSecurity": "Authorize: Roles=SuperAdmin,Admin"
+    },
+    {
+      "Controller": "RolesController",
+      "Action": "CreateAsync",
+      "ExpectedSecurity": "Authorize: Roles=SuperAdmin,Admin"
+    },
+    {
+      "Controller": "RolesController",
+      "Action": "CreateFromTemplateAsync",
+      "ExpectedSecurity": "Authorize: Roles=SuperAdmin,Admin"
+    },
+    {
+      "Controller": "RolesController",
+      "Action": "RenameAsync",
+      "ExpectedSecurity": "Authorize: Roles=SuperAdmin,Admin"
+    },
+    {
+      "Controller": "RolesController",
+      "Action": "DeleteAsync",
+      "ExpectedSecurity": "Authorize: Roles=SuperAdmin,Admin"
+    },
+    {
+      "Controller": "RolesController",
+      "Action": "GetPermissionsAsync",
+      "ExpectedSecurity": "Authorize: Roles=SuperAdmin,Admin"
+    },
+    {
+      "Controller": "RolesController",
+      "Action": "SetPermissionsAsync",
+      "ExpectedSecurity": "Authorize: Roles=SuperAdmin,Admin"
     },
     {
       "Controller": "NotificationsController",
@@ -252,12 +317,77 @@
     },
     {
       "Controller": "TenantAdminController",
+      "Action": "GetSafeTenantSettings",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "UpsertSafeTenantSetting",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "CloneTenant",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
       "Action": "DuplicateTenant",
       "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
     },
     {
       "Controller": "TenantAdminController",
       "Action": "UpsertTenantSetting",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "GetEffectiveConfiguration",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "ExportConfiguration",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "ImportConfiguration",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "GetSettingAuditLog",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "ValidateTenantSetting",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "DeleteTenantSetting",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "GetTenantHealth",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "GetCategoryCookbook",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "GetEventCatalogue",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
+      "Action": "GetPlatformTenants",
       "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
     },
     {

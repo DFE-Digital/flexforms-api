@@ -98,7 +98,6 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<IEventMappingProvider, EventMappingProvider>();
             services.AddScoped<ISchemaEventDefinitionProvider, SchemaEventDefinitionProvider>();
             services.AddScoped<IEventDataMapper, EventDataMapper>();
-            services.AddScoped<IEventTriggerDispatcher, EventTriggerDispatcher>();
             services.AddSingleton<IEventTypeRegistry, EventTypeRegistry>();
 
             services.AddScoped<ITenantTemplateCatalogue, TenantTemplateCatalogue>();
@@ -107,7 +106,13 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<IUserAccessibleTemplateService, UserAccessibleTemplateService>();
             services.AddScoped<ISelfRegistrationTemplateAccessService, SelfRegistrationTemplateAccessService>();
 
-            services.AddBackgroundService();
+            // Integration tests skip this hosted service: CoreLibs 1.0.13 throws
+            // ChannelClosedException from BackgroundServiceFactory.StopAsync when the
+            // WebApplicationFactory disposes (channel Complete is called twice).
+            if (!config.GetValue<bool>("SkipBackgroundService", false))
+            {
+                services.AddBackgroundService();
+            }
             
             // Host-shaped config for CoreLibs DI registration (see CoreLibsHostConfiguration.Resolve).
             // Resolve forces FlexForms Redis key prefixes (not DfE:Cache:) for shared Redis with EAT.
@@ -196,6 +201,12 @@ namespace Microsoft.Extensions.DependencyInjection
                 // Register AFTER AddDfEMassTransit so this wins the IEventPublisher lookup
                 // (AddDfEMassTransit registers MassTransitEventPublisher last, which would otherwise override).
                 services.AddScoped<GovUK.Dfe.CoreLibs.Messaging.MassTransit.Interfaces.IEventPublisher, TenantAwareEventPublisher>();
+                services.AddScoped<IEventTriggerDispatcher, EventTriggerDispatcher>();
+            }
+            else
+            {
+                // File upload/submit still resolve IEventTriggerDispatcher; MassTransit is not in the container.
+                services.AddScoped<IEventTriggerDispatcher, NoOpEventTriggerDispatcher>();
             }
 
             return services;

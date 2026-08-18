@@ -849,13 +849,18 @@ public class ApplicationsControllerTests
             p => p.ResourceType == ResourceType.ApplicationFiles
                  && p.ResourceKey == EaContextSeeder.ApplicationId
                  && p.AccessType == AccessType.Write);
+
+        dbContext.ChangeTracker.Clear();
+        var storedContributor = dbContext.Users
+            .Include(u => u.Permissions)
+            .Single(u => u.Email == uniqueEmail);
         Assert.Contains(
-            permissions.Permissions,
+            storedContributor.Permissions,
             p => p.ResourceType == ResourceType.Template
                  && p.ResourceKey == EaContextSeeder.TemplateId
                  && p.AccessType == AccessType.Read);
         Assert.DoesNotContain(
-            permissions.Permissions,
+            storedContributor.Permissions,
             p => p.ResourceType == ResourceType.Template
                  && p.ResourceKey == EaContextSeeder.TemplateId
                  && p.AccessType == AccessType.Write);

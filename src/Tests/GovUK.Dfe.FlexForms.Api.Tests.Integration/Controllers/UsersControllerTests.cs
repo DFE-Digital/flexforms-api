@@ -68,6 +68,8 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
                     ResourceKey = p.ResourceKey,
                     AccessType = p.AccessType
                 })
+                .GroupBy(p => (p.ResourceType, p.ResourceKey, p.AccessType))
+                .Select(g => g.First())
                 .ToList();
 
             var result = await usersClient.GetMyPermissionsAsync();
@@ -99,17 +101,10 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
                 Assert.Equal(expected[i].AccessType, actual[i].AccessType);
             }
 
-            // Assert: Check roles
+            // Assert: GetMyPermissions returns the tenant membership role, not Users.Role
             Assert.NotNull(result.Roles);
-            if (expectedUser.Role != null)
-            {
-                Assert.Single(result.Roles);
-                Assert.Equal(expectedUser.Role.Name, result.Roles.First());
-            }
-            else
-            {
-                Assert.Empty(result.Roles);
-            }
+            Assert.Single(result.Roles);
+            Assert.Equal(GetTenantMembershipRoleName(dbContext, expectedUser.Id!), result.Roles.First());
         }
 
         [Theory]
@@ -160,6 +155,19 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
                 grantedOn: DateTime.UtcNow,
                 grantedBy: aliceUserId);
             dbContext.Permissions.Add(perm);
+
+            var tenantId = Guid.Parse(EaContextSeeder.TestTenantId);
+            var tenantUserRoleId = dbContext.Roles
+                .Where(r => r.Name == GovUK.Dfe.FlexForms.Domain.Common.RoleNames.User && r.TenantId == tenantId)
+                .Select(r => r.Id)
+                .Single();
+            dbContext.TenantMemberships.Add(new GovUK.Dfe.FlexForms.Domain.Entities.TenantMembership(
+                new GovUK.Dfe.FlexForms.Domain.ValueObjects.TenantMembershipId(Guid.NewGuid()),
+                tenantId,
+                newUserId,
+                tenantUserRoleId!,
+                DateTime.UtcNow));
+
             await dbContext.SaveChangesAsync();
 
             var expectedUser = dbContext.Users
@@ -206,17 +214,10 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
                 Assert.Equal(expected[i].AccessType, actual[i].AccessType);
             }
 
-            // Assert: Check roles
+            // Assert: GetMyPermissions returns the tenant membership role, not Users.Role
             Assert.NotNull(result.Roles);
-            if (expectedUser.Role != null)
-            {
-                Assert.Single(result.Roles);
-                Assert.Equal(expectedUser.Role.Name, result.Roles.First());
-            }
-            else
-            {
-                Assert.Empty(result.Roles);
-            }
+            Assert.Single(result.Roles);
+            Assert.Equal(GetTenantMembershipRoleName(dbContext, expectedUser.Id!), result.Roles.First());
         }
 
         [Theory]
@@ -327,6 +328,17 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
                 () => appsClient.GetApplicationsForUserAsync("bob@example.com", includeSchema: null));
 
             Assert.Equal(403, ex.StatusCode);
+        }
+
+        private static string GetTenantMembershipRoleName(
+            ExternalApplicationsContext dbContext,
+            GovUK.Dfe.FlexForms.Domain.ValueObjects.UserId userId)
+        {
+            var tenantId = Guid.Parse(EaContextSeeder.TestTenantId);
+            return dbContext.TenantMemberships
+                .Where(m => m.UserId == userId && m.TenantId == tenantId)
+                .Select(m => m.Role!.Name)
+                .Single();
         }
     }
 }

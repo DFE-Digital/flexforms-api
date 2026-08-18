@@ -115,11 +115,13 @@ namespace GovUK.Dfe.FlexForms.Domain.Tests.Aggregates
             var role = Role.CreateCustomForTenant(Guid.NewGuid(), "Reviewer");
             var when = DateTime.UtcNow;
 
+            var applicationId = Guid.NewGuid().ToString();
+            var templateId = Guid.NewGuid().ToString();
             var permissions = role.BuildReplacedPermissions(
                 [
-                    (ResourceType.Application, "Apps", AccessType.Read),
-                    (ResourceType.Application, "Apps", AccessType.Read),
-                    (ResourceType.Template, "T1", AccessType.Write)
+                    (ResourceType.Application, applicationId, AccessType.Read),
+                    (ResourceType.Application, applicationId, AccessType.Read),
+                    (ResourceType.Template, templateId, AccessType.Write)
                 ],
                 when);
 
@@ -135,8 +137,8 @@ namespace GovUK.Dfe.FlexForms.Domain.Tests.Aggregates
             var role = Role.CreateCustomForTenant(Guid.NewGuid(), "Reviewer");
             Assert.NotNull(role.Id);
 
-            var permission = role.CreatePermission("key", ResourceType.User, AccessType.Read, DateTime.UtcNow);
-            Assert.Equal("key", permission.ResourceKey);
+            var permission = role.CreatePermission("reviewer@example.com", ResourceType.User, AccessType.Read, DateTime.UtcNow);
+            Assert.Equal("reviewer@example.com", permission.ResourceKey);
             Assert.Contains(permission, role.Permissions);
         }
     }
