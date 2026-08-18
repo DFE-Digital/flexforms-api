@@ -115,6 +115,7 @@ public sealed class AssignUserRoleCommandHandler(
             .Apply(userRepo.Query())
             .FirstOrDefaultAsync(cancellationToken);
 
+        string? previousRoleName = null;
         if (existingUser is not null)
         {
             if (command.CreateOnly && existingUser.Id is not null)
@@ -143,6 +144,8 @@ public sealed class AssignUserRoleCommandHandler(
 
             currentRoleName ??= existingUser.Role?.Name
                 ?? RoleNames.FromRoleId(existingUser.RoleId.Value);
+
+            previousRoleName = currentRoleName;
 
             if (RoleNames.IsPlatformSuperAdminUser(currentRoleName, existingUser.RoleId.Value))
             {
@@ -290,16 +293,22 @@ public sealed class AssignUserRoleCommandHandler(
             ?? httpContextAccessor.HttpContext?.User?.Identity?.Name
             ?? "unknown";
 
-        await accessAuditWriter.AppendAsync(
-            currentTenant.Id,
-            user.Id,
-            user.Email,
-            "RoleAssigned",
-            membershipRoleName,
-            grantedById,
-            actorEmail,
-            existingUser is null ? "User created and role assigned" : "Role assigned to existing user",
-            cancellationToken);
+        var roleChanged = existingUser is null
+            || !string.Equals(previousRoleName, membershipRoleName, StringComparison.OrdinalIgnoreCase);
+
+        if (roleChanged)
+        {
+            await accessAuditWriter.AppendAsync(
+                currentTenant.Id,
+                user.Id,
+                user.Email,
+                "RoleAssigned",
+                membershipRoleName,
+                grantedById,
+                actorEmail,
+                existingUser is null ? "User created and role assigned" : "Role assigned to existing user",
+                cancellationToken);
+        }
 
         // Drop permission / OBO caches so the next request re-exchanges with the new role.
         await userCacheInvalidator.InvalidateForUserAsync(

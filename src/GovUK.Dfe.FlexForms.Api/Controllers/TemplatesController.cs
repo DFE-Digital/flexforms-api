@@ -9,6 +9,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Text.Json;
 
 namespace GovUK.Dfe.FlexForms.Api.Controllers;
 
@@ -221,7 +222,18 @@ public class TemplatesController(ISender sender) : ControllerBase
             new GrantTemplateAccessToAllUsersCommand(templateId),
             cancellationToken);
 
-        return new ObjectResult(result)
+        if (!result.IsSuccess)
+        {
+            return new ObjectResult(result)
+            {
+                StatusCode = StatusCodes.Status200OK
+            };
+        }
+
+        // The published TemplatesClient deserializes this positional record with
+        // case-sensitive PascalCase constructor names. MVC camelCase would leave
+        // UsersGranted / TotalUsers at 0 even when access was granted.
+        return new JsonResult(result.Value, new JsonSerializerOptions())
         {
             StatusCode = StatusCodes.Status200OK
         };
