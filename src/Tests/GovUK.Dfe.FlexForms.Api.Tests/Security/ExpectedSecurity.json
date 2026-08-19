@@ -46,6 +46,11 @@
       "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
     },
     {
+      "Controller": "UsersController",
+      "Action": "GetCreatedApplicationsByEmailAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
+    },
+    {
       "Controller": "TemplatesController",
       "Action": "GetAccessibleTemplatesAsync",
       "ExpectedSecurity": "Authorize: Policy=CanListTemplates"

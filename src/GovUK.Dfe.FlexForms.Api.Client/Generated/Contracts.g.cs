@@ -720,7 +720,7 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// </summary>
         /// <returns>Tenant users.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<System.Collections.ObjectModel.ObservableCollection<TenantUserDto>> GetTenantUsersAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+        System.Threading.Tasks.Task<PagedResultOfTenantUserDto> GetTenantUsersAsync(int? pageNumber = null, int? pageSize = null, System.Guid? userId = null, string email = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
@@ -757,6 +757,15 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>User removed from tenant.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task RemoveUserFromTenantAsync(System.Guid userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Looks up a user by email and returns applications they created,
+        /// <br/>together with people they invited onto those applications.
+        /// </summary>
+        /// <returns>Applications created by the user and invitees they granted access to.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<UserCreatedApplicationsLookupDto> GetCreatedApplicationsByEmailAsync(string email = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
     }
 
