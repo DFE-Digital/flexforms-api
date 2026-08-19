@@ -750,6 +750,15 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task RemoveUserFromTenantAsync(System.Guid userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Looks up a user by email and returns applications they created,
+        /// <br/>together with people they invited onto those applications.
+        /// </summary>
+        /// <returns>Applications created by the user and invitees they granted access to.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<UserCreatedApplicationsLookupDto> GetCreatedApplicationsByEmailAsync(string email = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
