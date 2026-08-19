@@ -54,14 +54,13 @@ public sealed class GetUserCreatedApplicationsLookupQueryHandler(
             return Result<UserCreatedApplicationsLookupDto>.NotFound("User not found");
 
         var tenantTemplateIds = await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken);
-        var tenantTemplateIdSet = tenantTemplateIds.ToHashSet();
 
-        var applications = (await new GetApplicationsCreatedByUserQueryObject(user.Id)
-            .Apply(applicationRepository.Query())
-            .OrderByDescending(a => a.CreatedOn)
-            .ToListAsync(cancellationToken))
-            .Where(a => a.TemplateVersion != null && tenantTemplateIdSet.Contains(a.TemplateVersion.TemplateId))
-            .ToList();
+        var applicationsQuery = new GetApplicationsByTemplateIdsQueryObject(tenantTemplateIds)
+            .Apply(new GetApplicationsCreatedByUserQueryObject(user.Id)
+                .Apply(applicationRepository.Query()))
+            .OrderByDescending(a => a.CreatedOn);
+
+        var applications = await applicationsQuery.ToListAsync(cancellationToken);
 
         var applicationIds = applications
             .Where(a => a.Id is not null)
