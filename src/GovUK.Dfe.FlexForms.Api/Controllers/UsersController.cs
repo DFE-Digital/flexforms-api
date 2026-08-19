@@ -127,15 +127,25 @@ public class UsersController(ISender sender) : ControllerBase
     /// Lists users who have form access within the current tenant.
     /// </summary>
     [HttpGet("tenant")]
-    [SwaggerResponse(200, "Tenant users.", typeof(IReadOnlyCollection<TenantUserDto>))]
+    [SwaggerResponse(200, "Tenant users.", typeof(PagedResult<TenantUserDto>))]
     [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
     [SwaggerResponse(403, "Forbidden - only administrators can list tenant users", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
     [Authorize(Policy = "CanManageUsers")]
-    public async Task<ActionResult<IReadOnlyCollection<TenantUserDto>>> GetTenantUsersAsync(
+    public async Task<ActionResult<PagedResult<TenantUserDto>>> GetTenantUsersAsync(
+        [FromQuery] int? pageNumber,
+        [FromQuery] int? pageSize,
+        [FromQuery] Guid? userId,
+        [FromQuery] string? email,
         CancellationToken cancellationToken)
     {
-        var result = await sender.Send(new GetTenantUsersQuery(), cancellationToken);
+        var result = await sender.Send(
+            new GetTenantUsersQuery(
+                pageNumber ?? 1,
+                pageSize ?? GetTenantUsersQuery.DefaultPageSize,
+                userId,
+                email),
+            cancellationToken);
 
         if (!result.IsSuccess)
         {
