@@ -39,8 +39,7 @@ public sealed class GetApplicationsByTemplateQueryHandler(
     IApplicationRepository applicationRepository,
     ICacheService<IRedisCacheType> cacheService,
     ITenantContextAccessor tenantContextAccessor,
-    ITenantTemplateResolver tenantTemplateResolver,
-    IPermissionCheckerService permissionCheckerService)
+    ITenantTemplateResolver tenantTemplateResolver)
     : IRequestHandler<GetApplicationsByTemplateQuery, Result<PagedResult<ApplicationDto>>>
 {
     public async Task<Result<PagedResult<ApplicationDto>>> Handle(

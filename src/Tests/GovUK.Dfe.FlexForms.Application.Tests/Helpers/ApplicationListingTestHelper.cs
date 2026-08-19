@@ -171,10 +171,10 @@ internal static class ApplicationListingTestHelper
             httpContextAccessor,
             userRepo,
             appRepo,
+            permissionCheckerService,
             CreateApplicationRepository(),
             cache,
             tenantContextAccessor,
-            tenantTemplateResolver,
-            permissionCheckerService);
+            tenantTemplateResolver);
     }
 }

@@ -91,11 +91,9 @@ public class UserTemplateAccessTests
         Assert.False(UserTemplateAccess.IsApplicationInviteOnly(user, new HashSet<Guid> { templateId.Value }));
     }
 
-    private static User CreateUser(params Permission[] permissions)
-    {
-        var userId = new UserId(Guid.NewGuid());
-        return new User(
-            userId,
+    private static User CreateUser(params Permission[] permissions) =>
+        new User(
+            new UserId(Guid.NewGuid()),
             new RoleId(Guid.NewGuid()),
             "Existing User",
             "existing@example.com",
