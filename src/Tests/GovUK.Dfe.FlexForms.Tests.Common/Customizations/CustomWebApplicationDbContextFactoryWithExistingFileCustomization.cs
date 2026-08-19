@@ -42,10 +42,11 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
             fixture.Customize<CustomWebApplicationDbContextFactory<Program>>(composer => composer.FromFactory(() =>
             {
                 Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Local");
+                IntegrationTestHostBootstrap.Apply();
                 Environment.SetEnvironmentVariable("ConnectionStrings__Redis", "localhost:6379");
                 Environment.SetEnvironmentVariable("NotificationService__RedisConnectionString", "localhost:6379");
                 Environment.SetEnvironmentVariable("DataProtection__UseAzure", "false");
-                Environment.SetEnvironmentVariable("SkipMassTransit", "false");
+                Environment.SetEnvironmentVariable("SkipMassTransit", "true");
                 Environment.SetEnvironmentVariable("MassTransit__Transport", "AzureServiceBus");
                 Environment.SetEnvironmentVariable("MassTransit__AppPrefix", "");
                 Environment.SetEnvironmentVariable("MassTransit__AzureServiceBus__ConnectionString", "Endpoint=sb://test.servicebus.windows.net/;SharedAccessKeyName=test;SharedAccessKey=test=");

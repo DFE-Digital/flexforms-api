@@ -232,7 +232,7 @@ public class UsersControllerRegisterTests
         // Should have notification permissions for their own email
         var notificationPermissions = result.Authorization.Permissions
             .Where(p => p.ResourceType == GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums.ResourceType.Notifications)
-            .Where(p => p.ResourceKey == newUserEmail)
+            .Where(p => NotificationKeyIsEmail(p.ResourceKey, newUserEmail))
             .ToArray();
 
         Assert.NotEmpty(notificationPermissions);
@@ -332,6 +332,15 @@ public class UsersControllerRegisterTests
 
         // Assert - At least one request should succeed (rate limit is 5 in 30 seconds)
         Assert.True(successCount >= 1, "At least one request should succeed");
+    }
+
+    private static bool NotificationKeyIsEmail(string resourceKey, string email)
+    {
+        if (string.Equals(resourceKey, email, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return GovUK.Dfe.FlexForms.Domain.Services.TenantScopedIdentityKey.TrySplit(resourceKey, out _, out var identity)
+               && string.Equals(identity, email, StringComparison.OrdinalIgnoreCase);
     }
 }
 

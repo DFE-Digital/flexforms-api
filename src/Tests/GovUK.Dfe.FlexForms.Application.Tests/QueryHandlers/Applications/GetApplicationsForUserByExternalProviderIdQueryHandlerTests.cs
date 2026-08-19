@@ -290,9 +290,11 @@ public class GetApplicationsForUserByExternalProviderIdQueryHandlerTests
             ApplicationListingTestHelper.CreateEmptyAccessibleTemplateService());
         var result = await handler.Handle(new GetApplicationsForUserByExternalProviderIdQuery(externalProviderId), CancellationToken.None);
 
-        // Assert — applications without a template version are excluded from tenant-scoped listings
+        // Null TemplateVersion navigation is tolerated: the user still has an application grant.
         Assert.True(result.IsSuccess);
-        Assert.Empty(result.Value!.Items);
+        var listed = Assert.Single(result.Value!.Items);
+        Assert.Equal(app.Id!.Value, listed.ApplicationId);
+        Assert.Equal(string.Empty, listed.TemplateName);
     }
 
     [Theory]

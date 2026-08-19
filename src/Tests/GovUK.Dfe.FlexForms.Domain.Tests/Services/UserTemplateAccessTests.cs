@@ -102,7 +102,7 @@ public class UserTemplateAccessTests
             null,
             null,
             initialPermissions: permissions);
-
+    }
     private static Permission TemplateGrant(Guid templateId, AccessType accessType) =>
         new(
             new PermissionId(Guid.NewGuid()),

@@ -43,6 +43,7 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
             {
                 // Set environment to "Local" to bypass Azure-specific operations in tests
                 Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Local");
+                IntegrationTestHostBootstrap.Apply();
                 
                 Environment.SetEnvironmentVariable("ConnectionStrings__Redis", "localhost:6379");
                 Environment.SetEnvironmentVariable("NotificationService__RedisConnectionString", "localhost:6379");
@@ -51,7 +52,7 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                 // Set environment variables for MassTransit configuration
                 // These will be picked up by ConfigurationBuilder in Program.cs
                 // For tests, provide a dummy connection string to satisfy validation
-                Environment.SetEnvironmentVariable("SkipMassTransit", "false");
+                Environment.SetEnvironmentVariable("SkipMassTransit", "true");
                 Environment.SetEnvironmentVariable("MassTransit__Transport", "AzureServiceBus");
                 Environment.SetEnvironmentVariable("MassTransit__AppPrefix", "");
                 // Dummy connection string for tests - format: Endpoint=sb://...;SharedAccessKeyName=...;SharedAccessKey=...

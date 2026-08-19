@@ -87,7 +87,7 @@ public class PermissionsClaimProviderTests
             lastModifiedOn: null,
             lastModifiedBy: null,
             externalProviderId: "cid");
-        userRepo.Query().Returns(new[] { user }.AsQueryable().BuildMockDbSet());
+        ReturnsUsers(userRepo, user);
 
         sender.Send(Arg.Is<GetAllUserPermissionsQuery>(q => q.UserId == userId))
             .Returns(Task.FromResult(Result<UserAuthorizationDto>.Failure("err")));
@@ -122,7 +122,7 @@ public class PermissionsClaimProviderTests
             lastModifiedOn: null,
             lastModifiedBy: null,
             externalProviderId: "cid");
-        userRepo.Query().Returns(new[] { user }.AsQueryable().BuildMockDbSet());
+        ReturnsUsers(userRepo, user);
 
         var emptyAuth = new UserAuthorizationDto
         {
@@ -162,7 +162,7 @@ public class PermissionsClaimProviderTests
             lastModifiedBy: null,
             externalProviderId: "cid");
 
-        userRepo.Query().Returns(new[] { user }.AsQueryable().BuildMockDbSet());
+        ReturnsUsers(userRepo, user);
 
         var logger = Substitute.For<ILogger<PermissionsClaimProvider>>();
         var provider = CreateProvider(sender, logger, userRepo);
@@ -196,7 +196,7 @@ public class PermissionsClaimProviderTests
             lastModifiedBy: null,
             externalProviderId: "cid");
         user.GetType().GetProperty("Role")!.SetValue(user, new Role(roleId, "TestRole"));
-        userRepo.Query().Returns(new[] { user }.AsQueryable().BuildMockDbSet());
+        ReturnsUsers(userRepo, user);
 
         var authDto = new UserAuthorizationDto
         {
@@ -245,7 +245,7 @@ public class PermissionsClaimProviderTests
             lastModifiedBy: null,
             externalProviderId: "cid");
         user.GetType().GetProperty("Role")!.SetValue(user, new Role(roleId, "TestRole"));
-        userRepo.Query().Returns(new[] { user }.AsQueryable().BuildMockDbSet());
+        ReturnsUsers(userRepo, user);
 
         sender.Send(Arg.Any<GetAllUserPermissionsQuery>(), Arg.Any<CancellationToken>())
             .Returns(Task.FromResult(Result<UserAuthorizationDto>.Success(new UserAuthorizationDto
@@ -264,5 +264,11 @@ public class PermissionsClaimProviderTests
         _ = await provider.GetClaimsAsync(principal);
 
         await sender.Received(1).Send(Arg.Any<GetAllUserPermissionsQuery>(), Arg.Any<CancellationToken>());
+    }
+
+    private static void ReturnsUsers(IEaRepository<User> userRepo, params User[] users)
+    {
+        var dbSet = users.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(dbSet);
     }
 }
