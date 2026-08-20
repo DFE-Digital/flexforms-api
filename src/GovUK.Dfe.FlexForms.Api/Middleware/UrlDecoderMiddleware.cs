@@ -1,22 +1,48 @@
-using System.Web;
 using Microsoft.AspNetCore.Http.Extensions;
-using Microsoft.AspNetCore.WebUtilities;
 
 namespace GovUK.Dfe.FlexForms.Api.Middleware
 {
+    /// <summary>
+    /// Applies an additional URI unescape to query values (for double-encoded clients)
+    /// without treating '+' as a space the way <c>HttpUtility.UrlDecode</c> / form decoding does.
+    /// </summary>
     public class UrlDecoderMiddleware(RequestDelegate next)
     {
         public async Task InvokeAsync(HttpContext context)
         {
-            var queryString = context.Request.QueryString.ToString();
-            var decodedQueryString = HttpUtility.UrlDecode(queryString);
-            var newQuery = QueryHelpers.ParseQuery(decodedQueryString);
-            var items = newQuery
-                .SelectMany(x => x.Value, (col, value) => new KeyValuePair<string, string>(col.Key, value!)).ToList();
-            var qb = new QueryBuilder(items);
-            context.Request.QueryString = qb.ToQueryString();
-            
+            if (!context.Request.QueryString.HasValue)
+            {
+                await next(context);
+                return;
+            }
+
+            // Use already-parsed query values (ASP.NET has correctly turned %2B into '+'),
+            // then unescape once more for double-encoded values. Do not use HttpUtility.UrlDecode
+            // on the raw query string: that turns %2B → '+' and a subsequent form parse turns '+' → ' '.
+            var items = context.Request.Query
+                .SelectMany(
+                    pair => pair.Value,
+                    (pair, value) => new KeyValuePair<string, string>(pair.Key, DecodeQueryValue(value)))
+                .ToList();
+
+            context.Request.QueryString = new QueryBuilder(items).ToQueryString();
+
             await next(context);
+        }
+
+        private static string DecodeQueryValue(string? value)
+        {
+            if (string.IsNullOrEmpty(value))
+                return value ?? string.Empty;
+
+            try
+            {
+                return Uri.UnescapeDataString(value);
+            }
+            catch (UriFormatException)
+            {
+                return value;
+            }
         }
     }
 }
