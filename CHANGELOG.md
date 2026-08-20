@@ -140,3 +140,7 @@ All notable changes to this service will be documented in this file.
 ## [1.5.2] - Filter on status fix
 ### Notes
 - Fix for the filtering not working when a null value for status is encountered in the db
+
+## [1.6.0] - Application delete functionality
+### Notes
+- Added functionality to soft delete an application, which will be marked with the deleted status in the DB
