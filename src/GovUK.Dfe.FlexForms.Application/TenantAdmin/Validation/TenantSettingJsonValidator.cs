@@ -117,6 +117,7 @@ public static class TenantSettingJsonValidator
             "SchemaEvents" => true,
             "EventTriggers" => true,
             "FileValidation" => true,
+            "SelfRegistration" => true,
             _ => false
         };
 
@@ -245,6 +246,19 @@ public static class TenantSettingJsonValidator
 
             case "FileValidation":
                 ValidateFileValidation(root, errors);
+                break;
+
+            case "SelfRegistration":
+                if (root.TryGetProperty("DefaultTemplateId", out var defaultTemplateId)
+                    && defaultTemplateId.ValueKind is not JsonValueKind.Null
+                    && defaultTemplateId.ValueKind is not JsonValueKind.Undefined)
+                {
+                    var value = defaultTemplateId.ValueKind == JsonValueKind.String
+                        ? defaultTemplateId.GetString()
+                        : defaultTemplateId.ToString();
+                    if (string.IsNullOrWhiteSpace(value) || !Guid.TryParse(value, out var guid) || guid == Guid.Empty)
+                        errors.Add("DefaultTemplateId must be a non-empty GUID when present.");
+                }
                 break;
 
             default:

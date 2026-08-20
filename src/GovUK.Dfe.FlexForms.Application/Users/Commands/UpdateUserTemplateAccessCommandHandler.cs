@@ -36,7 +36,8 @@ public sealed class UpdateUserTemplateAccessCommandHandler(
     IPermissionCheckerService permissionCheckerService,
     IHttpContextAccessor httpContextAccessor,
     ITenantContextAccessor tenantContextAccessor,
-    ITenantAccessAuditWriter accessAuditWriter)
+    ITenantAccessAuditWriter accessAuditWriter,
+    IUserCacheInvalidator userCacheInvalidator)
     : IRequestHandler<UpdateUserTemplateAccessCommand, Result<TenantUserDto>>
 {
     public async Task<Result<TenantUserDto>> Handle(
@@ -89,6 +90,13 @@ public sealed class UpdateUserTemplateAccessCommandHandler(
         }
 
         await unitOfWork.CommitAsync(cancellationToken);
+
+        // Drop permission / OBO caches so the next login or API call sees the new form grants.
+        await userCacheInvalidator.InvalidateForUserAsync(
+            user.Email,
+            user.ExternalProviderId,
+            user.Id!,
+            cancellationToken);
 
         var templates = await templateRepository.Query()
             .AsNoTracking()

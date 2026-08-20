@@ -198,7 +198,7 @@ Web’s Api.Client uses this on every user session (`RequestTokenExchange`).
 |------|-------|-------|
 | **SuperAdmin** | Platform | Well-known global role id / name `SuperAdmin`. Tenant Settings UI/API. Not tenant-assignable. |
 | **Admin** | Tenant | Per-tenant `Roles` row (`TenantId` set). Full tenant admin. Assignable by SuperAdmin. |
-| **User** | Tenant | Default self-registration membership. |
+| **User** | Tenant | Default self-registration membership. Form access: none if no live template; the one live template if exactly one; otherwise none unless `SelfRegistration:DefaultTemplateId` (or `ExternalApplicationsApiClient:DefaultTemplateId`) is a live form. |
 | **Custom** | Tenant | Named roles + `RolePermissions`. |
 | **Caseworker** | Legacy | Not assignable; prefer custom roles. |
 

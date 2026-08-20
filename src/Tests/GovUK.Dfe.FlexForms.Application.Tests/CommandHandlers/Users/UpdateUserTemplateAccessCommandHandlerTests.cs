@@ -27,6 +27,7 @@ public class UpdateUserTemplateAccessCommandHandlerTests
     private readonly IHttpContextAccessor _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
     private readonly ITenantContextAccessor _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
     private readonly ITenantAccessAuditWriter _auditWriter = Substitute.For<ITenantAccessAuditWriter>();
+    private readonly IUserCacheInvalidator _cacheInvalidator = Substitute.For<IUserCacheInvalidator>();
     private readonly UpdateUserTemplateAccessCommandHandler _handler;
 
     public UpdateUserTemplateAccessCommandHandlerTests()
@@ -40,7 +41,8 @@ public class UpdateUserTemplateAccessCommandHandlerTests
             _permissionChecker,
             _httpContextAccessor,
             _tenantContextAccessor,
-            _auditWriter);
+            _auditWriter,
+            _cacheInvalidator);
     }
 
     [Fact]
@@ -76,6 +78,11 @@ public class UpdateUserTemplateAccessCommandHandlerTests
             CancellationToken.None);
 
         Assert.True(result.IsSuccess, result.Error);
+        await _cacheInvalidator.Received(1).InvalidateForUserAsync(
+            subject.Email,
+            subject.ExternalProviderId,
+            subject.Id!,
+            Arg.Any<CancellationToken>());
         await _auditWriter.Received(1).AppendAsync(
             tenantId,
             subject.Id,

@@ -173,9 +173,9 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             if (string.IsNullOrWhiteSpace(membershipRoleName))
                 return Result<ExchangeTokenDto>.Conflict($"User {email} has no role assigned for this tenant");
 
-            // Self-registered User role with no form access: backfill Template R/W for every live
-            // tenant form. Fixes users registered before auto-grant, or when exchange succeeded
-            // before register could grant templates.
+            // Self-registered User role with no form access: backfill using the same auto-grant
+            // rules as register (one live form, or a configured default). Several live forms
+            // without a default stay with no access until an admin assigns templates.
             var accessibleTemplates = await userAccessibleTemplateService.GetAccessibleTemplateIdsAsync(
                 dbUser.Permissions,
                 ct);

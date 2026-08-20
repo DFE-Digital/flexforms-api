@@ -154,6 +154,22 @@ public static class TenantSettingCategoryCookbook
             requiresObject: true),
 
         Entry(
+            "SelfRegistration",
+            "Default form granted when a user auto-registers and more than one template is live.",
+            ["Shared"],
+            example: """{"DefaultTemplateId":"00000000-0000-0000-0000-000000000000"}""",
+            notes:
+            [
+                "Non-secret",
+                "Saved with Target=Shared so the API can read it during register and token exchange",
+                "Zero live templates: no form access",
+                "Exactly one live template: that form is granted (this setting is ignored)",
+                "Several live templates: grant DefaultTemplateId if it is live; otherwise grant nothing and an admin assigns forms later",
+                "ExternalApplicationsApiClient:DefaultTemplateId is also honoured if set on this tenant"
+            ],
+            requiresObject: true),
+
+        Entry(
             "FileValidation",
             "Per-template policy for blocking submit when a tenant function reports a file as invalid.",
             ["Shared"],

@@ -24,7 +24,7 @@ public class GetUserCreatedApplicationsLookupQueryHandlerTests
         var userRepository = Substitute.For<IEaRepository<User>>();
         var applicationRepository = Substitute.For<IEaRepository<Domain.Entities.Application>>();
         var permissionRepository = Substitute.For<IEaRepository<Permission>>();
-        permissionCheckerService.CanManageUsers().Returns(true);
+        permissionCheckerService.IsAdmin().Returns(true);
 
         var creator = new User(
             new UserId(Guid.NewGuid()),
@@ -86,10 +86,11 @@ public class GetUserCreatedApplicationsLookupQueryHandlerTests
     }
 
     [Fact]
-    public async Task Handle_ShouldForbid_WhenCallerCannotManageUsers()
+    public async Task Handle_ShouldForbid_WhenCallerIsNotAdmin()
     {
         var permissionCheckerService = Substitute.For<IPermissionCheckerService>();
-        permissionCheckerService.CanManageUsers().Returns(false);
+        permissionCheckerService.IsAdmin().Returns(false);
+        permissionCheckerService.CanManageUsers().Returns(true);
 
         var handler = CreateHandler(
             permissionCheckerService,
@@ -110,7 +111,7 @@ public class GetUserCreatedApplicationsLookupQueryHandlerTests
     {
         var permissionCheckerService = Substitute.For<IPermissionCheckerService>();
         var userRepository = Substitute.For<IEaRepository<User>>();
-        permissionCheckerService.CanManageUsers().Returns(true);
+        permissionCheckerService.IsAdmin().Returns(true);
         var users = Array.Empty<User>().AsQueryable().BuildMock();
         userRepository.Query().Returns(users);
 
@@ -133,7 +134,7 @@ public class GetUserCreatedApplicationsLookupQueryHandlerTests
     {
         var permissionCheckerService = Substitute.For<IPermissionCheckerService>();
         var userRepository = Substitute.For<IEaRepository<User>>();
-        permissionCheckerService.CanManageUsers().Returns(true);
+        permissionCheckerService.IsAdmin().Returns(true);
 
         var otherTenantUser = new User(
             new UserId(Guid.NewGuid()),
@@ -168,7 +169,7 @@ public class GetUserCreatedApplicationsLookupQueryHandlerTests
         var userRepository = Substitute.For<IEaRepository<User>>();
         var applicationRepository = Substitute.For<IEaRepository<Domain.Entities.Application>>();
         var permissionRepository = Substitute.For<IEaRepository<Permission>>();
-        permissionCheckerService.CanManageUsers().Returns(true);
+        permissionCheckerService.IsAdmin().Returns(true);
 
         var creator = new User(
             new UserId(Guid.NewGuid()),

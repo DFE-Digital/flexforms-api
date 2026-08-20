@@ -205,4 +205,26 @@ public class TenantSettingJsonValidatorTests
 
         Assert.Contains(errors, e => e.Contains("Extensions", StringComparison.OrdinalIgnoreCase));
     }
+
+    [Fact]
+    public void Validate_ShouldAcceptSelfRegistrationDefaultTemplateId()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "SelfRegistration",
+            "Shared",
+            """{"DefaultTemplateId":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_ShouldRejectInvalidSelfRegistrationDefaultTemplateId()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "SelfRegistration",
+            "Shared",
+            """{"DefaultTemplateId":"not-a-guid"}""");
+
+        Assert.Contains(errors, e => e.Contains("DefaultTemplateId"));
+    }
 }

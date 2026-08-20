@@ -10,18 +10,33 @@ namespace GovUK.Dfe.FlexForms.Domain.Services;
 public static class SelfRegistrationAccessRules
 {
     /// <summary>
-    /// Self-registration auto-grants Template R/W for every live template in the tenant catalogue.
-    /// Zero live templates means no form access until an admin assigns templates.
+    /// Templates to auto-grant on self-registration:
+    /// none if the tenant has no live forms; the single live form if there is exactly one;
+    /// otherwise nothing unless <paramref name="defaultTemplateId"/> is one of the live forms.
+    /// Admins assign further templates in User Manager.
     /// </summary>
-    public static IReadOnlyList<TemplateId> ResolveAutoGrantedTemplates(IReadOnlyList<TemplateId> liveTemplateIds)
+    public static IReadOnlyList<TemplateId> ResolveAutoGrantedTemplates(
+        IReadOnlyList<TemplateId> liveTemplateIds,
+        TemplateId? defaultTemplateId = null)
     {
         if (liveTemplateIds is null || liveTemplateIds.Count == 0)
             return Array.Empty<TemplateId>();
 
-        return liveTemplateIds
+        var live = liveTemplateIds
             .Where(id => id is not null)
             .Distinct()
             .ToList();
+
+        if (live.Count == 0)
+            return Array.Empty<TemplateId>();
+
+        if (live.Count == 1)
+            return live;
+
+        if (defaultTemplateId is not null && live.Contains(defaultTemplateId))
+            return [defaultTemplateId];
+
+        return Array.Empty<TemplateId>();
     }
 
     /// <summary>

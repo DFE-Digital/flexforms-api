@@ -177,10 +177,11 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                     pb.RequireAuthenticatedUser();
                     pb.AddRequirements(new Handlers.AnyTemplatePermissionRequirement(AccessType.Write.ToString()));
                 },
+                // Authenticated only: users with no form grants must still call this and receive [].
+                // The handler filters to catalogue ∩ permissions ∩ live; do not gate on Template:*:Read.
                 ["CanListTemplates"] = pb =>
                 {
                     pb.RequireAuthenticatedUser();
-                    pb.AddRequirements(new Handlers.AnyTemplatePermissionRequirement(AccessType.Read.ToString()));
                 },
                 ["CanCreateTemplate"] = pb =>
                 {

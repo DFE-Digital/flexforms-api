@@ -9,22 +9,63 @@ namespace GovUK.Dfe.FlexForms.Domain.Tests.Services;
 public class SelfRegistrationAccessRulesTests
 {
     [Fact]
-    public void ResolveAutoGrantedTemplates_ReturnsAllLiveTemplates()
+    public void ResolveAutoGrantedTemplates_ReturnsEmpty_WhenNoLiveTemplates()
+    {
+        Assert.Empty(SelfRegistrationAccessRules.ResolveAutoGrantedTemplates(Array.Empty<TemplateId>()));
+    }
+
+    [Fact]
+    public void ResolveAutoGrantedTemplates_ReturnsTheOnlyLiveTemplate()
+    {
+        var only = new TemplateId(Guid.NewGuid());
+
+        var result = SelfRegistrationAccessRules.ResolveAutoGrantedTemplates([only]);
+
+        var granted = Assert.Single(result);
+        Assert.Equal(only, granted);
+    }
+
+    [Fact]
+    public void ResolveAutoGrantedTemplates_ReturnsEmpty_WhenSeveralLiveAndNoDefault()
     {
         var first = new TemplateId(Guid.NewGuid());
         var second = new TemplateId(Guid.NewGuid());
 
-        var result = SelfRegistrationAccessRules.ResolveAutoGrantedTemplates([first, second]);
-
-        Assert.Equal(2, result.Count);
-        Assert.Contains(first, result);
-        Assert.Contains(second, result);
+        Assert.Empty(SelfRegistrationAccessRules.ResolveAutoGrantedTemplates([first, second]));
     }
 
     [Fact]
-    public void ResolveAutoGrantedTemplates_ReturnsEmpty_WhenNoLiveTemplates()
+    public void ResolveAutoGrantedTemplates_ReturnsDefault_WhenSeveralLiveAndDefaultIsLive()
     {
-        Assert.Empty(SelfRegistrationAccessRules.ResolveAutoGrantedTemplates(Array.Empty<TemplateId>()));
+        var first = new TemplateId(Guid.NewGuid());
+        var second = new TemplateId(Guid.NewGuid());
+
+        var result = SelfRegistrationAccessRules.ResolveAutoGrantedTemplates([first, second], second);
+
+        var granted = Assert.Single(result);
+        Assert.Equal(second, granted);
+    }
+
+    [Fact]
+    public void ResolveAutoGrantedTemplates_ReturnsEmpty_WhenDefaultIsNotLive()
+    {
+        var first = new TemplateId(Guid.NewGuid());
+        var second = new TemplateId(Guid.NewGuid());
+        var other = new TemplateId(Guid.NewGuid());
+
+        Assert.Empty(SelfRegistrationAccessRules.ResolveAutoGrantedTemplates([first, second], other));
+    }
+
+    [Fact]
+    public void ResolveAutoGrantedTemplates_IgnoresDefault_WhenOnlyOneFormIsLive()
+    {
+        var only = new TemplateId(Guid.NewGuid());
+        var unusedDefault = new TemplateId(Guid.NewGuid());
+
+        var result = SelfRegistrationAccessRules.ResolveAutoGrantedTemplates([only], unusedDefault);
+
+        var granted = Assert.Single(result);
+        Assert.Equal(only, granted);
     }
 
     [Fact]
