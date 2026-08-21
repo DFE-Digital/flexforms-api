@@ -7,6 +7,10 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - FlexForms (Forms Engine SaaS)
 
+## [2.1.0] - Application delete functionality
+### Notes
+- Added functionality to soft delete an application, which will be marked with the deleted status in the DB
+
 
 ---------------------------------------------------------------------------
 
@@ -141,6 +145,3 @@ All notable changes to this service will be documented in this file.
 ### Notes
 - Fix for the filtering not working when a null value for status is encountered in the db
 
-## [1.6.0] - Application delete functionality
-### Notes
-- Added functionality to soft delete an application, which will be marked with the deleted status in the DB
