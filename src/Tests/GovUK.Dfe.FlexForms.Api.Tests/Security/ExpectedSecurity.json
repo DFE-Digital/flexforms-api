@@ -112,6 +112,11 @@
     },
     {
       "Controller": "ApplicationsController",
+      "Action": "DeleteApplicationAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ApplicationsController",
       "Action": "GetApplicationsByTemplateAsync",
       "ExpectedSecurity": "Authorize: Policy=CanReadAnyApplication"
     },

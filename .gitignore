@@ -182,3 +182,6 @@ backend.vars
 /Benchmarks/Dfe.PersonsApi.Benchmarks/BenchmarkDotNet.Artifacts/results
 /uploads/
 uploads/
+
+Directory.Build.targets.user
+/src/LocalPackages

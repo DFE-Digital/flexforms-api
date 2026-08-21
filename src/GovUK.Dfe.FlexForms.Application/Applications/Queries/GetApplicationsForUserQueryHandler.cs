@@ -7,6 +7,7 @@ using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -26,6 +27,7 @@ public sealed record GetApplicationsForUserQuery(
 public sealed class GetApplicationsForUserQueryHandler(
     IEaRepository<User> userRepo,
     IEaRepository<Domain.Entities.Application> appRepo,
+    IPermissionCheckerService permissionCheckerService,
     IApplicationRepository applicationRepository,
     ICacheService<IRedisCacheType> cacheService,
     ITenantContextAccessor tenantContextAccessor,
@@ -99,7 +101,7 @@ public sealed class GetApplicationsForUserQueryHandler(
                         userWithAuthorization,
                         templateIdsFilter);
 
-                    query = ApplicationListingQueryBuilder.ApplySearchFilters(query, request.Search);
+                    query = ApplicationListingQueryBuilder.ApplySearchFilters(query, request.Search, request.Search?.Status == ApplicationStatus.Deleted && !permissionCheckerService.IsAdmin());
 
                     var pagedResult = await ApplicationListingQueryBuilder.MapPagedResultAsync(
                         query,

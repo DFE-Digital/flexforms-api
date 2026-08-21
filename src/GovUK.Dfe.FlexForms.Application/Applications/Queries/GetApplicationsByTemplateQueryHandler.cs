@@ -35,11 +35,11 @@ public sealed class GetApplicationsByTemplateQueryHandler(
     IHttpContextAccessor httpContextAccessor,
     IEaRepository<User> userRepo,
     IEaRepository<Domain.Entities.Application> appRepo,
+    IPermissionCheckerService permissionCheckerService,
     IApplicationRepository applicationRepository,
     ICacheService<IRedisCacheType> cacheService,
     ITenantContextAccessor tenantContextAccessor,
-    ITenantTemplateResolver tenantTemplateResolver,
-    IPermissionCheckerService permissionCheckerService)
+    ITenantTemplateResolver tenantTemplateResolver)
     : IRequestHandler<GetApplicationsByTemplateQuery, Result<PagedResult<ApplicationDto>>>
 {
     public async Task<Result<PagedResult<ApplicationDto>>> Handle(
@@ -100,7 +100,7 @@ public sealed class GetApplicationsByTemplateQueryHandler(
                     query = ApplicationListingQueryBuilder.ApplySearchFilters(
                         query,
                         request.Search,
-                        excludeStatus: request.Search?.Status is not null);
+                        excludeStatus: (request.Search?.Status is not null) || (request.Search?.Status == ApplicationStatus.Deleted && !permissionCheckerService.IsAdmin()));
 
                     var pagedResult = await ApplicationListingQueryBuilder.MapPagedResultAsync(
                         query,
