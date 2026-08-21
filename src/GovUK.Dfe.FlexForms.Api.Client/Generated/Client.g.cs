@@ -973,10 +973,9 @@ namespace GovUK.Dfe.FlexForms.Api.Client
 
                     var urlBuilder_ = new System.Text.StringBuilder();
                     if (!string.IsNullOrEmpty(_baseUrl)) urlBuilder_.Append(_baseUrl);
-                    // Operation Path: "v1/Applications/{applicationId}/delete"
+                    // Operation Path: "v1/Applications/{applicationId}"
                     urlBuilder_.Append("v1/Applications/");
                     urlBuilder_.Append(System.Uri.EscapeDataString(ConvertToString(applicationId, System.Globalization.CultureInfo.InvariantCulture)));
-                    urlBuilder_.Append("/delete");
 
                     PrepareRequest(client_, request_, urlBuilder_);
 
