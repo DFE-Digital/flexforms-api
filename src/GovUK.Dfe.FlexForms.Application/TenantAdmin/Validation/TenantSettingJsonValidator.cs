@@ -230,6 +230,11 @@ public static class TenantSettingJsonValidator
                 {
                     errors.Add("PageSize must be an integer between 1 and 500.");
                 }
+                RequireOptionalString(root, "MainHeading", errors);
+                RequireOptionalString(root, "InProgressHeading", errors);
+                RequireOptionalString(root, "StartNewHeading", errors);
+                RequireOptionalString(root, "StartNewHint", errors);
+                RequireOptionalString(root, "StartNewButtonText", errors);
                 break;
 
             case "EventMappings":
@@ -437,6 +442,21 @@ public static class TenantSettingJsonValidator
         {
             errors.Add($"{pathPrefix}{property} must be a non-empty string when present.");
         }
+    }
+
+    /// <summary>
+    /// When present, the property must be a JSON string (empty string allowed for optional overrides).
+    /// </summary>
+    private static void RequireOptionalString(
+        JsonElement root,
+        string property,
+        List<string> errors)
+    {
+        if (!root.TryGetProperty(property, out var value))
+            return;
+
+        if (value.ValueKind != JsonValueKind.String)
+            errors.Add($"{property} must be a string when present.");
     }
 
     private static string? GetString(JsonElement root, string property)

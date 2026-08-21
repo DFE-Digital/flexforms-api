@@ -120,10 +120,15 @@ public static class TenantSettingCategoryCookbook
 
         Entry(
             "Dashboard",
-            "Application listing page size and filters (delegated to Tenant Admins).",
+            "Application listing page size, filters, and dashboard display text (delegated to Tenant Admins).",
             ["Web"],
-            example: """{"PageSize":50,"EnableApplicationFilters":false}""",
-            notes: ["Non-secret", "Also editable via Organisation Settings"],
+            example: """{"PageSize":50,"EnableApplicationFilters":false,"MainHeading":"Your applications","InProgressHeading":"Applications in progress","StartNewHeading":"Start a new application","StartNewHint":"If you start an application, you will be the lead applicant for it.","StartNewButtonText":"Start new application"}""",
+            notes:
+            [
+                "Non-secret",
+                "Also editable via Organisation Settings",
+                "Text fields are optional; leave blank to use ApplicationTerminology-based defaults"
+            ],
             requiresObject: true),
 
         Entry(

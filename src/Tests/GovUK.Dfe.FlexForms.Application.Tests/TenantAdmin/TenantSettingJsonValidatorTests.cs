@@ -174,6 +174,28 @@ public class TenantSettingJsonValidatorTests
     }
 
     [Fact]
+    public void Validate_Dashboard_AcceptsOptionalTextFields()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "Dashboard",
+            "Web",
+            """{"PageSize":50,"MainHeading":"Your visits","StartNewHint":""}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_Dashboard_RejectsNonStringTextField()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "Dashboard",
+            "Web",
+            """{"MainHeading":42}""");
+
+        Assert.Contains(errors, e => e.Contains("MainHeading", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Validate_FileValidation_AcceptsKnownModes()
     {
         var errors = TenantSettingJsonValidator.Validate(
