@@ -171,7 +171,7 @@ public class ApplicationsController(ISender sender) : ControllerBase
     /// <summary>
     /// Soft deletes an application, changing its status to Deleted.
     /// </summary>
-    [HttpDelete("{applicationId}/delete")]
+    [HttpDelete("{applicationId}")]
     [SwaggerResponse(200, "Application deleted successfully.", typeof(ApplicationDto))]
     [SwaggerResponse(400, "Invalid request data or application not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
