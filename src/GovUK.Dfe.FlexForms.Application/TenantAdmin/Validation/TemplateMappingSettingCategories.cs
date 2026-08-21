@@ -4,7 +4,8 @@ namespace GovUK.Dfe.FlexForms.Application.TenantAdmin.Validation;
 
 /// <summary>
 /// Categories that map host/template GUIDs into the tenant catalogue.
-/// Editing these is SuperAdmin-only and subject to ownership checks.
+/// Subject to ownership checks on upsert; SuperAdmin edit lock is
+/// <see cref="GovUK.Dfe.FlexForms.Domain.Tenancy.SuperAdminOnlyTenantSettingCategories"/>.
 /// </summary>
 public static class TemplateMappingSettingCategories
 {

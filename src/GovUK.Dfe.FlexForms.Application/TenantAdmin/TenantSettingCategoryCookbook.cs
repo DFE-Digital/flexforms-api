@@ -55,7 +55,7 @@ public static class TenantSettingCategoryCookbook
             "Database connection strings for the tenant.",
             ["Api", "Shared"],
             example: """{"DefaultConnection":"Server=...;Database=...;"}""",
-            notes: ["Forced secret category", "Named connections (not only DefaultConnection) are allowed"],
+            notes: ["Forced secret category", "SuperAdmin only", "Named connections (not only DefaultConnection) are allowed"],
             requiresObject: true),
 
         Entry(

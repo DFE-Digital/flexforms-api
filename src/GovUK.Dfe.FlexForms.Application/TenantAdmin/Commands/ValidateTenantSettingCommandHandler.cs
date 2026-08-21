@@ -40,11 +40,11 @@ public sealed class ValidateTenantSettingCommandHandler(
                 "Administrators may only validate settings for their own tenant.");
         }
 
-        if (TemplateMappingSettingCategories.IsTemplateMappingCategory(request.Category)
+        if (SuperAdminOnlyTenantSettingCategories.IsRestricted(request.Category)
             && !permissionChecker.IsInteractivePlatformAdmin())
         {
             return Result<ValidateTenantSettingResponse>.Forbid(
-                "Only SuperAdmin can validate ApplicationTemplates / Template HostMappings.");
+                $"Only SuperAdmin can validate '{request.Category}' settings.");
         }
 
         string decoded;

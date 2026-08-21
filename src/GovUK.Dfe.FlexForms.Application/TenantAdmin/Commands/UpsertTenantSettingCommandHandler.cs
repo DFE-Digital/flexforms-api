@@ -61,11 +61,11 @@ public sealed class UpsertTenantSettingCommandHandler(
                 $"Administrators may only update their own tenant ('{currentTenant.Id}').");
         }
 
-        if (TemplateMappingSettingCategories.IsTemplateMappingCategory(request.Category)
+        if (SuperAdminOnlyTenantSettingCategories.IsRestricted(request.Category)
             && !permissionChecker.IsInteractivePlatformAdmin())
         {
             return Result<UpsertTenantSettingResponse>.Forbid(
-                "Only SuperAdmin can update ApplicationTemplates / Template HostMappings.");
+                $"Only SuperAdmin can update '{request.Category}' settings.");
         }
 
         string decodedSettingsJson;
