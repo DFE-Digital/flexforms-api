@@ -23,24 +23,29 @@ public sealed class TenantTemplateCatalogue(
             return Array.Empty<TemplateId>();
         }
 
-        // Configured mappings + tenant-owned rows are the only membership sources.
-        // Never fall back to "all templates in the EA database" — shared EA DBs would
-        // otherwise leak every other tenant's forms into a freshly cloned empty tenant.
+        // Configured mappings are claimable only when the template exists and is legacy
+        // (TenantId null) or owned by this tenant. Foreign TenantId GUIDs are ignored.
         var fromConfig = ReadConfiguredTemplateIds(tenant);
+        var claimableFromConfig = await FilterClaimableConfiguredIdsAsync(
+            fromConfig,
+            tenant.Id,
+            tenant.Name,
+            cancellationToken);
+
         var ownedTemplateIds = await templateRepository.Query()
             .AsNoTracking()
             .Where(template => template.TenantId == tenant.Id && template.Id != null)
             .Select(template => template.Id!)
             .ToListAsync(cancellationToken);
 
-        var tenantTemplateIds = fromConfig
+        var tenantTemplateIds = claimableFromConfig
             .Concat(ownedTemplateIds)
             .Distinct()
             .ToList()
             .AsReadOnly();
 
         logger.LogDebug(
-            "Tenant {TenantName} catalogue resolved from configuration and owned templates ({Count} template(s)).",
+            "Tenant {TenantName} catalogue resolved from claimable mappings and owned templates ({Count} template(s)).",
             tenant.Name,
             tenantTemplateIds.Count);
 
@@ -52,6 +57,52 @@ public sealed class TenantTemplateCatalogue(
     {
         var catalogue = await GetTemplateIdsAsync(cancellationToken);
         return catalogue.Any(t => t == templateId);
+    }
+
+    private async Task<IReadOnlyList<TemplateId>> FilterClaimableConfiguredIdsAsync(
+        IReadOnlyList<TemplateId> configuredIds,
+        Guid tenantId,
+        string tenantName,
+        CancellationToken cancellationToken)
+    {
+        if (configuredIds.Count == 0)
+            return Array.Empty<TemplateId>();
+
+        var idSet = configuredIds.ToHashSet();
+        var rows = await templateRepository.Query()
+            .AsNoTracking()
+            .Where(t => t.Id != null && idSet.Contains(t.Id))
+            .Select(t => new { Id = t.Id!, t.TenantId })
+            .ToListAsync(cancellationToken);
+
+        var byId = rows.ToDictionary(r => r.Id, r => r.TenantId);
+        var claimable = new List<TemplateId>();
+
+        foreach (var id in configuredIds)
+        {
+            if (!byId.TryGetValue(id, out var ownerTenantId))
+            {
+                logger.LogWarning(
+                    "Ignoring HostMappings/template GUID {TemplateId} for tenant {TenantName}: template not found in EA database.",
+                    id.Value,
+                    tenantName);
+                continue;
+            }
+
+            if (ownerTenantId is not null && ownerTenantId.Value != tenantId)
+            {
+                logger.LogWarning(
+                    "Ignoring HostMappings/template GUID {TemplateId} for tenant {TenantName}: owned by another tenant ({OwnerTenantId}).",
+                    id.Value,
+                    tenantName,
+                    ownerTenantId);
+                continue;
+            }
+
+            claimable.Add(id);
+        }
+
+        return claimable;
     }
 
     private IReadOnlyList<TemplateId> ReadConfiguredTemplateIds(TenantConfiguration tenant)

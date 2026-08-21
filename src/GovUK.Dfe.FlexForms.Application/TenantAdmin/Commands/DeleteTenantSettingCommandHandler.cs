@@ -1,6 +1,7 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using GovUK.Dfe.FlexForms.Application.TenantAdmin.Validation;
 using MediatR;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
@@ -44,6 +45,13 @@ public sealed class DeleteTenantSettingCommandHandler(
         {
             return Result<DeleteTenantSettingResponse>.Validation(
                 "Category and Target are required.");
+        }
+
+        if (TemplateMappingSettingCategories.IsTemplateMappingCategory(category)
+            && !permissionChecker.IsInteractivePlatformAdmin())
+        {
+            return Result<DeleteTenantSettingResponse>.Forbid(
+                "Only SuperAdmin can delete ApplicationTemplates / Template HostMappings.");
         }
 
         try

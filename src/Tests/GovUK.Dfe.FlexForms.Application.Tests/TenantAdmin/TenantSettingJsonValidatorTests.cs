@@ -196,6 +196,28 @@ public class TenantSettingJsonValidatorTests
     }
 
     [Fact]
+    public void Validate_ApplicationTemplates_RejectsInvalidHostMappingGuid()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "ApplicationTemplates",
+            "Api",
+            """{"HostMappings":{"transfers":"not-a-guid"}}""");
+
+        Assert.Contains(errors, e => e.Contains("HostMappings", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_ApplicationTemplates_AcceptsValidHostMappings()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "ApplicationTemplates",
+            "Api",
+            """{"HostMappings":{"transfers":"9A4E9C58-9135-468C-B154-7B966F7ACFB7"}}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
     public void Validate_FileValidation_AcceptsKnownModes()
     {
         var errors = TenantSettingJsonValidator.Validate(

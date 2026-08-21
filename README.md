@@ -454,7 +454,7 @@ dotnet ef migrations add <Name> --project src/GovUK.Dfe.FlexForms.Infrastructure
 
 ### Scripts
 
-See `scripts/` for TenantConfig import helpers (Web/Api settings upsert). Ensure HostMappings only list that tenant’s template GUIDs on shared EA databases.
+See `scripts/` for TenantConfig import helpers (Web/Api settings upsert). HostMappings GUIDs must be claimable (legacy `TenantId` null or owned by the tenant); SuperAdmin-only to edit. Audit with `Audit-TenantHostMappings.sql` on shared EA databases.
 
 ---
 

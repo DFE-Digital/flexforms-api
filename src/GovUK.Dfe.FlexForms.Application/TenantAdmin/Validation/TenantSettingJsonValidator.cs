@@ -118,6 +118,8 @@ public static class TenantSettingJsonValidator
             "EventTriggers" => true,
             "FileValidation" => true,
             "SelfRegistration" => true,
+            "ApplicationTemplates" => true,
+            "Template" => true,
             _ => false
         };
 
@@ -266,10 +268,82 @@ public static class TenantSettingJsonValidator
                 }
                 break;
 
+            case "ApplicationTemplates":
+            case "Template":
+                ValidateTemplateMappingCategory(root, errors);
+                break;
+
             default:
                 // Unknown categories: any JSON object/array/scalar is accepted.
                 break;
         }
+    }
+
+    private static void ValidateTemplateMappingCategory(JsonElement root, List<string> errors)
+    {
+        if (TryGetPropertyIgnoreCase(root, "HostMappings", out var mappings))
+        {
+            if (mappings.ValueKind != JsonValueKind.Object)
+            {
+                errors.Add("HostMappings must be a JSON object of name → template GUID.");
+            }
+            else
+            {
+                foreach (var prop in mappings.EnumerateObject())
+                {
+                    if (!IsNonEmptyGuid(prop.Value, out _))
+                    {
+                        errors.Add(
+                            $"HostMappings['{prop.Name}'] must be a non-empty GUID.");
+                    }
+                }
+            }
+        }
+
+        if (TryGetPropertyIgnoreCase(root, "TemplateId", out var templateId)
+            && templateId.ValueKind is not JsonValueKind.Null
+            && templateId.ValueKind is not JsonValueKind.Undefined
+            && !IsNonEmptyGuid(templateId, out _))
+        {
+            errors.Add("TemplateId must be a non-empty GUID when present.");
+        }
+
+        if (TryGetPropertyIgnoreCase(root, "Id", out var id)
+            && id.ValueKind is not JsonValueKind.Null
+            && id.ValueKind is not JsonValueKind.Undefined
+            && !IsNonEmptyGuid(id, out _))
+        {
+            errors.Add("Id must be a non-empty GUID when present.");
+        }
+    }
+
+    private static bool IsNonEmptyGuid(JsonElement value, out Guid guid)
+    {
+        guid = Guid.Empty;
+        var raw = value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : value.ToString();
+        return !string.IsNullOrWhiteSpace(raw)
+               && Guid.TryParse(raw, out guid)
+               && guid != Guid.Empty;
+    }
+
+    private static bool TryGetPropertyIgnoreCase(JsonElement root, string name, out JsonElement value)
+    {
+        if (root.TryGetProperty(name, out value))
+            return true;
+
+        foreach (var prop in root.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                value = prop.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
     }
 
     private static void ValidateSchemaEvents(JsonElement root, List<string> errors)

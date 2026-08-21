@@ -19,7 +19,8 @@ public sealed record ValidateTenantSettingCommand(
 public sealed class ValidateTenantSettingCommandHandler(
     ITenantContextAccessor tenantContextAccessor,
     IPermissionCheckerService permissionChecker,
-    ITenantSettingsQuery settingsQuery)
+    ITenantSettingsQuery settingsQuery,
+    ITemplateHostMappingOwnershipValidator templateMappingOwnershipValidator)
     : IRequestHandler<ValidateTenantSettingCommand, Result<ValidateTenantSettingResponse>>
 {
     public async Task<Result<ValidateTenantSettingResponse>> Handle(
@@ -39,6 +40,13 @@ public sealed class ValidateTenantSettingCommandHandler(
                 "Administrators may only validate settings for their own tenant.");
         }
 
+        if (TemplateMappingSettingCategories.IsTemplateMappingCategory(request.Category)
+            && !permissionChecker.IsInteractivePlatformAdmin())
+        {
+            return Result<ValidateTenantSettingResponse>.Forbid(
+                "Only SuperAdmin can validate ApplicationTemplates / Template HostMappings.");
+        }
+
         string decoded;
         try
         {
@@ -54,6 +62,16 @@ public sealed class ValidateTenantSettingCommandHandler(
         var target = request.Target?.Trim() ?? string.Empty;
         var errors = TenantSettingJsonValidator.Validate(
             category, target, decoded, TenantSettingValidationMode.Strict).ToList();
+
+        if (errors.Count == 0)
+        {
+            var ownershipErrors = await templateMappingOwnershipValidator.ValidateAsync(
+                request.TenantId,
+                category,
+                decoded,
+                cancellationToken);
+            errors.AddRange(ownershipErrors);
+        }
 
         var list = await settingsQuery.ListSettingsAsync(request.TenantId, cancellationToken);
         var existing = list?.Settings.FirstOrDefault(s =>

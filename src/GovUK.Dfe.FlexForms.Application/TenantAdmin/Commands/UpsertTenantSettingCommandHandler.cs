@@ -32,6 +32,7 @@ public sealed class UpsertTenantSettingCommandHandler(
     IPermissionCheckerService permissionChecker,
     ITenantConfigurationProvider tenantConfigProvider,
     ITenantSettingAuditWriter auditWriter,
+    ITemplateHostMappingOwnershipValidator templateMappingOwnershipValidator,
     IHttpContextAccessor httpContextAccessor,
     IHostEnvironment hostEnvironment)
     : IRequestHandler<UpsertTenantSettingCommand, Result<UpsertTenantSettingResponse>>
@@ -60,6 +61,13 @@ public sealed class UpsertTenantSettingCommandHandler(
                 $"Administrators may only update their own tenant ('{currentTenant.Id}').");
         }
 
+        if (TemplateMappingSettingCategories.IsTemplateMappingCategory(request.Category)
+            && !permissionChecker.IsInteractivePlatformAdmin())
+        {
+            return Result<UpsertTenantSettingResponse>.Forbid(
+                "Only SuperAdmin can update ApplicationTemplates / Template HostMappings.");
+        }
+
         string decodedSettingsJson;
         try
         {
@@ -81,7 +89,17 @@ public sealed class UpsertTenantSettingCommandHandler(
         var validationErrors = TenantSettingJsonValidator.Validate(
             request.Category,
             request.Target,
-            decodedSettingsJson);
+            decodedSettingsJson).ToList();
+
+        if (validationErrors.Count == 0)
+        {
+            var ownershipErrors = await templateMappingOwnershipValidator.ValidateAsync(
+                request.TenantId,
+                request.Category,
+                decodedSettingsJson,
+                cancellationToken);
+            validationErrors.AddRange(ownershipErrors);
+        }
 
         if (validationErrors.Count > 0)
         {

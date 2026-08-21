@@ -19,6 +19,8 @@ public class UpsertTenantSettingCommandHandlerTests
     private readonly IPermissionCheckerService _permissionChecker = Substitute.For<IPermissionCheckerService>();
     private readonly ITenantConfigurationProvider _configProvider = Substitute.For<ITenantConfigurationProvider>();
     private readonly ITenantSettingAuditWriter _auditWriter = Substitute.For<ITenantSettingAuditWriter>();
+    private readonly ITemplateHostMappingOwnershipValidator _ownershipValidator =
+        Substitute.For<ITemplateHostMappingOwnershipValidator>();
     private readonly IHttpContextAccessor _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
     private readonly IHostEnvironment _hostEnvironment = Substitute.For<IHostEnvironment>();
     private readonly UpsertTenantSettingCommandHandler _handler;
@@ -26,12 +28,16 @@ public class UpsertTenantSettingCommandHandlerTests
     public UpsertTenantSettingCommandHandlerTests()
     {
         _hostEnvironment.EnvironmentName.Returns("Development");
+        _ownershipValidator
+            .ValidateAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<string>());
         _handler = new UpsertTenantSettingCommandHandler(
             _writer,
             _tenantContext,
             _permissionChecker,
             _configProvider,
             _auditWriter,
+            _ownershipValidator,
             _httpContextAccessor,
             _hostEnvironment);
     }
@@ -113,6 +119,28 @@ public class UpsertTenantSettingCommandHandlerTests
         Assert.True(result.IsSuccess);
         await _writer.Received(1).UpsertSettingAsync(
             tenantId, "Authorization", "Api", json, true, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldForbid_WhenTenantAdminUpdatesApplicationTemplates()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
+        _permissionChecker.IsInteractivePlatformAdmin().Returns(false);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+
+        var result = await _handler.Handle(
+            new UpsertTenantSettingCommand(
+                tenantId,
+                "ApplicationTemplates",
+                "Api",
+                ToBase64("""{"HostMappings":{}}"""),
+                false),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DomainErrorCode.Forbidden, result.ErrorCode);
+        await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
     }
 
     [Fact]

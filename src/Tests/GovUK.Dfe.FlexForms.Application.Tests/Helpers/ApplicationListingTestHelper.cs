@@ -77,9 +77,10 @@ internal static class ApplicationListingTestHelper
     internal static void AttachTemplateVersion(
         Domain.Entities.Application application,
         TemplateId templateId,
-        UserId createdBy)
+        UserId createdBy,
+        Guid? ownerTenantId = null)
     {
-        var template = new Template(templateId, "Test Template", DateTime.UtcNow, createdBy);
+        var template = new Template(templateId, "Test Template", DateTime.UtcNow, createdBy, tenantId: ownerTenantId);
         var templateVersion = new TemplateVersion(
             new TemplateVersionId(Guid.NewGuid()),
             templateId,

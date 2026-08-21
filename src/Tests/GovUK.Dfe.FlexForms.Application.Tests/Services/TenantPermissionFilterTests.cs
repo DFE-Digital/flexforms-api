@@ -45,8 +45,8 @@ public class TenantPermissionFilterTests
         var tenantTemplateIds = new HashSet<Guid> { _tenantTemplateId };
         var map = new Dictionary<Guid, TenantPermissionFilter.ApplicationOwnership>
         {
-            [_tenantApplicationId] = new(_tenantTemplateId),
-            [_otherApplicationId] = new(_otherTemplateId)
+            [_tenantApplicationId] = new(_tenantTemplateId, _currentTenantId),
+            [_otherApplicationId] = new(_otherTemplateId, _otherTenantId)
         };
 
         var tenantPermission = CreatePermission(userId, ResourceType.Application, _tenantApplicationId.ToString(), AccessType.Read);
@@ -57,18 +57,33 @@ public class TenantPermissionFilterTests
     }
 
     [Fact]
-    public void BelongsToTenant_ShouldKeepHostMappedApplication_WhenTemplateIsOwnedByAnotherTenant()
+    public void BelongsToTenant_ShouldKeepLegacyHostMappedApplication_WhenTemplateTenantIdIsNull()
     {
         var userId = new UserId(Guid.NewGuid());
         var tenantTemplateIds = new HashSet<Guid> { _otherTemplateId };
         var map = new Dictionary<Guid, TenantPermissionFilter.ApplicationOwnership>
         {
-            [_otherApplicationId] = new(_otherTemplateId)
+            [_otherApplicationId] = new(_otherTemplateId, OwnerTenantId: null)
         };
 
         var permission = CreatePermission(userId, ResourceType.Application, _otherApplicationId.ToString(), AccessType.Read);
 
         Assert.True(TenantPermissionFilter.BelongsToTenant(permission, _currentTenantId, tenantTemplateIds, map));
+    }
+
+    [Fact]
+    public void BelongsToTenant_ShouldRejectApplication_WhenTemplateIsOwnedByAnotherTenant()
+    {
+        var userId = new UserId(Guid.NewGuid());
+        var tenantTemplateIds = new HashSet<Guid> { _otherTemplateId };
+        var map = new Dictionary<Guid, TenantPermissionFilter.ApplicationOwnership>
+        {
+            [_otherApplicationId] = new(_otherTemplateId, _otherTenantId)
+        };
+
+        var permission = CreatePermission(userId, ResourceType.Application, _otherApplicationId.ToString(), AccessType.Read);
+
+        Assert.False(TenantPermissionFilter.BelongsToTenant(permission, _currentTenantId, tenantTemplateIds, map));
     }
 
     [Fact]
@@ -129,7 +144,7 @@ public class TenantPermissionFilterTests
     }
 
     [Fact]
-    public async Task ApplicationBelongsToCurrentTenantAsync_ShouldAllowHostMappedTemplateOwnedByAnotherTenant()
+    public async Task ApplicationBelongsToCurrentTenantAsync_ShouldAllowLegacyHostMappedTemplate_WhenTenantIdIsNull()
     {
         var createdBy = new UserId(Guid.NewGuid());
         var application = new Domain.Entities.Application(
@@ -145,6 +160,29 @@ public class TenantPermissionFilterTests
             applications: [application]);
 
         Assert.True(await filter.ApplicationBelongsToCurrentTenantAsync(_tenantApplicationId));
+    }
+
+    [Fact]
+    public async Task ApplicationBelongsToCurrentTenantAsync_ShouldDeny_WhenTemplateIsOwnedByAnotherTenant()
+    {
+        var createdBy = new UserId(Guid.NewGuid());
+        var application = new Domain.Entities.Application(
+            new ApplicationId(_tenantApplicationId),
+            "VST-1",
+            new TemplateVersionId(Guid.NewGuid()),
+            DateTime.UtcNow,
+            createdBy);
+        ApplicationListingTestHelper.AttachTemplateVersion(
+            application,
+            new TemplateId(_otherTemplateId),
+            createdBy,
+            ownerTenantId: _otherTenantId);
+
+        var filter = CreateFilter(
+            catalogueTemplateIds: [new TemplateId(_otherTemplateId)],
+            applications: [application]);
+
+        Assert.False(await filter.ApplicationBelongsToCurrentTenantAsync(_tenantApplicationId));
     }
 
     [Fact]

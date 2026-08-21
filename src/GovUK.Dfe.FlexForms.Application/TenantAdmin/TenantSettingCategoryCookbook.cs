@@ -103,6 +103,31 @@ public static class TenantSettingCategoryCookbook
             requiresObject: false),
 
         Entry(
+            "ApplicationTemplates",
+            "API HostMappings / template GUIDs for the tenant catalogue and email resolution.",
+            ["Api", "Shared"],
+            example: """{"HostMappings":{"transfers":"9A4E9C58-9135-468C-B154-7B966F7ACFB7"}}""",
+            notes:
+            [
+                "SuperAdmin only",
+                "Each GUID must exist in EA and be legacy (TenantId null) or owned by this tenant",
+                "Foreign TenantId GUIDs are rejected on save and ignored at runtime"
+            ],
+            requiresObject: true),
+
+        Entry(
+            "Template",
+            "Web HostMappings / default template Id for hostname → TemplateId session resolution.",
+            ["Web"],
+            example: """{"HostMappings":{"transfers.dev-flexforms.rsd.education.gov.uk":"9A4E9C58-9135-468C-B154-7B966F7ACFB7"},"Id":"9A4E9C58-9135-468C-B154-7B966F7ACFB7"}""",
+            notes:
+            [
+                "SuperAdmin only",
+                "Same ownership rules as ApplicationTemplates"
+            ],
+            requiresObject: true),
+
+        Entry(
             "ApplicationTerminology",
             "Display terms for 'application' (delegated to Tenant Admins).",
             ["Web"],
