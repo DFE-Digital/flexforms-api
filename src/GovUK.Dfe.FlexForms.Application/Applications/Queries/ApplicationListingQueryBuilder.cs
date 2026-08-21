@@ -22,15 +22,9 @@ internal static class ApplicationListingQueryBuilder
     /// </summary>
     internal static IQueryable<Domain.Entities.Application> BuildMyApplicationsQuery(
         IEaRepository<Domain.Entities.Application> appRepo,
-        User userWithAuthorization,
+        IReadOnlyCollection<ApplicationId> applicationIds,
         IReadOnlyCollection<TemplateId> templateIdsFilter)
     {
-        var applicationIds = userWithAuthorization.Permissions
-            .Where(p => p is { ApplicationId: not null, ResourceType: ResourceType.Application })
-            .Select(p => p.ApplicationId!)
-            .Distinct()
-            .ToList();
-
         IQueryable<Domain.Entities.Application> query = applicationIds.Count == 0
             ? appRepo.Query().AsNoTracking().Where(_ => false)
             : new GetApplicationsByIdsQueryObject(applicationIds)
@@ -45,6 +39,24 @@ internal static class ApplicationListingQueryBuilder
 
         return new GetApplicationsByTemplateIdsQueryObject(templateIdsFilter)
             .Apply(query);
+    }
+
+    /// <summary>
+    /// Legacy overload kept for tests that still pass a hydrated user.
+    /// Prefer the application-ID overload for listing handlers.
+    /// </summary>
+    internal static IQueryable<Domain.Entities.Application> BuildMyApplicationsQuery(
+        IEaRepository<Domain.Entities.Application> appRepo,
+        User userWithAuthorization,
+        IReadOnlyCollection<TemplateId> templateIdsFilter)
+    {
+        var applicationIds = userWithAuthorization.Permissions
+            .Where(p => p is { ApplicationId: not null, ResourceType: ResourceType.Application })
+            .Select(p => p.ApplicationId!)
+            .Distinct()
+            .ToList();
+
+        return BuildMyApplicationsQuery(appRepo, applicationIds, templateIdsFilter);
     }
 
     internal static IQueryable<Domain.Entities.Application> BuildTemplateQuery(

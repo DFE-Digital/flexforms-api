@@ -210,7 +210,8 @@ public class GetApplicationsForUserByExternalProviderIdQueryHandlerTests
         await handler.Handle(new GetApplicationsForUserByExternalProviderIdQuery(externalProviderId), CancellationToken.None);
         await handler.Handle(new GetApplicationsForUserByExternalProviderIdQuery(externalProviderId), CancellationToken.None);
 
-        userRepo.Received(2).Query();
+        // Per request: user lookup + application IDs + template permissions (cache passthrough in tests).
+        userRepo.Received(6).Query();
     }
 
     [Theory]

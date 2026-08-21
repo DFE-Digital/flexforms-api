@@ -46,22 +46,30 @@ public sealed class GetApplicationsForUserByExternalProviderIdQueryHandler(
                 cacheKey,
                 async () =>
                 {
-                    var userWithAuthorization = await new GetUserWithAllPermissionsByExternalIdQueryObject(request.ExternalProviderId)
+                    var dbUser = await new GetUserByExternalProviderIdQueryObject(request.ExternalProviderId)
                         .Apply(userRepo.Query().AsNoTracking())
                         .FirstOrDefaultAsync(cancellationToken);
 
-                    if (userWithAuthorization is null)
+                    if (dbUser is null)
                         return Result<PagedResult<ApplicationDto>>.Success(
                             ApplicationListingQueryBuilder.EmptyPagedResult(request.PageNumber, request.PageSize));
 
+                    var applicationIds = await new GetApplicationIdsByExternalProviderIdQueryObject(request.ExternalProviderId)
+                        .Apply(userRepo.Query().AsNoTracking())
+                        .ToListAsync(cancellationToken);
+
+                    var templatePermissions = await new GetTemplateResourcePermissionsByExternalProviderIdQueryObject(request.ExternalProviderId)
+                        .Apply(userRepo.Query().AsNoTracking())
+                        .ToListAsync(cancellationToken);
+
                     var templateIdsFilter = await userAccessibleTemplateService.ResolveAccessibleListingFilterAsync(
-                        userWithAuthorization.Permissions,
+                        templatePermissions,
                         request.TemplateId,
                         cancellationToken);
 
                     var query = ApplicationListingQueryBuilder.BuildMyApplicationsQuery(
                         appRepo,
-                        userWithAuthorization,
+                        applicationIds,
                         templateIdsFilter);
 
                     query = ApplicationListingQueryBuilder.ApplySearchFilters(query, request.Search);

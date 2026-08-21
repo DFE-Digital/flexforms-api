@@ -13,7 +13,8 @@ namespace GovUK.Dfe.FlexForms.Application.Users.QueryObjects
             return query
                 .Where(u => u.ExternalProviderId == externalProviderId)
                 .Include(u => u.Permissions)
-                .Include(u => u.Role);
+                .Include(u => u.Role)
+                .AsSplitQuery();
         }
     }
 }
