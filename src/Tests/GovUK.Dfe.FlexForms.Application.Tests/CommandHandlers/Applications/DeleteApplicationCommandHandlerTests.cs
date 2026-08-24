@@ -3,7 +3,6 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Applications.Commands;
 using GovUK.Dfe.FlexForms.Application.Services;
-using File = GovUK.Dfe.FlexForms.Domain.Entities.File;
 using GovUK.Dfe.FlexForms.Application.Tests.Helpers;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
@@ -19,6 +18,14 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.Applications;
 
 public class DeleteApplicationCommandHandlerTests
 {
+    private static ITenantTemplateResolver AllowAllTenantTemplates()
+    {
+        var resolver = Substitute.For<ITenantTemplateResolver>();
+        resolver.IsTemplateInCurrentTenantAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        return resolver;
+    }
+
     [Theory]
     [CustomAutoData(typeof(ApplicationCustomization), typeof(UserCustomization))]
     public async Task Handle_ShouldDeleteApplication_WhenValidRequest(
@@ -280,13 +287,23 @@ public class DeleteApplicationCommandHandlerTests
             user.LastModifiedBy);
 
         var applicationId = new ApplicationId(command.ApplicationId);
+        var templateVersionId = new TemplateVersionId(Guid.NewGuid());
         var application = new Domain.Entities.Application(
             applicationId,
             "APP-001",
-            new TemplateVersionId(Guid.NewGuid()),
+            templateVersionId,
             DateTime.UtcNow,
             testUser.Id!,
             ApplicationStatus.Deleted);
+
+        var templateVersion = new TemplateVersion(
+            templateVersionId,
+            new TemplateId(Guid.NewGuid()),
+            "1.0.0",
+            "{}",
+            DateTime.UtcNow,
+            testUser.Id!);
+        application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
 
         var applications = new[] { application }.AsQueryable().BuildMockDbSet();
         applicationRepo.Query().Returns(applications);
@@ -309,26 +326,84 @@ public class DeleteApplicationCommandHandlerTests
         Assert.Contains("Application has already been deleted", result.Error!);
     }
 
+    [Theory]
+    [CustomAutoData(typeof(ApplicationCustomization), typeof(UserCustomization))]
+    public async Task Handle_ShouldReturnForbidden_WhenApplicationBelongsToAnotherTenant(
+        DeleteApplicationCommand command,
+        User user,
+        IEaRepository<Domain.Entities.Application> applicationRepo,
+        IPermissionCheckerService permissionCheckerService,
+        IUnitOfWork unitOfWork)
+    {
+        var testUser = new User(
+            user.Id!,
+            user.RoleId,
+            user.Name,
+            "visits-admin@example.com",
+            user.CreatedOn,
+            user.CreatedBy,
+            user.LastModifiedOn,
+            user.LastModifiedBy);
+
+        var applicationId = new ApplicationId(command.ApplicationId);
+        var templateVersionId = new TemplateVersionId(Guid.NewGuid());
+        var transferTemplateId = new TemplateId(Guid.NewGuid());
+        var application = new Domain.Entities.Application(
+            applicationId,
+            "APP-TRANSFER-001",
+            templateVersionId,
+            DateTime.UtcNow,
+            testUser.Id!,
+            ApplicationStatus.InProgress);
+
+        var templateVersion = new TemplateVersion(
+            templateVersionId,
+            transferTemplateId,
+            "1.0.0",
+            "{}",
+            DateTime.UtcNow,
+            testUser.Id!);
+        application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
+
+        var applications = new[] { application }.AsQueryable().BuildMockDbSet();
+        applicationRepo.Query().Returns(applications);
+
+        permissionCheckerService.HasPermission(
+            ResourceType.Application,
+            command.ApplicationId.ToString(),
+            AccessType.Write)
+            .Returns(true);
+
+        var tenantTemplateResolver = Substitute.For<ITenantTemplateResolver>();
+        tenantTemplateResolver.IsTemplateInCurrentTenantAsync(transferTemplateId, Arg.Any<CancellationToken>())
+            .Returns(false);
+
+        var handler = CreateHandler(
+            applicationRepo,
+            AuthenticatedUserServiceTestHelper.MockReturningUser(testUser),
+            permissionCheckerService,
+            unitOfWork,
+            tenantTemplateResolver);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("Application does not belong to the current tenant", result.Error);
+        await unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
+
     private static DeleteApplicationCommandHandler CreateHandler(
         IEaRepository<Domain.Entities.Application> applicationRepo,
         IAuthenticatedUserService authenticatedUserService,
         IPermissionCheckerService permissionCheckerService,
         IUnitOfWork unitOfWork,
-        IEaRepository<Domain.Entities.File>? fileRepository = null,
-        IFileValidationModeResolver? modeResolver = null,
-        IApplicationFileValidationPolicy? policy = null)
+        ITenantTemplateResolver? tenantTemplateResolver = null)
     {
-        var files = fileRepository ?? Substitute.For<IEaRepository<Domain.Entities.File>>();
-        var emptyFiles = Array.Empty<Domain.Entities.File>().AsQueryable().BuildMockDbSet();
-        files.Query().Returns(emptyFiles);
-
-        var resolver = modeResolver ?? Substitute.For<IFileValidationModeResolver>();
-        resolver.Resolve(Arg.Any<Guid?>()).Returns(FileValidationMode.Off);
-
         return new DeleteApplicationCommandHandler(
             applicationRepo,
             authenticatedUserService,
             permissionCheckerService,
+            tenantTemplateResolver ?? AllowAllTenantTemplates(),
             Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
     }
