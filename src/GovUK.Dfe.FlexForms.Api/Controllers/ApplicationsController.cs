@@ -1,18 +1,19 @@
 using Asp.Versioning;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Http.Models;
+using GovUK.Dfe.FlexForms.Api.Filters;
 using GovUK.Dfe.FlexForms.Api.Models.Applications;
 using GovUK.Dfe.FlexForms.Application.Applications.Commands;
 using GovUK.Dfe.FlexForms.Application.Applications.Queries;
 using GovUK.Dfe.FlexForms.Application.Common.Exceptions;
-using GovUK.Dfe.FlexForms.Api.Filters;
+using GovUK.Dfe.FlexForms.Infrastructure.Security;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
-using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 
 namespace GovUK.Dfe.FlexForms.Api.Controllers;
 
@@ -160,6 +161,31 @@ public class ApplicationsController(ISender sender) : ControllerBase
     {
         var query = new GetApplicationByReferenceQuery(applicationReference);
         var result = await sender.Send(query, cancellationToken);
+
+        return new ObjectResult(result)
+        {
+            StatusCode = StatusCodes.Status200OK
+        };
+    }
+
+    /// <summary>
+    /// Soft deletes an application, changing its status to Deleted.
+    /// </summary>
+    [HttpDelete("{applicationId}")]
+    [SwaggerResponse(200, "Application deleted successfully.", typeof(ApplicationDto))]
+    [SwaggerResponse(400, "Invalid request data or application not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "User does not have permission to delete this application", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "Application not found", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    public async Task<IActionResult> DeleteApplicationAsync(
+        [FromRoute] Guid applicationId,
+        CancellationToken cancellationToken)
+    {
+        var command = new DeleteApplicationCommand(applicationId);
+        var result = await sender.Send(command, cancellationToken);
 
         return new ObjectResult(result)
         {

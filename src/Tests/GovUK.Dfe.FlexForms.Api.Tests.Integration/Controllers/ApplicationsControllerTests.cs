@@ -186,7 +186,7 @@ public class ApplicationsControllerTests
         {
             ResponseBody = "this is not base64"
         };
-        
+
         // Act
         var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
             () => applicationsClient.AddApplicationResponseAsync(new Guid(EaContextSeeder.ApplicationId), request));
@@ -378,158 +378,253 @@ public class ApplicationsControllerTests
             new AuthenticationHeaderValue("Bearer", "user-token");
 
         // Act
-                 var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
-             () => applicationsClient.GetApplicationByReferenceAsync("InvalidAppRef"));
-         Assert.Equal(404, ex.StatusCode);
-     }
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+    () => applicationsClient.GetApplicationByReferenceAsync("InvalidAppRef"));
+        Assert.Equal(404, ex.StatusCode);
+    }
 
-     [Theory]
-     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-     public async Task SubmitApplicationAsync_ShouldSubmitApplication_WhenValidRequest(
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task DeleteApplicationAsync_ShouldDeleteApplication_WhenValidRequest(
          CustomWebApplicationDbContextFactory<Program> factory,
          IApplicationsClient applicationsClient,
          HttpClient httpClient)
-     {
-         // Arrange
-         factory.TestClaims = new List<Claim>
+    {
+        // Arrange
+        factory.TestClaims = new List<Claim>
+         {
+             new(ClaimTypes.Email, EaContextSeeder.BobEmail),
+            new(ClaimTypes.Role, "Admin")
+         };
+
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "user-token");
+
+        var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
+
+        // Act
+        var result = await applicationsClient.DeleteApplicationAsync(applicationId);
+
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(applicationId, result.ApplicationId);
+        Assert.Equal(ApplicationStatus.Deleted, result.Status);
+        Assert.NotNull(result.DateDeleted);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task DeleteApplicationAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        IApplicationsClient applicationsClient,
+        HttpClient httpClient)
+    {
+        // Arrange
+        var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
+
+        // Act
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => applicationsClient.DeleteApplicationAsync(applicationId));
+        Assert.Equal(403, ex.StatusCode);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task DeleteApplicationAsync_ShouldReturnForbidden_WhenPermissionMissing(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        IApplicationsClient applicationsClient,
+        HttpClient httpClient)
+    {
+        // Arrange
+        factory.TestClaims = new List<Claim>
+         {
+             new(ClaimTypes.Email, EaContextSeeder.BobEmail)
+             // No Admin permission for this application
+         };
+
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "user-token");
+
+        var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
+
+        // Act
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => applicationsClient.DeleteApplicationAsync(applicationId));
+        Assert.Equal(403, ex.StatusCode);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task DeleteApplicationAsync_ShouldReturnNotFound_WhenApplicationNotExists(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        IApplicationsClient applicationsClient,
+        HttpClient httpClient)
+    {
+        // Arrange
+        var nonExistentApplicationId = Guid.NewGuid();
+
+        factory.TestClaims = new List<Claim>
+         {
+             new(ClaimTypes.Email, EaContextSeeder.BobEmail),
+             new(ClaimTypes.Role, "Admin") // Give permission for the specific non-existent app
+         };
+
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "user-token");
+
+        // Act
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => applicationsClient.DeleteApplicationAsync(nonExistentApplicationId));
+        Assert.Equal(404, ex.StatusCode);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task SubmitApplicationAsync_ShouldSubmitApplication_WhenValidRequest(
+         CustomWebApplicationDbContextFactory<Program> factory,
+         IApplicationsClient applicationsClient,
+         HttpClient httpClient)
+    {
+        // Arrange
+        factory.TestClaims = new List<Claim>
          {
              new(ClaimTypes.Email, EaContextSeeder.BobEmail),
              new("permission", $"Application:{EaContextSeeder.ApplicationId}:Write")
          };
 
-         httpClient.DefaultRequestHeaders.Authorization =
-             new AuthenticationHeaderValue("Bearer", "user-token");
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "user-token");
 
-         var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
+        var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
 
-         // Act
-         var result = await applicationsClient.SubmitApplicationAsync(applicationId);
+        // Act
+        var result = await applicationsClient.SubmitApplicationAsync(applicationId);
 
-         // Assert
-         Assert.NotNull(result);
-         Assert.Equal(applicationId, result.ApplicationId);
-         Assert.Equal(ApplicationStatus.Submitted, result.Status);
-         Assert.NotNull(result.DateSubmitted);
-     }
+        // Assert
+        Assert.NotNull(result);
+        Assert.Equal(applicationId, result.ApplicationId);
+        Assert.Equal(ApplicationStatus.Submitted, result.Status);
+        Assert.NotNull(result.DateSubmitted);
+    }
 
-     [Theory]
-     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-     public async Task SubmitApplicationAsync_ShouldReturnUnauthorized_WhenTokenMissing(
-         CustomWebApplicationDbContextFactory<Program> factory,
-         IApplicationsClient applicationsClient,
-         HttpClient httpClient)
-     {
-         // Arrange
-         var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task SubmitApplicationAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        IApplicationsClient applicationsClient,
+        HttpClient httpClient)
+    {
+        // Arrange
+        var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
 
-         // Act
-         var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
-             () => applicationsClient.SubmitApplicationAsync(applicationId));
-         Assert.Equal(403, ex.StatusCode);
-     }
+        // Act
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => applicationsClient.SubmitApplicationAsync(applicationId));
+        Assert.Equal(403, ex.StatusCode);
+    }
 
-     [Theory]
-     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-     public async Task SubmitApplicationAsync_ShouldReturnForbidden_WhenPermissionMissing(
-         CustomWebApplicationDbContextFactory<Program> factory,
-         IApplicationsClient applicationsClient,
-         HttpClient httpClient)
-     {
-         // Arrange
-         factory.TestClaims = new List<Claim>
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task SubmitApplicationAsync_ShouldReturnForbidden_WhenPermissionMissing(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        IApplicationsClient applicationsClient,
+        HttpClient httpClient)
+    {
+        // Arrange
+        factory.TestClaims = new List<Claim>
          {
              new(ClaimTypes.Email, EaContextSeeder.BobEmail)
              // No Write permission for this application
          };
 
-         httpClient.DefaultRequestHeaders.Authorization =
-             new AuthenticationHeaderValue("Bearer", "user-token");
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "user-token");
 
-         var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
+        var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
 
-         // Act
-         var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
-             () => applicationsClient.SubmitApplicationAsync(applicationId));
-         Assert.Equal(403, ex.StatusCode);
-     }
+        // Act
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => applicationsClient.SubmitApplicationAsync(applicationId));
+        Assert.Equal(403, ex.StatusCode);
+    }
 
-     [Theory]
-     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-     public async Task SubmitApplicationAsync_ShouldReturnNotFound_WhenApplicationNotExists(
-         CustomWebApplicationDbContextFactory<Program> factory,
-         IApplicationsClient applicationsClient,
-         HttpClient httpClient)
-     {
-         // Arrange
-         var nonExistentApplicationId = Guid.NewGuid();
-         
-         factory.TestClaims = new List<Claim>
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task SubmitApplicationAsync_ShouldReturnNotFound_WhenApplicationNotExists(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        IApplicationsClient applicationsClient,
+        HttpClient httpClient)
+    {
+        // Arrange
+        var nonExistentApplicationId = Guid.NewGuid();
+
+        factory.TestClaims = new List<Claim>
          {
              new(ClaimTypes.Email, EaContextSeeder.BobEmail),
              new("permission", $"Application:{nonExistentApplicationId}:Write") // Give permission for the specific non-existent app
          };
 
-         httpClient.DefaultRequestHeaders.Authorization =
-             new AuthenticationHeaderValue("Bearer", "user-token");
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "user-token");
 
-         // Act
-         var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
-             () => applicationsClient.SubmitApplicationAsync(nonExistentApplicationId));
-         Assert.Equal(404, ex.StatusCode);
-     }
+        // Act
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => applicationsClient.SubmitApplicationAsync(nonExistentApplicationId));
+        Assert.Equal(404, ex.StatusCode);
+    }
 
-     [Theory]
-     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-     public async Task SubmitApplicationAsync_ShouldReturnBadRequest_WhenApplicationAlreadySubmitted(
-         CustomWebApplicationDbContextFactory<Program> factory,
-         IApplicationsClient applicationsClient,
-         HttpClient httpClient)
-     {
-         // Arrange
-         factory.TestClaims = new List<Claim>
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task SubmitApplicationAsync_ShouldReturnBadRequest_WhenApplicationAlreadySubmitted(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        IApplicationsClient applicationsClient,
+        HttpClient httpClient)
+    {
+        // Arrange
+        factory.TestClaims = new List<Claim>
          {
              new(ClaimTypes.Email, EaContextSeeder.BobEmail),
              new("permission", $"Application:{EaContextSeeder.ApplicationId}:Write")
          };
 
-         httpClient.DefaultRequestHeaders.Authorization =
-             new AuthenticationHeaderValue("Bearer", "user-token");
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "user-token");
 
-         var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
+        var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
 
-         // First submission
-         await applicationsClient.SubmitApplicationAsync(applicationId);
+        // First submission
+        await applicationsClient.SubmitApplicationAsync(applicationId);
 
-         // Act - Try to submit again
-         var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
-             () => applicationsClient.SubmitApplicationAsync(applicationId));
-         Assert.Equal(400, ex.StatusCode);
-     }
+        // Act - Try to submit again
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => applicationsClient.SubmitApplicationAsync(applicationId));
+        Assert.Equal(400, ex.StatusCode);
+    }
 
-     [Theory]
-     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-     public async Task SubmitApplicationAsync_ShouldReturnForbidden_WhenUserIsNotApplicationCreator(
-         CustomWebApplicationDbContextFactory<Program> factory,
-         IApplicationsClient applicationsClient,
-         HttpClient httpClient)
-     {
-         // Arrange - Use Alice's email (Alice exists but didn't create the application - Bob did)
-         factory.TestClaims = new List<Claim>
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task SubmitApplicationAsync_ShouldReturnForbidden_WhenUserIsNotApplicationCreator(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        IApplicationsClient applicationsClient,
+        HttpClient httpClient)
+    {
+        // Arrange - Use Alice's email (Alice exists but didn't create the application - Bob did)
+        factory.TestClaims = new List<Claim>
          {
              new(ClaimTypes.Email, "alice@example.com"), // Alice exists but didn't create the application
              new("permission", $"Application:{EaContextSeeder.ApplicationId}:Write")
          };
 
-         httpClient.DefaultRequestHeaders.Authorization =
-             new AuthenticationHeaderValue("Bearer", "user-token");
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "user-token");
 
-         var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
+        var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
 
-         // Act
-         var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
-             () => applicationsClient.SubmitApplicationAsync(applicationId));
-         Assert.Equal(403, ex.StatusCode);
-     }
+        // Act
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => applicationsClient.SubmitApplicationAsync(applicationId));
+        Assert.Equal(403, ex.StatusCode);
+    }
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
@@ -645,7 +740,7 @@ public class ApplicationsControllerTests
         // Assert
         Assert.NotNull(result);
         Assert.NotEmpty(result.Items);
-        Assert.All(result.Items, app => 
+        Assert.All(result.Items, app =>
         {
             Assert.NotNull(app.TemplateSchema);
             Assert.NotEqual(Guid.Empty, app.TemplateSchema.TemplateId);
@@ -678,11 +773,11 @@ public class ApplicationsControllerTests
         // Assert
         Assert.NotNull(result);
         Assert.NotEmpty(result.Items);
-        Assert.All(result.Items, app => 
+        Assert.All(result.Items, app =>
         {
             Assert.Null(app.TemplateSchema);
         });
-     }
+    }
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
@@ -985,11 +1080,11 @@ public class ApplicationsControllerTests
         // The endpoint should return 200 OK if successful
         // We can also verify the contributor was removed by trying to get contributors
         var contributors = await applicationsClient.GetContributorsAsync(new Guid(EaContextSeeder.ApplicationId));
-        
+
         // Check if our specific contributor was removed
         var removedContributor = contributors.FirstOrDefault(c => c.UserId == addedContributor.UserId);
         Assert.Null(removedContributor);
-        
+
         // Also verify that other contributors (if any) are still there
         var otherContributors = contributors.Where(c => c.UserId != addedContributor.UserId).ToList();
         Assert.Contains(otherContributors, c => c.Email == "alice@example.com");
@@ -1421,12 +1516,12 @@ public class ApplicationsControllerTests
             // Act - Create a new stream for each test case to ensure it's readable
             // Create a copy of the content bytes to ensure the stream can be read multiple times
             var contentBytes = System.Text.Encoding.UTF8.GetBytes(testCase.Content);
-            
+
             // Ensure we have a valid filename - use the test case filename as both name and file parameter filename
             var fileName = testCase.FileName ?? "test-file.pdf";
             if (string.IsNullOrWhiteSpace(fileName))
                 fileName = "test-file.pdf";
-            
+
             // Create the stream fresh for each iteration with position at start
             var stream = new MemoryStream(contentBytes);
             var fileParameter = new FileParameter(stream, fileName, testCase.ContentType);
@@ -1655,17 +1750,17 @@ public class ApplicationsControllerTests
         Assert.NotNull(response);
         Assert.True(response.IsSuccessStatusCode);
         Assert.Equal(System.Net.HttpStatusCode.OK, response.StatusCode);
-        
+
         // Verify content type
         Assert.Equal("text/html", response.Content.Headers.ContentType?.MediaType);
-        
+
         // Verify content disposition header
         var contentDisposition = response.Content.Headers.ContentDisposition;
         Assert.NotNull(contentDisposition);
         Assert.Equal("attachment", contentDisposition.DispositionType);
         Assert.Contains(EaContextSeeder.ApplicationReference, contentDisposition.FileName);
         Assert.EndsWith(".html", contentDisposition.FileName);
-        
+
         // Verify content
         var content = await response.Content.ReadAsStringAsync();
         Assert.NotEmpty(content);
@@ -1760,10 +1855,10 @@ public class ApplicationsControllerTests
 
         // Assert
         Assert.True(response.IsSuccessStatusCode);
-        
+
         var contentDisposition = response.Content.Headers.ContentDisposition;
         Assert.NotNull(contentDisposition);
-        
+
         // Verify filename format: application-{reference}-preview.html
         var expectedFileName = $"application-{EaContextSeeder.ApplicationReference}-preview.html";
         Assert.Contains(expectedFileName, contentDisposition.FileName);
@@ -1790,16 +1885,16 @@ public class ApplicationsControllerTests
 
         // Assert
         Assert.True(response.IsSuccessStatusCode);
-        
+
         var htmlContent = await response.Content.ReadAsStringAsync();
-        
+
         // Verify it's valid HTML
         Assert.Contains("<!DOCTYPE html>", htmlContent);
         Assert.Contains("<html", htmlContent);
         Assert.Contains("</html>", htmlContent);
         Assert.Contains("<head>", htmlContent);
         Assert.Contains("<body", htmlContent);
-        
+
         // Verify mock service content
         Assert.Contains("Mock Application Preview", htmlContent);
         Assert.Contains("govuk-template", htmlContent);

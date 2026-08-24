@@ -47,6 +47,11 @@ public sealed class GetApplicationByReferenceQueryHandler(
                 return Result<ApplicationDto>.Forbid("Application does not belong to the current tenant");
             }
 
+            if (dto.Status == ApplicationStatus.Deleted && !permissionCheckerService.IsAdmin())
+            {
+                return Result<ApplicationDto>.NotFound("Application not found");
+            }
+
             var canAccess = permissionCheckerService.HasPermission(
                 ResourceType.Application,
                 dto.ApplicationId.ToString(),
