@@ -5,6 +5,7 @@ using GovUK.Dfe.FlexForms.Application.Common.Pipeline;
 using GovUK.Dfe.FlexForms.Application.Consumers;
 using GovUK.Dfe.FlexForms.Application.Messaging;
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Application.TenantAdmin.Validation;
 using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Services.RoleProvisioners;
@@ -105,6 +106,7 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<ITenantPermissionFilter, TenantPermissionFilter>();
             services.AddScoped<IUserAccessibleTemplateService, UserAccessibleTemplateService>();
             services.AddScoped<ISelfRegistrationTemplateAccessService, SelfRegistrationTemplateAccessService>();
+            services.AddScoped<ITemplateHostMappingOwnershipValidator, TemplateHostMappingOwnershipValidator>();
 
             // Integration tests skip this hosted service: CoreLibs 1.0.13 throws
             // ChannelClosedException from BackgroundServiceFactory.StopAsync when the

@@ -48,7 +48,7 @@
     {
       "Controller": "UsersController",
       "Action": "GetCreatedApplicationsByEmailAsync",
-      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
+      "ExpectedSecurity": "Authorize: Roles=SuperAdmin,Admin"
     },
     {
       "Controller": "TemplatesController",

@@ -178,19 +178,18 @@ public class UserAutoRegistrationHandler : DelegatingHandler
                 return false;
             }
 
-            // Template access is resolved by the API using SelfRegistrationAccessRules:
-            // every live tenant form gets Template R/W + TenantMembership (User).
+            var settings = _settingsProvider.GetSettings();
+
+            // Template access is resolved by the API (one live form, or DefaultTemplateId when several are live).
             _logger.LogInformation("Auto-registering user; template access will be resolved by the API from live tenant forms");
 
-            // Create the registration request.
-            // Guid.Empty means "no explicit template" — the API auto-assigns all live tenant forms.
             var registerRequest = new RegisterUserRequest
             {
                 AccessToken = tokenState.ExternalIdpToken.Value,
-                TemplateId = Guid.Empty
+                TemplateId = settings.DefaultTemplateId is Guid defaultTemplateId && defaultTemplateId != Guid.Empty
+                    ? defaultTemplateId
+                    : Guid.Empty
             };
-
-            var settings = _settingsProvider.GetSettings();
 
             // Call the register endpoint using a local client with Azure token only for this request
             var client = _httpClientFactory.CreateClient();

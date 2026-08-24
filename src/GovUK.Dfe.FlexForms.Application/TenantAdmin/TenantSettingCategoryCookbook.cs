@@ -55,7 +55,7 @@ public static class TenantSettingCategoryCookbook
             "Database connection strings for the tenant.",
             ["Api", "Shared"],
             example: """{"DefaultConnection":"Server=...;Database=...;"}""",
-            notes: ["Forced secret category", "Named connections (not only DefaultConnection) are allowed"],
+            notes: ["Forced secret category", "SuperAdmin only", "Named connections (not only DefaultConnection) are allowed"],
             requiresObject: true),
 
         Entry(
@@ -103,6 +103,31 @@ public static class TenantSettingCategoryCookbook
             requiresObject: false),
 
         Entry(
+            "ApplicationTemplates",
+            "API HostMappings / template GUIDs for the tenant catalogue and email resolution.",
+            ["Api", "Shared"],
+            example: """{"HostMappings":{"transfers":"9A4E9C58-9135-468C-B154-7B966F7ACFB7"}}""",
+            notes:
+            [
+                "SuperAdmin only",
+                "Each GUID must exist in EA and be legacy (TenantId null) or owned by this tenant",
+                "Foreign TenantId GUIDs are rejected on save and ignored at runtime"
+            ],
+            requiresObject: true),
+
+        Entry(
+            "Template",
+            "Web HostMappings / default template Id for hostname → TemplateId session resolution.",
+            ["Web"],
+            example: """{"HostMappings":{"transfers.dev-flexforms.rsd.education.gov.uk":"9A4E9C58-9135-468C-B154-7B966F7ACFB7"},"Id":"9A4E9C58-9135-468C-B154-7B966F7ACFB7"}""",
+            notes:
+            [
+                "SuperAdmin only",
+                "Same ownership rules as ApplicationTemplates"
+            ],
+            requiresObject: true),
+
+        Entry(
             "ApplicationTerminology",
             "Display terms for 'application' (delegated to Tenant Admins).",
             ["Web"],
@@ -120,10 +145,29 @@ public static class TenantSettingCategoryCookbook
 
         Entry(
             "Dashboard",
-            "Application listing page size and filters (delegated to Tenant Admins).",
+            "Application listing page size, filters, and dashboard display text (delegated to Tenant Admins).",
             ["Web"],
-            example: """{"PageSize":50,"EnableApplicationFilters":false}""",
-            notes: ["Non-secret", "Also editable via Organisation Settings"],
+            example: """{"PageSize":50,"EnableApplicationFilters":false,"MainHeading":"Your applications","InProgressHeading":"Applications in progress","StartNewHeading":"Start a new application","StartNewHint":"If you start an application, you will be the lead applicant for it.","StartNewButtonText":"Start new application"}""",
+            notes:
+            [
+                "Non-secret",
+                "Also editable via Organisation Settings",
+                "Text fields are optional; leave blank to use ApplicationTerminology-based defaults"
+            ],
+            requiresObject: true),
+
+        Entry(
+            "ApplicationPreview",
+            "Check-your-answers page heading and submit-section copy (delegated to Tenant Admins).",
+            ["Web"],
+            example: """{"PageHeading":"Check your answers","SubmitHeading":"Submit your application","SubmitHint":"By submitting this application you are confirming that, to the best of your knowledge, the details you are providing are correct.","SubmitButtonText":"Submit","HideSubmitSection":false}""",
+            notes:
+            [
+                "Non-secret",
+                "Also editable via Organisation Settings",
+                "Text fields are optional; leave blank to use ApplicationTerminology-based defaults",
+                "HideSubmitSection removes the whole submit block on the preview page"
+            ],
             requiresObject: true),
 
         Entry(
@@ -150,6 +194,22 @@ public static class TenantSettingCategoryCookbook
                 "Saved with Target=Shared so the API runtime can read it",
                 "Use EventKind=Schema in EventTriggers",
                 "Promote successful schemas into CoreLibs when stable"
+            ],
+            requiresObject: true),
+
+        Entry(
+            "SelfRegistration",
+            "Default form granted when a user auto-registers and more than one template is live.",
+            ["Shared"],
+            example: """{"DefaultTemplateId":"00000000-0000-0000-0000-000000000000"}""",
+            notes:
+            [
+                "Non-secret",
+                "Saved with Target=Shared so the API can read it during register and token exchange",
+                "Zero live templates: no form access",
+                "Exactly one live template: that form is granted (this setting is ignored)",
+                "Several live templates: grant DefaultTemplateId if it is live; otherwise grant nothing and an admin assigns forms later",
+                "ExternalApplicationsApiClient:DefaultTemplateId is also honoured if set on this tenant"
             ],
             requiresObject: true),
 

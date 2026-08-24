@@ -46,6 +46,13 @@ public sealed class DeleteTenantSettingCommandHandler(
                 "Category and Target are required.");
         }
 
+        if (SuperAdminOnlyTenantSettingCategories.IsRestricted(category)
+            && !permissionChecker.IsInteractivePlatformAdmin())
+        {
+            return Result<DeleteTenantSettingResponse>.Forbid(
+                $"Only SuperAdmin can delete '{category}' settings.");
+        }
+
         try
         {
             var deleted = await settingsWriter.DeleteSettingAsync(

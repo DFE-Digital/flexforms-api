@@ -198,7 +198,7 @@ Web’s Api.Client uses this on every user session (`RequestTokenExchange`).
 |------|-------|-------|
 | **SuperAdmin** | Platform | Well-known global role id / name `SuperAdmin`. Tenant Settings UI/API. Not tenant-assignable. |
 | **Admin** | Tenant | Per-tenant `Roles` row (`TenantId` set). Full tenant admin. Assignable by SuperAdmin. |
-| **User** | Tenant | Default self-registration membership. |
+| **User** | Tenant | Default self-registration membership. Form access: none if no live template; the one live template if exactly one; otherwise none unless `SelfRegistration:DefaultTemplateId` (or `ExternalApplicationsApiClient:DefaultTemplateId`) is a live form. |
 | **Custom** | Tenant | Named roles + `RolePermissions`. |
 | **Caseworker** | Legacy | Not assignable; prefer custom roles. |
 
@@ -454,7 +454,7 @@ dotnet ef migrations add <Name> --project src/GovUK.Dfe.FlexForms.Infrastructure
 
 ### Scripts
 
-See `scripts/` for TenantConfig import helpers (Web/Api settings upsert). Ensure HostMappings only list that tenant’s template GUIDs on shared EA databases.
+See `scripts/` for TenantConfig import helpers (Web/Api settings upsert). HostMappings GUIDs must be claimable (legacy `TenantId` null or owned by the tenant); SuperAdmin-only to edit. Audit with `Audit-TenantHostMappings.sql` on shared EA databases.
 
 ---
 

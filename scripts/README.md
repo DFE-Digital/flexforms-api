@@ -3,9 +3,10 @@
 # These scripts seed TenantConfig from JSON dumps or legacy sources.
 # Runtime Web/API artefacts do not load per-app appsettings folders.
 #
-# Important: ApplicationTemplates:HostMappings (Api) must list ONLY that tenant's
-# template GUIDs. Cross-tenant entries cause Admins/end users to see other tenants'
-# templates when EA databases are shared. See Fix-TenantHostMappings.sql.
+# Important: ApplicationTemplates:HostMappings (Api) and Template:HostMappings (Web)
+# must list ONLY claimable template GUIDs (TenantId null legacy, or owned by that tenant).
+# Cross-tenant GUIDs are rejected on SuperAdmin save and ignored at runtime.
+# On shared EA databases, audit with Audit-TenantHostMappings.sql and fix with Fix-TenantHostMappings.sql.
 #
 # Prerequisites
 # - Windows PowerShell 5.1+ or PowerShell 7+

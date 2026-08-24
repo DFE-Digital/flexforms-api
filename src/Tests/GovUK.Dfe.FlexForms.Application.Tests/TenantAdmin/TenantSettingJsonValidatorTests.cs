@@ -174,6 +174,72 @@ public class TenantSettingJsonValidatorTests
     }
 
     [Fact]
+    public void Validate_Dashboard_AcceptsOptionalTextFields()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "Dashboard",
+            "Web",
+            """{"PageSize":50,"MainHeading":"Your visits","StartNewHint":""}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_Dashboard_RejectsNonStringTextField()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "Dashboard",
+            "Web",
+            """{"MainHeading":42}""");
+
+        Assert.Contains(errors, e => e.Contains("MainHeading", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_ApplicationPreview_AcceptsCopyAndHideFlag()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "ApplicationPreview",
+            "Web",
+            """{"PageHeading":"Check your answers","SubmitHeading":"Submit your visit","SubmitHint":"Please confirm","SubmitButtonText":"Submit","HideSubmitSection":false}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_ApplicationPreview_RejectsNonBooleanHideFlag()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "ApplicationPreview",
+            "Web",
+            """{"HideSubmitSection":"yes"}""");
+
+        Assert.Contains(errors, e => e.Contains("HideSubmitSection", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_ApplicationTemplates_RejectsInvalidHostMappingGuid()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "ApplicationTemplates",
+            "Api",
+            """{"HostMappings":{"transfers":"not-a-guid"}}""");
+
+        Assert.Contains(errors, e => e.Contains("HostMappings", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_ApplicationTemplates_AcceptsValidHostMappings()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "ApplicationTemplates",
+            "Api",
+            """{"HostMappings":{"transfers":"9A4E9C58-9135-468C-B154-7B966F7ACFB7"}}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
     public void Validate_FileValidation_AcceptsKnownModes()
     {
         var errors = TenantSettingJsonValidator.Validate(
@@ -204,5 +270,27 @@ public class TenantSettingJsonValidatorTests
             """{"DefaultMode":"Off","Extensions":"xlsx"}""");
 
         Assert.Contains(errors, e => e.Contains("Extensions", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_ShouldAcceptSelfRegistrationDefaultTemplateId()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "SelfRegistration",
+            "Shared",
+            """{"DefaultTemplateId":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_ShouldRejectInvalidSelfRegistrationDefaultTemplateId()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "SelfRegistration",
+            "Shared",
+            """{"DefaultTemplateId":"not-a-guid"}""");
+
+        Assert.Contains(errors, e => e.Contains("DefaultTemplateId"));
     }
 }

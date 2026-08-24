@@ -113,10 +113,14 @@ public static class TenantSettingJsonValidator
             "ApplicationTerminology" => true,
             "NotificationBanner" => true,
             "Dashboard" => true,
+            "ApplicationPreview" => true,
             "EventMappings" => true,
             "SchemaEvents" => true,
             "EventTriggers" => true,
             "FileValidation" => true,
+            "SelfRegistration" => true,
+            "ApplicationTemplates" => true,
+            "Template" => true,
             _ => false
         };
 
@@ -229,6 +233,20 @@ public static class TenantSettingJsonValidator
                 {
                     errors.Add("PageSize must be an integer between 1 and 500.");
                 }
+                RequireOptionalString(root, "MainHeading", errors);
+                RequireOptionalString(root, "InProgressHeading", errors);
+                RequireOptionalString(root, "StartNewHeading", errors);
+                RequireOptionalString(root, "StartNewHint", errors);
+                RequireOptionalString(root, "StartNewButtonText", errors);
+                break;
+
+            case "ApplicationPreview":
+                RequireOptionalString(root, "PageHeading", errors);
+                RequireOptionalString(root, "SubmitHeading", errors);
+                RequireOptionalString(root, "SubmitHint", errors);
+                RequireOptionalString(root, "SubmitButtonText", errors);
+                if (root.TryGetProperty("HideSubmitSection", out _) && GetBool(root, "HideSubmitSection") is null)
+                    errors.Add("HideSubmitSection must be true or false.");
                 break;
 
             case "EventMappings":
@@ -247,10 +265,95 @@ public static class TenantSettingJsonValidator
                 ValidateFileValidation(root, errors);
                 break;
 
+            case "SelfRegistration":
+                if (root.TryGetProperty("DefaultTemplateId", out var defaultTemplateId)
+                    && defaultTemplateId.ValueKind is not JsonValueKind.Null
+                    && defaultTemplateId.ValueKind is not JsonValueKind.Undefined)
+                {
+                    var value = defaultTemplateId.ValueKind == JsonValueKind.String
+                        ? defaultTemplateId.GetString()
+                        : defaultTemplateId.ToString();
+                    if (string.IsNullOrWhiteSpace(value) || !Guid.TryParse(value, out var guid) || guid == Guid.Empty)
+                        errors.Add("DefaultTemplateId must be a non-empty GUID when present.");
+                }
+                break;
+
+            case "ApplicationTemplates":
+            case "Template":
+                ValidateTemplateMappingCategory(root, errors);
+                break;
+
             default:
                 // Unknown categories: any JSON object/array/scalar is accepted.
                 break;
         }
+    }
+
+    private static void ValidateTemplateMappingCategory(JsonElement root, List<string> errors)
+    {
+        if (TryGetPropertyIgnoreCase(root, "HostMappings", out var mappings))
+        {
+            if (mappings.ValueKind != JsonValueKind.Object)
+            {
+                errors.Add("HostMappings must be a JSON object of name → template GUID.");
+            }
+            else
+            {
+                foreach (var prop in mappings.EnumerateObject())
+                {
+                    if (!IsNonEmptyGuid(prop.Value, out _))
+                    {
+                        errors.Add(
+                            $"HostMappings['{prop.Name}'] must be a non-empty GUID.");
+                    }
+                }
+            }
+        }
+
+        if (TryGetPropertyIgnoreCase(root, "TemplateId", out var templateId)
+            && templateId.ValueKind is not JsonValueKind.Null
+            && templateId.ValueKind is not JsonValueKind.Undefined
+            && !IsNonEmptyGuid(templateId, out _))
+        {
+            errors.Add("TemplateId must be a non-empty GUID when present.");
+        }
+
+        if (TryGetPropertyIgnoreCase(root, "Id", out var id)
+            && id.ValueKind is not JsonValueKind.Null
+            && id.ValueKind is not JsonValueKind.Undefined
+            && !IsNonEmptyGuid(id, out _))
+        {
+            errors.Add("Id must be a non-empty GUID when present.");
+        }
+    }
+
+    private static bool IsNonEmptyGuid(JsonElement value, out Guid guid)
+    {
+        guid = Guid.Empty;
+        var raw = value.ValueKind == JsonValueKind.String
+            ? value.GetString()
+            : value.ToString();
+        return !string.IsNullOrWhiteSpace(raw)
+               && Guid.TryParse(raw, out guid)
+               && guid != Guid.Empty;
+    }
+
+    private static bool TryGetPropertyIgnoreCase(JsonElement root, string name, out JsonElement value)
+    {
+        if (root.TryGetProperty(name, out value))
+            return true;
+
+        foreach (var prop in root.EnumerateObject())
+        {
+            if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                value = prop.Value;
+                return true;
+            }
+        }
+
+        value = default;
+        return false;
     }
 
     private static void ValidateSchemaEvents(JsonElement root, List<string> errors)
@@ -423,6 +526,21 @@ public static class TenantSettingJsonValidator
         {
             errors.Add($"{pathPrefix}{property} must be a non-empty string when present.");
         }
+    }
+
+    /// <summary>
+    /// When present, the property must be a JSON string (empty string allowed for optional overrides).
+    /// </summary>
+    private static void RequireOptionalString(
+        JsonElement root,
+        string property,
+        List<string> errors)
+    {
+        if (!root.TryGetProperty(property, out var value))
+            return;
+
+        if (value.ValueKind != JsonValueKind.String)
+            errors.Add($"{property} must be a string when present.");
     }
 
     private static string? GetString(JsonElement root, string property)

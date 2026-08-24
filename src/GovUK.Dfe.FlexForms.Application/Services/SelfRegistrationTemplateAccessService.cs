@@ -3,6 +3,7 @@ using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using Microsoft.EntityFrameworkCore;
 
@@ -12,8 +13,12 @@ namespace GovUK.Dfe.FlexForms.Application.Services;
 public sealed class SelfRegistrationTemplateAccessService(
     IEaRepository<Template> templateRepo,
     ITenantTemplateResolver tenantTemplateResolver,
+    ITenantContextAccessor tenantContextAccessor,
     IUserFactory userFactory) : ISelfRegistrationTemplateAccessService
 {
+    public const string DefaultTemplateIdKey = "SelfRegistration:DefaultTemplateId";
+    public const string LegacyDefaultTemplateIdKey = "ExternalApplicationsApiClient:DefaultTemplateId";
+
     /// <inheritdoc />
     public async Task<bool> EnsureLiveTemplateAccessAsync(User user, CancellationToken cancellationToken = default)
     {
@@ -26,7 +31,9 @@ public sealed class SelfRegistrationTemplateAccessService(
             .Select(t => t.Id!)
             .ToList();
 
-        var toGrant = SelfRegistrationAccessRules.ResolveAutoGrantedTemplates(liveIds);
+        var toGrant = SelfRegistrationAccessRules.ResolveAutoGrantedTemplates(
+            liveIds,
+            ReadDefaultTemplateId());
         if (toGrant.Count == 0)
             return false;
 
@@ -43,6 +50,19 @@ public sealed class SelfRegistrationTemplateAccessService(
         }
 
         return changed;
+    }
+
+    private TemplateId? ReadDefaultTemplateId()
+    {
+        var settings = tenantContextAccessor.CurrentTenant?.Settings;
+        if (settings is null)
+            return null;
+
+        var raw = settings[DefaultTemplateIdKey] ?? settings[LegacyDefaultTemplateIdKey];
+        if (string.IsNullOrWhiteSpace(raw) || !Guid.TryParse(raw, out var guid) || guid == Guid.Empty)
+            return null;
+
+        return new TemplateId(guid);
     }
 
     private async Task<IReadOnlyList<Template>> GetLiveTemplatesForCurrentTenantAsync(

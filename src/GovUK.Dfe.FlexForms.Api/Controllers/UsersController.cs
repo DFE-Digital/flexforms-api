@@ -298,7 +298,7 @@ public class UsersController(ISender sender) : ControllerBase
     [SwaggerResponse(403, "Forbidden - only administrators can look up created applications", typeof(ExceptionResponse))]
     [SwaggerResponse(404, "User not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
-    [Authorize(Policy = "CanManageUsers")]
+    [Authorize(Roles = $"{RoleNames.SuperAdmin},{RoleNames.Admin}")]
     public async Task<ActionResult<UserCreatedApplicationsLookupDto>> GetCreatedApplicationsByEmailAsync(
         [FromQuery] string email,
         CancellationToken cancellationToken)

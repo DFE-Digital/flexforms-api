@@ -28,7 +28,7 @@ public sealed class GetUserCreatedApplicationsLookupQueryHandler(
         GetUserCreatedApplicationsLookupQuery request,
         CancellationToken cancellationToken)
     {
-        if (!permissionCheckerService.CanManageUsers())
+        if (!permissionCheckerService.IsAdmin())
             return Result<UserCreatedApplicationsLookupDto>.Forbid("Only administrators can look up who a user invited");
 
         var tenant = tenantContextAccessor.CurrentTenant;

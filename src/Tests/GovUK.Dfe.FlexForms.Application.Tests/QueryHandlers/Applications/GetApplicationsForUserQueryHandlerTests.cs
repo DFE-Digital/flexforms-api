@@ -392,6 +392,7 @@ public class GetApplicationsForUserQueryHandlerTests
         await handler.Handle(new GetApplicationsForUserQuery(rawEmail, false), CancellationToken.None);
         await handler.Handle(new GetApplicationsForUserQuery(rawEmail, false), CancellationToken.None);
 
-        userRepo.Received(4).Query();
+        // Per request: user lookup + application IDs + template permissions (cache passthrough in tests).
+        userRepo.Received(6).Query();
     }
 }

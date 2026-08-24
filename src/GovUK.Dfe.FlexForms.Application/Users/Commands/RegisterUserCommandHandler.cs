@@ -303,7 +303,7 @@ public sealed class RegisterUserCommandHandler(
 
                 {
 
-                    // Auto-register: grant Template R/W for every live template in the tenant catalogue.
+                    // Auto-register: grant the single live form, or a configured default when several are live.
 
                     if (await selfRegistrationTemplateAccess.EnsureLiveTemplateAccessAsync(
 
@@ -381,7 +381,7 @@ public sealed class RegisterUserCommandHandler(
 
 
 
-            // Auto-register without an explicit template: grant all live tenant forms.
+            // Auto-register without an explicit template: single live form, or configured default.
 
             if (!request.TemplateId.HasValue)
 

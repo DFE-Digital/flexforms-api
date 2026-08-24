@@ -1,6 +1,5 @@
 using GovUK.Dfe.CoreLibs.Caching.Helpers;
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
-using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Common;
 using GovUK.Dfe.FlexForms.Application.Services;
@@ -66,23 +65,18 @@ public sealed class GetApplicationsForUserQueryHandler(
                         return Result<PagedResult<ApplicationDto>>.Failure("GetApplicationsForUserQueryHandler > User not found.");
                     }
 
-                    var userWithAuthorization = await new GetUserWithAllPermissionsByUserIdQueryObject(dbUser.Id!)
+                    // Slim path: distinct application IDs only — no full Permissions Include.
+                    var applicationIds = await new GetApplicationIdsByUserIdQueryObject(dbUser.Id!)
                         .Apply(userRepo.Query().AsNoTracking())
-                        .FirstOrDefaultAsync(cancellationToken);
+                        .ToListAsync(cancellationToken);
 
-                    if (userWithAuthorization is null)
-                    {
-                        logger.LogWarning(
-                            "Application listing: authorization profile missing. Tenant={Tenant}, Email={Email}, UserId={UserId}",
-                            tenantName,
-                            request.Email,
-                            dbUser.Id!.Value);
-                        return Result<PagedResult<ApplicationDto>>.Success(
-                            ApplicationListingQueryBuilder.EmptyPagedResult(request.PageNumber, request.PageSize));
-                    }
+                    // Template grants only (for listing filter). Admins may skip via CanManageTemplates.
+                    var templatePermissions = await new GetTemplateResourcePermissionsByUserIdQueryObject(dbUser.Id!)
+                        .Apply(userRepo.Query().AsNoTracking())
+                        .ToListAsync(cancellationToken);
 
                     var templateIdsFilter = await userAccessibleTemplateService.ResolveAccessibleListingFilterAsync(
-                        userWithAuthorization.Permissions,
+                        templatePermissions,
                         request.TemplateId,
                         cancellationToken);
 
@@ -90,15 +84,14 @@ public sealed class GetApplicationsForUserQueryHandler(
                         "My applications listing (own applications only). Tenant={Tenant}, Email={Email}, Role={Role}, ExplicitApplicationCount={ApplicationCount}, RequestedTemplateId={RequestedTemplateId}, EffectiveTemplateCount={EffectiveTemplateCount}",
                         tenantName,
                         request.Email,
-                        userWithAuthorization.Role?.Name ?? "(unknown)",
-                        userWithAuthorization.Permissions.Count(p =>
-                            p is { ApplicationId: not null, ResourceType: ResourceType.Application }),
+                        dbUser.Role?.Name ?? "(unknown)",
+                        applicationIds.Count,
                         request.TemplateId,
                         templateIdsFilter.Count);
 
                     var query = ApplicationListingQueryBuilder.BuildMyApplicationsQuery(
                         appRepo,
-                        userWithAuthorization,
+                        applicationIds,
                         templateIdsFilter);
 
                     query = ApplicationListingQueryBuilder.ApplySearchFilters(query, request.Search, request.Search?.Status == ApplicationStatus.Deleted && !permissionCheckerService.IsAdmin());

@@ -71,15 +71,19 @@ public sealed class TenantPermissionFilter(
         }
 
         var applicationIdVo = new ApplicationId(applicationId);
-        // Use TemplateVersion.TemplateId only — joining Template.TenantId rejected HostMapped
-        // templates owned by another tenant, so create/list worked and GET-by-reference 403'd.
-        var templateId = await applicationRepository.Query()
+        // Catalogue membership already rejects foreign TenantId HostMappings.
+        // Also require the application template to be legacy (null) or owned by this tenant.
+        var ownership = await applicationRepository.Query()
             .AsNoTracking()
             .Where(a => a.Id == applicationIdVo)
-            .Select(a => (Guid?)a.TemplateVersion!.TemplateId.Value)
+            .Select(a => new
+            {
+                TemplateId = (Guid?)a.TemplateVersion!.TemplateId.Value,
+                OwnerTenantId = a.TemplateVersion!.Template!.TenantId
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
-        if (templateId is null)
+        if (ownership?.TemplateId is null)
         {
             logger.LogWarning(
                 "Denying application {ApplicationId}: application or template version was not found.",
@@ -87,13 +91,23 @@ public sealed class TenantPermissionFilter(
             return false;
         }
 
-        var belongs = tenantTemplateIds.Contains(templateId.Value);
+        if (ownership.OwnerTenantId is not null && ownership.OwnerTenantId.Value != currentTenantId)
+        {
+            logger.LogWarning(
+                "Denying application {ApplicationId}: template {TemplateId} is owned by another tenant ({OwnerTenantId}).",
+                applicationId,
+                ownership.TemplateId,
+                ownership.OwnerTenantId);
+            return false;
+        }
+
+        var belongs = tenantTemplateIds.Contains(ownership.TemplateId.Value);
         if (!belongs)
         {
             logger.LogWarning(
                 "Denying application {ApplicationId}: template {TemplateId} is not in tenant {TenantId} catalogue.",
                 applicationId,
-                templateId,
+                ownership.TemplateId,
                 currentTenantId);
         }
 
@@ -102,9 +116,8 @@ public sealed class TenantPermissionFilter(
 
     /// <summary>
     /// Application/template grants belong to the current tenant when their template is in the
-    /// tenant catalogue (HostMappings plus tenant-owned rows). Create and list already use
-    /// that catalogue; GET must match so a HostMapped template cannot create an application
-    /// that immediately 403s as "does not belong to the current tenant".
+    /// tenant catalogue (claimable HostMappings plus tenant-owned rows) and is not owned by
+    /// another tenant.
     /// </summary>
     internal static bool BelongsToTenant(
         Permission permission,
@@ -130,7 +143,8 @@ public sealed class TenantPermissionFilter(
                     return false;
 
                 return applicationOwnership.TryGetValue(applicationGuid, out var ownership)
-                       && tenantTemplateIds.Contains(ownership.TemplateId);
+                       && tenantTemplateIds.Contains(ownership.TemplateId)
+                       && (ownership.OwnerTenantId is null || ownership.OwnerTenantId == currentTenantId);
 
             case ResourceType.Notifications:
                 return TenantScopedIdentityKey.NotificationsBelongToTenant(
@@ -165,13 +179,14 @@ public sealed class TenantPermissionFilter(
             .Select(a => new
             {
                 ApplicationId = a.Id!,
-                TemplateId = a.TemplateVersion!.TemplateId
+                TemplateId = a.TemplateVersion!.TemplateId,
+                OwnerTenantId = a.TemplateVersion!.Template!.TenantId
             })
             .ToListAsync(cancellationToken);
 
         return rows.ToDictionary(
             row => row.ApplicationId.Value,
-            row => new ApplicationOwnership(row.TemplateId.Value));
+            row => new ApplicationOwnership(row.TemplateId.Value, row.OwnerTenantId));
     }
 
     private static bool TryResolveApplicationId(Permission permission, out Guid applicationId)
@@ -188,5 +203,5 @@ public sealed class TenantPermissionFilter(
     private static bool IsAnyKey(string resourceKey) =>
         string.Equals(resourceKey, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase);
 
-    internal readonly record struct ApplicationOwnership(Guid TemplateId);
+    internal readonly record struct ApplicationOwnership(Guid TemplateId, Guid? OwnerTenantId);
 }

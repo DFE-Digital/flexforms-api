@@ -67,14 +67,16 @@ public class TenantTemplateCatalogueTests
     private static readonly TemplateId HostMappedTemplateId = new(Guid.Parse("B2F8E7D4-2C46-4A91-8E73-9D5A1F4B6C89"));
 
     [Fact]
-    public async Task GetTemplateIdsAsync_ShouldUseHostMappingsOnly_WhenConfigured()
+    public async Task GetTemplateIdsAsync_ShouldUseHostMappings_WhenLegacyTemplateExistsInDatabase()
     {
         var createdBy = new UserId(Guid.NewGuid());
         var otherTenantTemplateId = new TemplateId(Guid.Parse("CCCCCCCC-CCCC-4CCC-8CCC-CCCCCCCCCCCC"));
         var templates = new List<Template>
         {
+            // Legacy HostMapped row (TenantId null) — claimable via config.
+            new(HostMappedTemplateId, "Host Mapped Template", DateTime.UtcNow, createdBy),
             new(DbTemplateId, "DB Template", DateTime.UtcNow, createdBy),
-            new(otherTenantTemplateId, "Other Tenant Template", DateTime.UtcNow, createdBy)
+            new(otherTenantTemplateId, "Other Tenant Template", DateTime.UtcNow, createdBy, tenantId: Guid.NewGuid())
         }.AsQueryable().BuildMockDbSet();
 
         var templateRepo = Substitute.For<IEaRepository<Template>>();
@@ -110,6 +112,40 @@ public class TenantTemplateCatalogueTests
     }
 
     [Fact]
+    public async Task GetTemplateIdsAsync_ShouldIgnoreForeignTenantGuidInHostMappings()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        var createdBy = new UserId(Guid.NewGuid());
+        var foreignId = new TemplateId(Guid.NewGuid());
+        var templates = new List<Template>
+        {
+            new(foreignId, "Foreign", DateTime.UtcNow, createdBy, tenantId: Guid.NewGuid())
+        }.AsQueryable().BuildMockDbSet();
+
+        var templateRepo = Substitute.For<IEaRepository<Template>>();
+        templateRepo.Query().Returns(templates);
+
+        var settings = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ApplicationTemplates:HostMappings:transfer"] = foreignId.Value.ToString()
+            })
+            .Build();
+
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        accessor.CurrentTenant.Returns(new TenantConfiguration(tenantId, "Transfers", settings, []));
+
+        var catalogue = new TenantTemplateCatalogue(
+            templateRepo,
+            accessor,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<TenantTemplateCatalogue>.Instance);
+
+        var result = await catalogue.GetTemplateIdsAsync();
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
     public async Task GetTemplateIdsAsync_ShouldCombineMappingsWithTemplatesOwnedByTenant()
     {
         var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
@@ -119,7 +155,9 @@ public class TenantTemplateCatalogueTests
         var templates = new List<Template>
         {
             new(ownedTemplateId, "Owned Template", DateTime.UtcNow, createdBy, tenantId: tenantId),
-            new(otherTenantTemplateId, "Other Tenant Template", DateTime.UtcNow, createdBy, tenantId: Guid.NewGuid())
+            new(otherTenantTemplateId, "Other Tenant Template", DateTime.UtcNow, createdBy, tenantId: Guid.NewGuid()),
+            // Claimable HostMapped legacy row
+            new(HostMappedTemplateId, "Host Mapped", DateTime.UtcNow, createdBy)
         }.AsQueryable().BuildMockDbSet();
 
         var templateRepo = Substitute.For<IEaRepository<Template>>();

@@ -9,6 +9,7 @@ public static class TenantSafeSettingCategories
     public const string ApplicationTerminology = "ApplicationTerminology";
     public const string NotificationBanner = "NotificationBanner";
     public const string Dashboard = "Dashboard";
+    public const string ApplicationPreview = "ApplicationPreview";
     public const string EventMappings = "EventMappings";
     public const string SchemaEvents = "SchemaEvents";
     public const string EventTriggers = "EventTriggers";
@@ -37,6 +38,7 @@ public static class TenantSafeSettingCategories
         ApplicationTerminology,
         NotificationBanner,
         Dashboard,
+        ApplicationPreview,
         EventMappings,
         SchemaEvents,
         EventTriggers,
