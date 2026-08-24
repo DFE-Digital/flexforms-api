@@ -185,3 +185,4 @@ uploads/
 
 Directory.Build.targets.user
 /src/LocalPackages
+.cursor

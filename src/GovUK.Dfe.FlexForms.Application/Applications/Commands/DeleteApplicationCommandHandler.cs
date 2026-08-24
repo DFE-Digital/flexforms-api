@@ -20,6 +20,7 @@ public sealed class DeleteApplicationCommandHandler(
     IEaRepository<Domain.Entities.Application> applicationRepo,
     IAuthenticatedUserService authenticatedUserService,
     IPermissionCheckerService permissionCheckerService,
+    ITenantTemplateResolver tenantTemplateResolver,
     IUserCacheInvalidator userCacheInvalidator,
     IUnitOfWork unitOfWork) : IRequestHandler<DeleteApplicationCommand, Result<ApplicationDto>>
 {
@@ -56,6 +57,13 @@ public sealed class DeleteApplicationCommandHandler(
 
             if (application is null)
                 return Result<ApplicationDto>.NotFound("Application not found");
+
+            var templateId = application.TemplateVersion?.TemplateId;
+            if (templateId is null
+                || !await tenantTemplateResolver.IsTemplateInCurrentTenantAsync(templateId, cancellationToken))
+            {
+                return Result<ApplicationDto>.Forbid("Application does not belong to the current tenant");
+            }
 
             var now = DateTime.UtcNow;
             application.Delete(now, dbUser.Id!, dbUser.Email, dbUser.Name); 
