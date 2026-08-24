@@ -196,6 +196,28 @@ public class TenantSettingJsonValidatorTests
     }
 
     [Fact]
+    public void Validate_ApplicationPreview_AcceptsCopyAndHideFlag()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "ApplicationPreview",
+            "Web",
+            """{"PageHeading":"Check your answers","SubmitHeading":"Submit your visit","SubmitHint":"Please confirm","SubmitButtonText":"Submit","HideSubmitSection":false}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_ApplicationPreview_RejectsNonBooleanHideFlag()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "ApplicationPreview",
+            "Web",
+            """{"HideSubmitSection":"yes"}""");
+
+        Assert.Contains(errors, e => e.Contains("HideSubmitSection", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Validate_ApplicationTemplates_RejectsInvalidHostMappingGuid()
     {
         var errors = TenantSettingJsonValidator.Validate(

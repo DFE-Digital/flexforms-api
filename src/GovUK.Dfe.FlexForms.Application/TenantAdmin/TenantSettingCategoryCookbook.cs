@@ -157,6 +157,20 @@ public static class TenantSettingCategoryCookbook
             requiresObject: true),
 
         Entry(
+            "ApplicationPreview",
+            "Check-your-answers page heading and submit-section copy (delegated to Tenant Admins).",
+            ["Web"],
+            example: """{"PageHeading":"Check your answers","SubmitHeading":"Submit your application","SubmitHint":"By submitting this application you are confirming that, to the best of your knowledge, the details you are providing are correct.","SubmitButtonText":"Submit","HideSubmitSection":false}""",
+            notes:
+            [
+                "Non-secret",
+                "Also editable via Organisation Settings",
+                "Text fields are optional; leave blank to use ApplicationTerminology-based defaults",
+                "HideSubmitSection removes the whole submit block on the preview page"
+            ],
+            requiresObject: true),
+
+        Entry(
             "EventMappings",
             "Per-template field mappings for typed and schema events (delegated to Tenant Admins).",
             ["Shared"],

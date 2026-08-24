@@ -16,7 +16,7 @@ public sealed record UpsertSafeTenantSettingCommand(
     string SettingsJson) : IRequest<Result<UpsertTenantSettingResponse>>;
 
 /// <summary>
-/// Upserts a non-secret delegated setting (terminology, banner, dashboard) for Tenant Admins.
+/// Upserts a non-secret delegated setting (terminology, banner, dashboard, application preview) for Tenant Admins.
 /// </summary>
 public sealed class UpsertSafeTenantSettingCommandHandler(
     ITenantSettingsWriter settingsWriter,

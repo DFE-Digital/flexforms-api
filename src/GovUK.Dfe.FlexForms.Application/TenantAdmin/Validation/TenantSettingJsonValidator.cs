@@ -113,6 +113,7 @@ public static class TenantSettingJsonValidator
             "ApplicationTerminology" => true,
             "NotificationBanner" => true,
             "Dashboard" => true,
+            "ApplicationPreview" => true,
             "EventMappings" => true,
             "SchemaEvents" => true,
             "EventTriggers" => true,
@@ -237,6 +238,15 @@ public static class TenantSettingJsonValidator
                 RequireOptionalString(root, "StartNewHeading", errors);
                 RequireOptionalString(root, "StartNewHint", errors);
                 RequireOptionalString(root, "StartNewButtonText", errors);
+                break;
+
+            case "ApplicationPreview":
+                RequireOptionalString(root, "PageHeading", errors);
+                RequireOptionalString(root, "SubmitHeading", errors);
+                RequireOptionalString(root, "SubmitHint", errors);
+                RequireOptionalString(root, "SubmitButtonText", errors);
+                if (root.TryGetProperty("HideSubmitSection", out _) && GetBool(root, "HideSubmitSection") is null)
+                    errors.Add("HideSubmitSection must be true or false.");
                 break;
 
             case "EventMappings":

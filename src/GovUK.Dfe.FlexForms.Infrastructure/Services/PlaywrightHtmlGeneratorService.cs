@@ -232,10 +232,10 @@ public class PlaywrightHtmlGeneratorService(ILogger<PlaywrightHtmlGeneratorServi
         html = Regex.Replace(html, actionPattern, @"action=""DownloadEatFile""", RegexOptions.IgnoreCase);
         _logger.LogDebug("Updated file download form actions");
 
-        // 3. Remove "Check your answers" heading
-        var headingPattern = @"<h1[^>]*class=""[^""]*govuk-heading-xl[^""]*""[^>]*>Check your answers</h1>";
+        // 3. Remove the preview page heading (default or tenant-customised copy)
+        var headingPattern = @"<h1[^>]*class=""[^""]*govuk-heading-xl[^""]*""[^>]*>[\s\S]*?</h1>";
         html = Regex.Replace(html, headingPattern, string.Empty, RegexOptions.IgnoreCase);
-        _logger.LogDebug("Removed 'Check your answers' heading from HTML");
+        _logger.LogDebug("Removed preview page heading from HTML");
 
         // 4. Remove the content selector class
         if (!string.IsNullOrEmpty(contentSelector))
