@@ -75,11 +75,13 @@ public class DeleteApplicationCommandHandlerTests
             AccessType.Write)
             .Returns(true);
 
+        var cacheInvalidator = Substitute.For<IUserCacheInvalidator>();
         var handler = CreateHandler(
             applicationRepo,
             AuthenticatedUserServiceTestHelper.MockReturningUser(userWithExternalId),
             permissionCheckerService,
-            unitOfWork);
+            unitOfWork,
+            cacheInvalidator: cacheInvalidator);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
@@ -88,6 +90,12 @@ public class DeleteApplicationCommandHandlerTests
         Assert.Equal(command.ApplicationId, result.Value.ApplicationId);
         Assert.Equal(ApplicationStatus.Deleted, result.Value.Status);
         await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+        await cacheInvalidator.Received(1).InvalidateApplicationListingsAsync(Arg.Any<CancellationToken>());
+        await cacheInvalidator.Received(1).InvalidateForUserAsync(
+            userWithExternalId.Email,
+            userWithExternalId.ExternalProviderId,
+            userWithExternalId.Id!,
+            Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -138,17 +146,20 @@ public class DeleteApplicationCommandHandlerTests
             AccessType.Write)
             .Returns(true);
 
+        var cacheInvalidator = Substitute.For<IUserCacheInvalidator>();
         var handler = CreateHandler(
             applicationRepo,
             AuthenticatedUserServiceTestHelper.MockReturningUser(testUser),
             permissionCheckerService,
-            unitOfWork);
+            unitOfWork,
+            cacheInvalidator: cacheInvalidator);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
         Assert.True(result.IsSuccess);
         Assert.NotNull(result.Value);
         Assert.Equal(ApplicationStatus.Deleted, result.Value.Status);
+        await cacheInvalidator.Received(1).InvalidateApplicationListingsAsync(Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -378,18 +389,21 @@ public class DeleteApplicationCommandHandlerTests
         tenantTemplateResolver.IsTemplateInCurrentTenantAsync(transferTemplateId, Arg.Any<CancellationToken>())
             .Returns(false);
 
+        var cacheInvalidator = Substitute.For<IUserCacheInvalidator>();
         var handler = CreateHandler(
             applicationRepo,
             AuthenticatedUserServiceTestHelper.MockReturningUser(testUser),
             permissionCheckerService,
             unitOfWork,
-            tenantTemplateResolver);
+            tenantTemplateResolver,
+            cacheInvalidator);
 
         var result = await handler.Handle(command, CancellationToken.None);
 
         Assert.False(result.IsSuccess);
         Assert.Equal("Application does not belong to the current tenant", result.Error);
         await unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+        await cacheInvalidator.DidNotReceive().InvalidateApplicationListingsAsync(Arg.Any<CancellationToken>());
     }
 
     private static DeleteApplicationCommandHandler CreateHandler(
@@ -397,14 +411,15 @@ public class DeleteApplicationCommandHandlerTests
         IAuthenticatedUserService authenticatedUserService,
         IPermissionCheckerService permissionCheckerService,
         IUnitOfWork unitOfWork,
-        ITenantTemplateResolver? tenantTemplateResolver = null)
+        ITenantTemplateResolver? tenantTemplateResolver = null,
+        IUserCacheInvalidator? cacheInvalidator = null)
     {
         return new DeleteApplicationCommandHandler(
             applicationRepo,
             authenticatedUserService,
             permissionCheckerService,
             tenantTemplateResolver ?? AllowAllTenantTemplates(),
-            Substitute.For<IUserCacheInvalidator>(),
+            cacheInvalidator ?? Substitute.For<IUserCacheInvalidator>(),
             unitOfWork);
     }
 }
