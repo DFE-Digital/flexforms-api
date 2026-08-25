@@ -185,6 +185,42 @@ variable "container_port" {
   default     = 8080
 }
 
+variable "enable_container_app_file_share" {
+  description = "Create an Azure Storage Account and File Share to be mounted to the Container Apps"
+  type        = bool
+  default     = true
+}
+
+variable "storage_account_public_access_enabled" {
+  description = "Should the Azure Storage Account have Public visibility?"
+  type        = bool
+  default     = false
+}
+
+variable "storage_account_ipv4_allow_list" {
+  description = "A list of public IPv4 address to grant access to the Storage Account"
+  type        = list(string)
+  default     = []
+}
+
+variable "storage_subnet_cidr" {
+  description = "Specify a subnet prefix to use for the storage subnet"
+  type        = string
+  default     = ""
+}
+
+variable "storage_account_name_override" {
+  description = "Override the storage account name with a custom name"
+  type        = string
+  default     = ""
+}
+
+variable "container_app_file_share_mount_path" {
+  description = "A path inside your container where the File Share will be mounted to"
+  type        = string
+  default     = "/uploads"
+}
+
 variable "enable_init_container" {
   description = "Deploy an Init Container. Init containers run before the primary app container and are used to perform initialization tasks such as downloading data or preparing the environment"
   type        = bool

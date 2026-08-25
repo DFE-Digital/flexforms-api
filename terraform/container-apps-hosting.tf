@@ -1,5 +1,5 @@
 module "azure_container_apps_hosting" {
-  source = "github.com/DFE-Digital/terraform-azurerm-container-apps-hosting?ref=v2.8.1"
+  source = "github.com/DFE-Digital/terraform-azurerm-container-apps-hosting?ref=v2.9.3"
 
   environment    = local.environment
   project_name   = local.project_name
@@ -12,12 +12,12 @@ module "azure_container_apps_hosting" {
   registry_managed_identity_assign_role = local.registry_managed_identity_assign_role
   registry_admin_enabled                = local.registry_admin_enabled
 
-  enable_dns_zone                        = local.enable_dns_zone
-  dns_zone_domain_name                   = local.dns_zone_domain_name
-  dns_ns_records                         = local.dns_ns_records
-  dns_txt_records                        = local.dns_txt_records
-  dns_mx_records                         = local.dns_mx_records
-  dns_alias_records                      = local.dns_alias_records
+  enable_dns_zone      = local.enable_dns_zone
+  dns_zone_domain_name = local.dns_zone_domain_name
+  dns_ns_records       = local.dns_ns_records
+  dns_txt_records      = local.dns_txt_records
+  dns_mx_records       = local.dns_mx_records
+  dns_alias_records    = local.dns_alias_records
 
   image_name                             = local.image_name
   container_command                      = local.container_command
@@ -26,6 +26,12 @@ module "azure_container_apps_hosting" {
   container_apps_allow_ips_inbound       = local.container_apps_allow_ips_inbound
   container_min_replicas                 = local.container_min_replicas
   container_port                         = local.container_port
+  enable_container_app_file_share        = local.enable_container_app_file_share
+  storage_account_public_access_enabled  = local.storage_account_public_access_enabled
+  storage_account_ipv4_allow_list        = local.storage_account_ipv4_allow_list
+  storage_subnet_cidr                    = local.storage_subnet_cidr
+  storage_account_name_override          = local.storage_account_name_override
+  container_app_file_share_mount_path    = local.container_app_file_share_mount_path
 
   enable_health_insights_api          = local.enable_health_insights_api
   health_insights_api_cors_origins    = local.health_insights_api_cors_origins

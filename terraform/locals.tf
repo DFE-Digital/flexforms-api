@@ -20,6 +20,12 @@ locals {
   dns_txt_records                              = var.dns_txt_records
   dns_mx_records                               = var.dns_mx_records
   dns_alias_records                            = var.dns_alias_records
+  enable_container_app_file_share              = var.enable_container_app_file_share
+  storage_account_public_access_enabled        = var.storage_account_public_access_enabled
+  storage_account_ipv4_allow_list              = var.storage_account_ipv4_allow_list
+  storage_subnet_cidr                          = var.storage_subnet_cidr
+  storage_account_name_override                = var.storage_account_name_override
+  container_app_file_share_mount_path          = var.container_app_file_share_mount_path
   tfvars_access_ipv4                           = var.tfvars_access_ipv4
   tfvars_filename                              = var.tfvars_filename
   enable_monitoring                            = var.enable_monitoring
