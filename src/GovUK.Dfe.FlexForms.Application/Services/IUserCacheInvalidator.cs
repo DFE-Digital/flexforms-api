@@ -25,4 +25,10 @@ public interface IUserCacheInvalidator
     /// Call after role permission changes or other bulk permission updates.
     /// </summary>
     Task InvalidateTenantUserClaimsAsync(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Removes every tenant-scoped application listing cache (by template, by user email, and by external id).
+    /// Call after an application status change so View applications shows the current status.
+    /// </summary>
+    Task InvalidateApplicationListingsAsync(CancellationToken cancellationToken = default);
 }

@@ -76,6 +76,23 @@ public sealed class UserCacheInvalidator(
     }
 
     /// <inheritdoc />
+    public async Task InvalidateApplicationListingsAsync(CancellationToken cancellationToken = default)
+    {
+        var patterns = new[]
+        {
+            "Applications_ByTemplate_*",
+            "Applications_ForUser_*",
+            "Applications_ForUserExternal_*"
+        };
+
+        foreach (var suffix in patterns)
+        {
+            var pattern = TenantCacheKeyHelper.CreateTenantScopedKey(tenantContextAccessor, suffix);
+            await advancedRedisCacheService.RemoveByPatternAsync(pattern);
+        }
+    }
+
+    /// <inheritdoc />
     public async Task InvalidateTenantUserClaimsAsync(CancellationToken cancellationToken = default)
     {
         // Web loads permissions via GetMyPermissions (Permissions_All_UserId_*), not UserClaims_* alone.

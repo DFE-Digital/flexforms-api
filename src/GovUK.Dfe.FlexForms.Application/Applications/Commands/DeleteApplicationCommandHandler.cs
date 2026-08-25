@@ -66,10 +66,11 @@ public sealed class DeleteApplicationCommandHandler(
             }
 
             var now = DateTime.UtcNow;
-            application.Delete(now, dbUser.Id!, dbUser.Email, dbUser.Name); 
+            application.Delete(now, dbUser.Id!, dbUser.Email, dbUser.Name);
 
             await unitOfWork.CommitAsync(cancellationToken);
 
+            await userCacheInvalidator.InvalidateApplicationListingsAsync(cancellationToken);
             await userCacheInvalidator.InvalidateForUserAsync(
                 dbUser.Email,
                 dbUser.ExternalProviderId,
