@@ -184,6 +184,23 @@ public static class TenantSettingCategoryCookbook
             requiresObject: true),
 
         Entry(
+            "EmailPlaceholderMappings",
+            "Per-template field mappings for GOV.UK Notify email personalisation placeholders.",
+            ["Shared"],
+            example: """{"form-001":{"ApplicationSubmitted":{"mappingId":"transfer-submitted-email-v1","eventType":"ApplicationSubmitted","fieldMappings":{"AcademyName":{"sourceType":"ComplexFieldProperty","sourceFieldId":"academiesSearch","nestedPath":"name"},"user_full_name":{"sourceType":"Metadata","sourceFieldId":"submittedByFullName}}}}}""",
+            notes:
+            [
+                "Non-secret",
+                "Saved with Target=Shared so the API runtime can read it",
+                "Also editable via Organisation / safe TenantConfig settings",
+                "Keys under each email type are Notify personalisation placeholders (e.g. AcademyName → ((AcademyName)))",
+                "Email types: ApplicationSubmitted, ContributorInvited, ContributorAccessGranted",
+                "Uses the same fieldMappings DSL as EventMappings (DirectField, ComplexFieldProperty, Collection, Metadata, etc.)",
+                "Baseline personalisation keys are always sent; configured mappings overlay/add placeholders"
+            ],
+            requiresObject: true),
+
+        Entry(
             "SchemaEvents",
             "Tenant-defined schema events (topic + JSON Schema) for messages not yet in CoreLibs.",
             ["Shared"],
