@@ -11,6 +11,7 @@ public static class TenantSafeSettingCategories
     public const string Dashboard = "Dashboard";
     public const string ApplicationPreview = "ApplicationPreview";
     public const string EventMappings = "EventMappings";
+    public const string EmailPlaceholderMappings = "EmailPlaceholderMappings";
     public const string SchemaEvents = "SchemaEvents";
     public const string EventTriggers = "EventTriggers";
     public const string FileValidation = "FileValidation";
@@ -28,6 +29,7 @@ public static class TenantSafeSettingCategories
     private static readonly IReadOnlySet<string> SharedCategories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         EventMappings,
+        EmailPlaceholderMappings,
         SchemaEvents,
         EventTriggers,
         FileValidation
@@ -40,6 +42,7 @@ public static class TenantSafeSettingCategories
         Dashboard,
         ApplicationPreview,
         EventMappings,
+        EmailPlaceholderMappings,
         SchemaEvents,
         EventTriggers,
         FileValidation

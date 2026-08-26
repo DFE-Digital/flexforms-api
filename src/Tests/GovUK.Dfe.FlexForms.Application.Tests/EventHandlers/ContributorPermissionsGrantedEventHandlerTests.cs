@@ -3,6 +3,7 @@ using GovUK.Dfe.FlexForms.Application.Applications.EventHandlers;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Events;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
@@ -19,6 +20,8 @@ public class ContributorPermissionsGrantedEventHandlerTests
     private readonly ILogger<ContributorPermissionsGrantedEventHandler> _logger;
     private readonly IEmailService _emailService;
     private readonly IEmailTemplateResolver _emailTemplateResolver;
+    private readonly IEmailPersonalisationBuilder _emailPersonalisationBuilder;
+    private readonly IApplicationRepository _applicationRepository;
     private readonly ContributorPermissionsGrantedEventHandler _handler;
 
     public ContributorPermissionsGrantedEventHandlerTests()
@@ -26,8 +29,26 @@ public class ContributorPermissionsGrantedEventHandlerTests
         _logger = Substitute.For<ILogger<ContributorPermissionsGrantedEventHandler>>();
         _emailService = Substitute.For<IEmailService>();
         _emailTemplateResolver = Substitute.For<IEmailTemplateResolver>();
+        _emailPersonalisationBuilder = Substitute.For<IEmailPersonalisationBuilder>();
+        _applicationRepository = Substitute.For<IApplicationRepository>();
 
-        _handler = new ContributorPermissionsGrantedEventHandler(_logger, _emailService, _emailTemplateResolver);
+        _emailPersonalisationBuilder.BuildAsync(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<Guid>(),
+                Arg.Any<string>(),
+                Arg.Any<Dictionary<string, object>>(),
+                Arg.Any<Dictionary<string, object>>(),
+                Arg.Any<IReadOnlyDictionary<string, object?>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult(new Dictionary<string, object>(ci.ArgAt<Dictionary<string, object>>(4))));
+
+        _handler = new ContributorPermissionsGrantedEventHandler(
+            _logger,
+            _emailService,
+            _emailTemplateResolver,
+            _emailPersonalisationBuilder,
+            _applicationRepository);
     }
 
     [Theory]

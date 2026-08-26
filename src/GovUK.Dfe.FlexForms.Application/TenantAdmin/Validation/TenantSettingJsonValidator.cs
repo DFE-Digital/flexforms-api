@@ -115,6 +115,7 @@ public static class TenantSettingJsonValidator
             "Dashboard" => true,
             "ApplicationPreview" => true,
             "EventMappings" => true,
+            "EmailPlaceholderMappings" => true,
             "SchemaEvents" => true,
             "EventTriggers" => true,
             "FileValidation" => true,
@@ -250,7 +251,11 @@ public static class TenantSettingJsonValidator
                 break;
 
             case "EventMappings":
-                ValidateEventMappings(root, errors);
+                ValidateTemplateKeyedFieldMappings("EventMappings", root, errors);
+                break;
+
+            case "EmailPlaceholderMappings":
+                ValidateTemplateKeyedFieldMappings("EmailPlaceholderMappings", root, errors);
                 break;
 
             case "SchemaEvents":
@@ -453,7 +458,7 @@ public static class TenantSettingJsonValidator
         }
     }
 
-    private static void ValidateEventMappings(JsonElement root, List<string> errors)
+    private static void ValidateTemplateKeyedFieldMappings(string category, JsonElement root, List<string> errors)
     {
         foreach (var templateProperty in root.EnumerateObject())
         {
@@ -463,7 +468,7 @@ public static class TenantSettingJsonValidator
 
             if (templateProperty.Value.ValueKind != JsonValueKind.Object)
             {
-                errors.Add($"EventMappings['{templateProperty.Name}'] must be an object keyed by event type name.");
+                errors.Add($"{category}['{templateProperty.Name}'] must be an object keyed by type name.");
                 continue;
             }
 
@@ -472,7 +477,7 @@ public static class TenantSettingJsonValidator
                 if (eventProperty.Value.ValueKind != JsonValueKind.Object)
                 {
                     errors.Add(
-                        $"EventMappings['{templateProperty.Name}']['{eventProperty.Name}'] must be a mapping object.");
+                        $"{category}['{templateProperty.Name}']['{eventProperty.Name}'] must be a mapping object.");
                     continue;
                 }
 
@@ -480,25 +485,25 @@ public static class TenantSettingJsonValidator
                 if (GetString(mapping, "mappingId") is null && GetString(mapping, "MappingId") is null)
                 {
                     errors.Add(
-                        $"EventMappings['{templateProperty.Name}']['{eventProperty.Name}'].mappingId is required.");
+                        $"{category}['{templateProperty.Name}']['{eventProperty.Name}'].mappingId is required.");
                 }
 
                 if (GetString(mapping, "eventType") is null && GetString(mapping, "EventType") is null)
                 {
                     errors.Add(
-                        $"EventMappings['{templateProperty.Name}']['{eventProperty.Name}'].eventType is required.");
+                        $"{category}['{templateProperty.Name}']['{eventProperty.Name}'].eventType is required.");
                 }
 
                 if (!mapping.TryGetProperty("fieldMappings", out var fieldMappings)
                     && !mapping.TryGetProperty("FieldMappings", out fieldMappings))
                 {
                     errors.Add(
-                        $"EventMappings['{templateProperty.Name}']['{eventProperty.Name}'].fieldMappings is required.");
+                        $"{category}['{templateProperty.Name}']['{eventProperty.Name}'].fieldMappings is required.");
                 }
                 else if (fieldMappings.ValueKind != JsonValueKind.Object)
                 {
                     errors.Add(
-                        $"EventMappings['{templateProperty.Name}']['{eventProperty.Name}'].fieldMappings must be an object.");
+                        $"{category}['{templateProperty.Name}']['{eventProperty.Name}'].fieldMappings must be an object.");
                 }
             }
         }

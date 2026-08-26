@@ -13,6 +13,7 @@ public sealed class ApplicationSubmittedEventHandler(
     ILogger<ApplicationSubmittedEventHandler> logger,
     IEmailService emailService,
     IEmailTemplateResolver emailTemplateResolver,
+    IEmailPersonalisationBuilder emailPersonalisationBuilder,
     IApplicationRepository applicationRepository,
     IEventTriggerDispatcher eventTriggerDispatcher) : BaseEventHandler<ApplicationSubmittedEvent>(logger)
 {
@@ -20,20 +21,26 @@ public sealed class ApplicationSubmittedEventHandler(
 
     protected override async Task HandleEvent(ApplicationSubmittedEvent notification, CancellationToken cancellationToken)
     {
-        await SendConfirmationEmailAsync(notification, cancellationToken);
-        await DispatchConfiguredEventsAsync(notification, cancellationToken);
+        var latestResponse = await applicationRepository.GetLatestResponseAsync(
+            notification.ApplicationId,
+            cancellationToken);
+
+        var formData = ApplicationFormDataParser.Parse(latestResponse?.ResponseBody);
+
+        await SendConfirmationEmailAsync(notification, formData, cancellationToken);
+        await DispatchConfiguredEventsAsync(notification, formData, cancellationToken);
     }
 
     private async Task SendConfirmationEmailAsync(
         ApplicationSubmittedEvent notification,
+        Dictionary<string, object> formData,
         CancellationToken cancellationToken)
     {
         try
         {
-            // Resolve the email template ID based on the application template and email type
             var emailTemplateId = await emailTemplateResolver.ResolveEmailTemplateAsync(
                 notification.TemplateId,
-                "ApplicationSubmitted");
+                EmailTypes.ApplicationSubmitted);
 
             if (string.IsNullOrEmpty(emailTemplateId))
             {
@@ -42,17 +49,39 @@ public sealed class ApplicationSubmittedEventHandler(
                 return;
             }
 
+            var baseline = new Dictionary<string, object>
+            {
+                ["user_full_name"] = notification.UserFullName,
+                ["application_reference"] = notification.ApplicationReference,
+                ["submitted_date"] = notification.SubmittedOn.ToString("dd/MM/yyyy"),
+                ["submitted_time"] = notification.SubmittedOn.ToString("HH:mm")
+            };
+
+            var platformMetadata = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            {
+                [PlatformEventMetadataKeys.ApplicationId] = notification.ApplicationId.Value.ToString(),
+                [PlatformEventMetadataKeys.ApplicationReference] = notification.ApplicationReference,
+                [PlatformEventMetadataKeys.SubmittedByUserId] = notification.SubmittedBy.Value.ToString(),
+                [PlatformEventMetadataKeys.SubmittedByEmail] = notification.UserEmail,
+                [PlatformEventMetadataKeys.SubmittedByFullName] = notification.UserFullName,
+                [PlatformEventMetadataKeys.SubmittedOn] = notification.SubmittedOn
+            };
+
+            var personalization = await emailPersonalisationBuilder.BuildAsync(
+                notification.TemplateId.Value.ToString(),
+                EmailTypes.ApplicationSubmitted,
+                notification.ApplicationId.Value,
+                notification.ApplicationReference,
+                baseline,
+                formData,
+                platformMetadata,
+                cancellationToken);
+
             var email = new EmailMessage()
             {
                 ToEmail = notification.UserEmail,
                 TemplateId = emailTemplateId,
-                Personalization = new Dictionary<string, object>
-                {
-                    ["user_full_name"] = notification.UserFullName,
-                    ["application_reference"] = notification.ApplicationReference,
-                    ["submitted_date"] = notification.SubmittedOn.ToString("dd/MM/yyyy"),
-                    ["submitted_time"] = notification.SubmittedOn.ToString("HH:mm")
-                }
+                Personalization = personalization
             };
 
             var response = await emailService.SendEmailAsync(email, cancellationToken);
@@ -83,16 +112,11 @@ public sealed class ApplicationSubmittedEventHandler(
     /// </summary>
     private async Task DispatchConfiguredEventsAsync(
         ApplicationSubmittedEvent notification,
+        Dictionary<string, object> formData,
         CancellationToken cancellationToken)
     {
         try
         {
-            var latestResponse = await applicationRepository.GetLatestResponseAsync(
-                notification.ApplicationId,
-                cancellationToken);
-
-            var formData = ApplicationFormDataParser.Parse(latestResponse?.ResponseBody);
-
             var platformMetadata = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
             {
                 [PlatformEventMetadataKeys.ApplicationId] = notification.ApplicationId.Value.ToString(),

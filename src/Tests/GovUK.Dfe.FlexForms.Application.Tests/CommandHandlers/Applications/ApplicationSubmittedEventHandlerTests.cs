@@ -16,14 +16,32 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.Applications;
 
 public class ApplicationSubmittedEventHandlerTests
 {
+    private static IEmailPersonalisationBuilder CreatePassthroughBuilder()
+    {
+        var builder = Substitute.For<IEmailPersonalisationBuilder>();
+        builder.BuildAsync(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<Guid>(),
+                Arg.Any<string>(),
+                Arg.Any<Dictionary<string, object>>(),
+                Arg.Any<Dictionary<string, object>>(),
+                Arg.Any<IReadOnlyDictionary<string, object?>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult(new Dictionary<string, object>(ci.ArgAt<Dictionary<string, object>>(4))));
+        return builder;
+    }
+
     private static ApplicationSubmittedEventHandler CreateHandler(
         ILogger<ApplicationSubmittedEventHandler> logger,
         IEmailService emailService,
-        IEmailTemplateResolver emailTemplateResolver)
+        IEmailTemplateResolver emailTemplateResolver,
+        IEmailPersonalisationBuilder? emailPersonalisationBuilder = null)
         => new(
             logger,
             emailService,
             emailTemplateResolver,
+            emailPersonalisationBuilder ?? CreatePassthroughBuilder(),
             Substitute.For<IApplicationRepository>(),
             Substitute.For<IEventTriggerDispatcher>());
 

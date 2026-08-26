@@ -28,6 +28,13 @@ public static class PlatformEventMetadataKeys
     public const string UploaderEmail = "uploaderEmail";
     public const string UploadedOn = "uploadedOn";
 
+    // Contributor emails (EmailPlaceholderMappings Metadata source)
+    public const string ContributorName = "contributorName";
+    public const string ContributorEmail = "contributorEmail";
+    public const string AddedOn = "addedOn";
+    public const string GrantedOn = "grantedOn";
+    public const string AccessTypes = "accessTypes";
+
     /// <summary>Keys available on every trigger (application identity).</summary>
     public static IReadOnlyList<MetadataKeyHint> AlwaysAvailable { get; } =
     [
@@ -59,6 +66,25 @@ public static class PlatformEventMetadataKeys
         new(UploaderUserId, "User id of the uploader"),
         new(UploaderEmail, "Email of the uploader when known"),
         new(UploadedOn, "UTC timestamp when the file was uploaded")
+    ];
+
+    /// <summary>Keys populated for contributor invitation emails.</summary>
+    public static IReadOnlyList<MetadataKeyHint> ContributorInvited { get; } =
+    [
+        ..AlwaysAvailable,
+        new(ContributorName, "Display name of the contributor"),
+        new(ContributorEmail, "Email of the contributor"),
+        new(AddedOn, "UTC timestamp when the contributor was added")
+    ];
+
+    /// <summary>Keys populated for contributor access-granted emails.</summary>
+    public static IReadOnlyList<MetadataKeyHint> ContributorAccessGranted { get; } =
+    [
+        ..AlwaysAvailable,
+        new(ContributorName, "Display name of the contributor"),
+        new(ContributorEmail, "Email of the contributor"),
+        new(GrantedOn, "UTC timestamp when access was granted"),
+        new(AccessTypes, "Comma-separated access types granted")
     ];
 
     public sealed record MetadataKeyHint(string Key, string Description);

@@ -3,6 +3,7 @@ using GovUK.Dfe.FlexForms.Application.Applications.EventHandlers;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Events;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
 using Microsoft.Extensions.Logging;
@@ -18,6 +19,8 @@ public class ContributorAddedEventHandlerTests
     private readonly ILogger<ContributorAddedEventHandler> _logger;
     private readonly IEmailService _emailService;
     private readonly IEmailTemplateResolver _emailTemplateResolver;
+    private readonly IEmailPersonalisationBuilder _emailPersonalisationBuilder;
+    private readonly IApplicationRepository _applicationRepository;
     private readonly ContributorAddedEventHandler _handler;
 
     public ContributorAddedEventHandlerTests()
@@ -25,8 +28,26 @@ public class ContributorAddedEventHandlerTests
         _logger = Substitute.For<ILogger<ContributorAddedEventHandler>>();
         _emailService = Substitute.For<IEmailService>();
         _emailTemplateResolver = Substitute.For<IEmailTemplateResolver>();
+        _emailPersonalisationBuilder = Substitute.For<IEmailPersonalisationBuilder>();
+        _applicationRepository = Substitute.For<IApplicationRepository>();
 
-        _handler = new ContributorAddedEventHandler(_logger, _emailService, _emailTemplateResolver);
+        _emailPersonalisationBuilder.BuildAsync(
+                Arg.Any<string>(),
+                Arg.Any<string>(),
+                Arg.Any<Guid>(),
+                Arg.Any<string>(),
+                Arg.Any<Dictionary<string, object>>(),
+                Arg.Any<Dictionary<string, object>>(),
+                Arg.Any<IReadOnlyDictionary<string, object?>?>(),
+                Arg.Any<CancellationToken>())
+            .Returns(ci => Task.FromResult(new Dictionary<string, object>(ci.ArgAt<Dictionary<string, object>>(4))));
+
+        _handler = new ContributorAddedEventHandler(
+            _logger,
+            _emailService,
+            _emailTemplateResolver,
+            _emailPersonalisationBuilder,
+            _applicationRepository);
     }
 
 
@@ -231,4 +252,4 @@ public class ContributorAddedEventHandlerTests
             Arg.Any<Func<object, Exception?, string>>());
     }
 
-} 
+}

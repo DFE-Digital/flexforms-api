@@ -1,6 +1,8 @@
 using GovUK.Dfe.FlexForms.Application.Common.EventHandlers;
+using GovUK.Dfe.FlexForms.Application.Options;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Events;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.CoreLibs.Email.Interfaces;
 using GovUK.Dfe.CoreLibs.Email.Models;
 using Microsoft.Extensions.Logging;
@@ -10,7 +12,9 @@ namespace GovUK.Dfe.FlexForms.Application.Applications.EventHandlers;
 public sealed class ContributorAddedEventHandler(
     ILogger<ContributorAddedEventHandler> logger,
     IEmailService emailService,
-    IEmailTemplateResolver emailTemplateResolver) : BaseEventHandler<ContributorAddedEvent>(logger)
+    IEmailTemplateResolver emailTemplateResolver,
+    IEmailPersonalisationBuilder emailPersonalisationBuilder,
+    IApplicationRepository applicationRepository) : BaseEventHandler<ContributorAddedEvent>(logger)
 {
     protected override async Task HandleEvent(ContributorAddedEvent notification, CancellationToken cancellationToken)
     {
@@ -19,7 +23,6 @@ public sealed class ContributorAddedEventHandler(
             notification.ApplicationId.Value, 
             notification.AddedBy.Value);
 
-        // Send email to the new contributor (side effect only)
         await SendContributorInvitationEmail(notification, cancellationToken);
     }
 
@@ -27,10 +30,9 @@ public sealed class ContributorAddedEventHandler(
     {
         try
         {
-                // Resolve the email template ID based on the application template and email type
-                var emailTemplateId = await emailTemplateResolver.ResolveEmailTemplateAsync(
-                    notification.TemplateId,
-                    "ContributorInvited");
+            var emailTemplateId = await emailTemplateResolver.ResolveEmailTemplateAsync(
+                notification.TemplateId,
+                EmailTypes.ContributorInvited);
 
             if (string.IsNullOrEmpty(emailTemplateId))
             {
@@ -39,17 +41,43 @@ public sealed class ContributorAddedEventHandler(
                 return;
             }
 
+            var latestResponse = await applicationRepository.GetLatestResponseAsync(
+                notification.ApplicationId,
+                cancellationToken);
+            var formData = ApplicationFormDataParser.Parse(latestResponse?.ResponseBody);
+
+            var baseline = new Dictionary<string, object>
+            {
+                ["contributor_name"] = notification.Contributor.Name,
+                ["application_reference"] = notification.ApplicationReference,
+                ["added_date"] = notification.AddedOn.ToString("dd/MM/yyyy"),
+                ["added_time"] = notification.AddedOn.ToString("HH:mm")
+            };
+
+            var platformMetadata = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            {
+                [PlatformEventMetadataKeys.ApplicationId] = notification.ApplicationId.Value.ToString(),
+                [PlatformEventMetadataKeys.ApplicationReference] = notification.ApplicationReference,
+                [PlatformEventMetadataKeys.ContributorName] = notification.Contributor.Name,
+                [PlatformEventMetadataKeys.ContributorEmail] = notification.Contributor.Email,
+                [PlatformEventMetadataKeys.AddedOn] = notification.AddedOn
+            };
+
+            var personalization = await emailPersonalisationBuilder.BuildAsync(
+                notification.TemplateId.Value.ToString(),
+                EmailTypes.ContributorInvited,
+                notification.ApplicationId.Value,
+                notification.ApplicationReference,
+                baseline,
+                formData,
+                platformMetadata,
+                cancellationToken);
+
             var email = new EmailMessage()
             {
                 ToEmail = notification.Contributor.Email,
                 TemplateId = emailTemplateId,
-                Personalization = new Dictionary<string, object>
-                {
-                    ["contributor_name"] = notification.Contributor.Name,
-                    ["application_reference"] = notification.ApplicationReference,
-                    ["added_date"] = notification.AddedOn.ToString("dd/MM/yyyy"),
-                    ["added_time"] = notification.AddedOn.ToString("HH:mm")
-                }
+                Personalization = personalization
             };
 
             var response = await emailService.SendEmailAsync(email, cancellationToken);
@@ -74,4 +102,4 @@ public sealed class ContributorAddedEventHandler(
             // The contributor addition itself has already succeeded at this point
         }
     }
-} 
+}

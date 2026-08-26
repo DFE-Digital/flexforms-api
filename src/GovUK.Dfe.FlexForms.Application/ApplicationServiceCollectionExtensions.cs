@@ -96,10 +96,15 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddTransient<IEmailTemplateResolver, EmailTemplateResolver>();
 
             // Outbound mapped event publishing. Scoped so every lookup uses the request's tenant settings.
+            services.AddScoped<IFieldMappingValueExtractor, FieldMappingValueExtractor>();
             services.AddScoped<IEventMappingProvider, EventMappingProvider>();
             services.AddScoped<ISchemaEventDefinitionProvider, SchemaEventDefinitionProvider>();
             services.AddScoped<IEventDataMapper, EventDataMapper>();
             services.AddSingleton<IEventTypeRegistry, EventTypeRegistry>();
+
+            // Email personalisation from TenantConfig EmailPlaceholderMappings.
+            services.AddScoped<IEmailPlaceholderMappingProvider, EmailPlaceholderMappingProvider>();
+            services.AddScoped<IEmailPersonalisationBuilder, EmailPersonalisationBuilder>();
 
             services.AddScoped<ITenantTemplateCatalogue, TenantTemplateCatalogue>();
             services.AddScoped<ITenantTemplateResolver, TenantTemplateResolver>();

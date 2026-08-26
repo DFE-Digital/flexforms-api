@@ -14,7 +14,7 @@ Tenants (products such as Transfers, Visits, LSRP) share one API. Each tenant’
 - **Token exchange** — DfE Sign-In / Entra SSO / test / internal service → tenant-scoped API JWT
 - **Secure files** — Azure File Share + ClamAV scan via Azure Service Bus
 - **Tenant file validation** — Optional per-template callback; status + SignalR notify the uploader
-- **GOV.UK Notify** — Email for submit, invites, feedback
+- **GOV.UK Notify** — Email for submit, invites, feedback; optional TenantConfig `EmailPlaceholderMappings` for custom personalisation from form answers
 - **Real-time notifications** — Azure SignalR
 - **Audit** — SQL Server temporal tables on `ea` entities
 - **Redis + memory cache** — Tenant-prefixed keys
@@ -146,7 +146,7 @@ sequenceDiagram
 | `Api` | API runtime (`DatabaseTenantConfigurationProvider`, target `Api`) |
 | `Web` | Consumed by Web via `GET /v1/tenant-config/tenants/{id}?target=Web` |
 
-Common categories: `ConnectionStrings`, `AzureAd`, `DfESignIn`, `EntraSso`, `Authorization`, `ApplicationTemplates`, `Email`, `FileStorage`, `FormEngine` (Web), `Layout` (Web), `InternalServiceAuth`, …
+Common categories: `ConnectionStrings`, `AzureAd`, `DfESignIn`, `EntraSso`, `Authorization`, `ApplicationTemplates`, `Email`, `EmailTemplates`, `EmailPlaceholderMappings`, `EventMappings`, `EventTriggers`, `SchemaEvents`, `FileStorage`, `FileValidation`, `FormEngine` (Web), `Layout` (Web), `InternalServiceAuth`, …
 
 Secrets (`IsSecret = 1`) are encrypted with ASP.NET Data Protection.
 
@@ -548,6 +548,53 @@ Same store and SignalR path as file-delete / malware banners. Context **must** b
 |--------|------|--------------|---------|
 | Failed | Error | No | `We could not validate '{fileName}'. {detail}` |
 | Passed | Success | 8 seconds | `The file '{fileName}' has been validated.` |
+
+---
+
+## Email placeholder mappings (Notify personalisation)
+
+Application emails are sent via **GOV.UK Notify**. The API resolves a Notify template GUID from `EmailTemplates`, then sends an `EmailMessage` with a **personalisation** dictionary. Bodies live in Notify (`((placeholders))`); FlexForms only supplies values.
+
+### Baseline keys (always sent)
+
+| Email type | Baseline personalisation keys |
+|------------|-------------------------------|
+| `ApplicationSubmitted` | `user_full_name`, `application_reference`, `submitted_date`, `submitted_time` |
+| `ContributorInvited` | `contributor_name`, `application_reference`, `added_date`, `added_time` |
+| `ContributorAccessGranted` | `contributor_name`, `application_reference`, `granted_date`, `granted_time`, `access_types` |
+
+(`ContributorAccessGranted` still resolves its Notify template via the `ContributorInvited` `EmailTemplates` entry; personalisation mappings use the distinct email-type key.)
+
+### Optional overlays (`EmailPlaceholderMappings`, Target `Shared`)
+
+Same field-mapping DSL as `EventMappings` (`DirectField`, `ComplexFieldProperty`, `Collection`, `Metadata`, …). Shape: `{templateId}:{emailType}` → `fieldMappings` where **keys are Notify personalisation names**.
+
+```json
+{
+  "form-001": {
+    "ApplicationSubmitted": {
+      "mappingId": "transfer-submitted-email-v1",
+      "eventType": "ApplicationSubmitted",
+      "fieldMappings": {
+        "AcademyName": {
+          "sourceType": "ComplexFieldProperty",
+          "sourceFieldId": "academiesSearch",
+          "nestedPath": "name"
+        }
+      }
+    }
+  }
+}
+```
+
+Runtime:
+
+1. Handlers build **baseline** personalisation.
+2. `IEmailPersonalisationBuilder` loads `EmailPlaceholderMappings` via `IEmailPlaceholderMappingProvider` (GUID / `form-001` fallback like event mappings).
+3. `IFieldMappingValueExtractor` (shared with `EventDataMapper`) fills mapped keys from latest form answers + metadata.
+4. Mapped values **overlay** the baseline (config wins on key clash; empty values are skipped).
+
+Safe TenantConfig category (tenant Admins may edit). Operator guide: [flexforms-web Tenant Admin User Manual §13](https://github.com/DFE-Digital/flexforms-web/blob/main/docs/Tenant-Admin-User-Manual.md#13-email-placeholder-mappings).
 
 ---
 

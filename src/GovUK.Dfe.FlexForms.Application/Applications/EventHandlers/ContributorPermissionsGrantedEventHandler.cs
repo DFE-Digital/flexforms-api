@@ -1,6 +1,8 @@
 using GovUK.Dfe.FlexForms.Application.Common.EventHandlers;
+using GovUK.Dfe.FlexForms.Application.Options;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Events;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using Microsoft.Extensions.Logging;
 using GovUK.Dfe.CoreLibs.Email.Interfaces;
 using GovUK.Dfe.CoreLibs.Email.Models;
@@ -10,7 +12,9 @@ namespace GovUK.Dfe.FlexForms.Application.Applications.EventHandlers;
 public sealed class ContributorPermissionsGrantedEventHandler(
     ILogger<ContributorPermissionsGrantedEventHandler> logger,
     IEmailService emailService,
-    IEmailTemplateResolver emailTemplateResolver) : BaseEventHandler<ContributorPermissionsGrantedEvent>(logger)
+    IEmailTemplateResolver emailTemplateResolver,
+    IEmailPersonalisationBuilder emailPersonalisationBuilder,
+    IApplicationRepository applicationRepository) : BaseEventHandler<ContributorPermissionsGrantedEvent>(logger)
 {
     protected override async Task HandleEvent(ContributorPermissionsGrantedEvent notification, CancellationToken cancellationToken)
     {
@@ -23,7 +27,6 @@ public sealed class ContributorPermissionsGrantedEventHandler(
             notification.Contributor.Id!.Value,
             notification.ApplicationId.Value);
 
-        // Send email to the contributor about their new access
         await SendContributorAccessGrantedEmail(notification, cancellationToken);
     }
 
@@ -31,10 +34,10 @@ public sealed class ContributorPermissionsGrantedEventHandler(
     {
         try
         {
-            // Resolve the email template ID based on the application template and email type
+            // Notify template ID still resolves via ContributorInvited; personalisation mapping uses ContributorAccessGranted.
             var emailTemplateId = await emailTemplateResolver.ResolveEmailTemplateAsync(
                 notification.TemplateId,
-                "ContributorInvited"); // Reuse the same template for now, could be "ContributorAccessGranted" if you want different template
+                EmailTypes.ContributorInvited);
 
             if (string.IsNullOrEmpty(emailTemplateId))
             {
@@ -43,18 +46,47 @@ public sealed class ContributorPermissionsGrantedEventHandler(
                 return;
             }
 
+            var latestResponse = await applicationRepository.GetLatestResponseAsync(
+                notification.ApplicationId,
+                cancellationToken);
+            var formData = ApplicationFormDataParser.Parse(latestResponse?.ResponseBody);
+
+            var accessTypes = string.Join(", ", notification.GrantedAccessTypes.Select(a => a.ToString()));
+
+            var baseline = new Dictionary<string, object>
+            {
+                ["contributor_name"] = notification.Contributor.Name,
+                ["application_reference"] = notification.ApplicationReference,
+                ["granted_date"] = notification.GrantedOn.ToString("dd/MM/yyyy"),
+                ["granted_time"] = notification.GrantedOn.ToString("HH:mm"),
+                ["access_types"] = accessTypes
+            };
+
+            var platformMetadata = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+            {
+                [PlatformEventMetadataKeys.ApplicationId] = notification.ApplicationId.Value.ToString(),
+                [PlatformEventMetadataKeys.ApplicationReference] = notification.ApplicationReference,
+                [PlatformEventMetadataKeys.ContributorName] = notification.Contributor.Name,
+                [PlatformEventMetadataKeys.ContributorEmail] = notification.Contributor.Email,
+                [PlatformEventMetadataKeys.GrantedOn] = notification.GrantedOn,
+                [PlatformEventMetadataKeys.AccessTypes] = accessTypes
+            };
+
+            var personalization = await emailPersonalisationBuilder.BuildAsync(
+                notification.TemplateId.Value.ToString(),
+                EmailTypes.ContributorAccessGranted,
+                notification.ApplicationId.Value,
+                notification.ApplicationReference,
+                baseline,
+                formData,
+                platformMetadata,
+                cancellationToken);
+
             var email = new EmailMessage()
             {
                 ToEmail = notification.Contributor.Email,
                 TemplateId = emailTemplateId,
-                Personalization = new Dictionary<string, object>
-                {
-                    ["contributor_name"] = notification.Contributor.Name,
-                    ["application_reference"] = notification.ApplicationReference,
-                    ["granted_date"] = notification.GrantedOn.ToString("dd/MM/yyyy"),
-                    ["granted_time"] = notification.GrantedOn.ToString("HH:mm"),
-                    ["access_types"] = string.Join(", ", notification.GrantedAccessTypes.Select(a => a.ToString()))
-                }
+                Personalization = personalization
             };
 
             var response = await emailService.SendEmailAsync(email, cancellationToken);

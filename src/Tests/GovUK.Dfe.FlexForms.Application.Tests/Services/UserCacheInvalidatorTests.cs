@@ -67,4 +67,22 @@ public class UserCacheInvalidatorTests
         await advancedRedisCacheService.Received(1).RemoveByPatternAsync(Arg.Is<string>(p => p.Contains("Permissions_All_UserId_")));
         await advancedRedisCacheService.Received(1).RemoveByPatternAsync(Arg.Is<string>(p => p.Contains("Template_Permissions_ByUiD_")));
     }
+
+    [Fact]
+    public async Task InvalidateApplicationListingsAsync_ShouldRemoveAllTenantApplicationListingPatterns()
+    {
+        var cacheService = Substitute.For<ICacheService<IRedisCacheType>>();
+        var advancedRedisCacheService = Substitute.For<IAdvancedRedisCacheService>();
+        var tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
+        tenantContextAccessor.CurrentTenant.Returns(
+            new TenantConfiguration(Guid.NewGuid(), "TestTenant", new ConfigurationBuilder().Build(), []));
+
+        var invalidator = new UserCacheInvalidator(cacheService, advancedRedisCacheService, tenantContextAccessor);
+
+        await invalidator.InvalidateApplicationListingsAsync();
+
+        await advancedRedisCacheService.Received(1).RemoveByPatternAsync(Arg.Is<string>(p => p.Contains("Applications_ByTemplate_")));
+        await advancedRedisCacheService.Received(1).RemoveByPatternAsync(Arg.Is<string>(p => p.Contains("Applications_ForUser_")));
+        await advancedRedisCacheService.Received(1).RemoveByPatternAsync(Arg.Is<string>(p => p.Contains("Applications_ForUserExternal_")));
+    }
 }
