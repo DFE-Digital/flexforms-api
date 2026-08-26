@@ -1,5 +1,5 @@
 module "azure_container_apps_hosting" {
-  source = "github.com/DFE-Digital/terraform-azurerm-container-apps-hosting?ref=v2.9.3"
+  source = "github.com/DFE-Digital/terraform-azurerm-container-apps-hosting?ref=v2.9.4"
 
   environment    = local.environment
   project_name   = local.project_name
@@ -19,19 +19,22 @@ module "azure_container_apps_hosting" {
   dns_mx_records       = local.dns_mx_records
   dns_alias_records    = local.dns_alias_records
 
-  image_name                             = local.image_name
-  container_command                      = local.container_command
-  container_secret_environment_variables = local.container_secret_environment_variables
-  container_scale_http_concurrency       = local.container_scale_http_concurrency
-  container_apps_allow_ips_inbound       = local.container_apps_allow_ips_inbound
-  container_min_replicas                 = local.container_min_replicas
-  container_port                         = local.container_port
-  enable_container_app_file_share        = local.enable_container_app_file_share
-  storage_account_public_access_enabled  = local.storage_account_public_access_enabled
-  storage_account_ipv4_allow_list        = local.storage_account_ipv4_allow_list
-  storage_subnet_cidr                    = local.storage_subnet_cidr
-  storage_account_name_override          = local.storage_account_name_override
-  container_app_file_share_mount_path    = local.container_app_file_share_mount_path
+  image_name                                         = local.image_name
+  container_command                                  = local.container_command
+  container_secret_environment_variables             = local.container_secret_environment_variables
+  container_scale_http_concurrency                   = local.container_scale_http_concurrency
+  container_apps_allow_ips_inbound                   = local.container_apps_allow_ips_inbound
+  container_min_replicas                             = local.container_min_replicas
+  container_port                                     = local.container_port
+  enable_container_app_file_share                    = local.enable_container_app_file_share
+  existing_file_share_name                           = local.existing_file_share_name
+  existing_file_share_storage_account_name           = local.existing_file_share_storage_account_name
+  existing_file_share_storage_account_resource_group = local.existing_file_share_storage_account_resource_group
+  storage_account_public_access_enabled              = local.storage_account_public_access_enabled
+  storage_account_ipv4_allow_list                    = local.storage_account_ipv4_allow_list
+  storage_subnet_cidr                                = local.storage_subnet_cidr
+  storage_account_name_override                      = local.storage_account_name_override
+  container_app_file_share_mount_path                = local.container_app_file_share_mount_path
 
   enable_health_insights_api          = local.enable_health_insights_api
   health_insights_api_cors_origins    = local.health_insights_api_cors_origins
