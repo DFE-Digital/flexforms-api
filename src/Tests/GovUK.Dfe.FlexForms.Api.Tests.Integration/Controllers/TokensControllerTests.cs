@@ -30,6 +30,8 @@ public class TokensControllerTests
             new Claim("appid", appid),
             new Claim(ClaimTypes.Role, "API.Read"),
             new Claim(ClaimTypes.Role, "API.Write"),
+            new Claim(ClaimTypes.Role, "Platform.Host.Read"),
+            new Claim(ClaimTypes.Role, "Platform.TenantConfig.Read"),
             new Claim(GovUK.Dfe.FlexForms.Domain.Tenancy.TenantAuthClaimTypes.IsService, "true")
         };
 
@@ -66,8 +68,16 @@ public class TokensControllerTests
             out _);
 
         Assert.Equal("bob@example.com", principal.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value);
+        // User JWT must carry membership role only — not machine app roles from the exchange caller.
         Assert.Contains(principal.Claims,
+            c => c.Type == System.Security.Claims.ClaimTypes.Role && c.Value == "User");
+        Assert.DoesNotContain(principal.Claims,
             c => c.Type == System.Security.Claims.ClaimTypes.Role && c.Value == "API.Write");
+        Assert.DoesNotContain(principal.Claims,
+            c => c.Type == System.Security.Claims.ClaimTypes.Role && c.Value == "API.Read");
+        Assert.DoesNotContain(principal.Claims,
+            c => c.Type == System.Security.Claims.ClaimTypes.Role &&
+                 c.Value.StartsWith("Platform.", StringComparison.OrdinalIgnoreCase));
     }
 
     private static string CreateTokenWithoutEmail()
