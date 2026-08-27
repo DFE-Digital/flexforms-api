@@ -20,7 +20,8 @@ public sealed class GetApplicationFileValidationGateQueryHandler(
     IEaRepository<File> fileRepository,
     IPermissionCheckerService permissionCheckerService,
     IFileValidationModeResolver fileValidationModeResolver,
-    IApplicationFileValidationPolicy fileValidationPolicy)
+    IApplicationFileValidationPolicy fileValidationPolicy,
+    ITenantPermissionFilter tenantPermissionFilter)
     : IRequestHandler<GetApplicationFileValidationGateQuery, Result<FileValidationGateDto>>
 {
     public async Task<Result<FileValidationGateDto>> Handle(
@@ -46,6 +47,13 @@ public sealed class GetApplicationFileValidationGateQueryHandler(
 
         if (application is null)
             return Result<FileValidationGateDto>.NotFound("Application not found");
+
+        if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(
+                request.ApplicationId,
+                cancellationToken))
+        {
+            return Result<FileValidationGateDto>.NotFound("Application not found");
+        }
 
         var files = await new GetFilesByApplicationIdQueryObject(applicationId)
             .Apply(fileRepository.Query().AsNoTracking())

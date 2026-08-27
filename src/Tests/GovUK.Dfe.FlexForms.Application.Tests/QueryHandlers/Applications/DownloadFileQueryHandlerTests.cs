@@ -20,6 +20,14 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.QueryHandlers.Applications;
 
 public class DownloadFileQueryHandlerTests
 {
+    private static ITenantPermissionFilter CreateTenantPermissionFilter(bool belongsToTenant = true)
+    {
+        var filter = Substitute.For<ITenantPermissionFilter>();
+        filter.ApplicationBelongsToCurrentTenantAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(belongsToTenant);
+        return filter;
+    }
+
     private readonly IEaRepository<File> _uploadRepository;
     private readonly IEaRepository<User> _userRepository;
     private readonly ITenantAwareFileStorageService _fileStorageService;
@@ -43,7 +51,8 @@ public class DownloadFileQueryHandlerTests
             _fileStorageService,
             _applicationRepository,
             _permissionCheckerService,
-            _httpContextAccessor);
+            _httpContextAccessor,
+            CreateTenantPermissionFilter());
     }
 
     [Theory]

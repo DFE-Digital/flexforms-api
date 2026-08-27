@@ -1,3 +1,4 @@
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Templates.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
@@ -26,6 +27,7 @@ namespace GovUK.Dfe.FlexForms.Application.Templates.Commands
         IEaRepository<CustomApplicationStatus> customApplicationStatusRepo,
         IEaRepository<User> userRepo,
         IHttpContextAccessor httpContextAccessor,
+        ITenantTemplateResolver tenantTemplateResolver,
         IUnitOfWork unitOfWork)
         : IRequestHandler<UpdateCustomApplicationStatusCommand, Result<CustomApplicationStatusDto>>
     {
@@ -59,6 +61,12 @@ namespace GovUK.Dfe.FlexForms.Application.Templates.Commands
 
                 if (dbUser is null || dbUser.Id is null)
                     return Result<CustomApplicationStatusDto>.Forbid("Unable to resolve CreatedBy user");
+
+                var templateId = new TemplateId(request.TemplateId);
+                if (!await tenantTemplateResolver.IsTemplateInCurrentTenantAsync(templateId, cancellationToken))
+                {
+                    return Result<CustomApplicationStatusDto>.NotFound("Template not found");
+                }
 
                 var createdByUserId = dbUser.Id;
 

@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Templates.Commands;
 using GovUK.Dfe.FlexForms.Domain.Entities;
@@ -15,6 +16,14 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.Templates;
 
 public class UpdateCustomApplicationStatusCommandHandlerTests
 {
+    private static ITenantTemplateResolver AllowAllTenantTemplates()
+    {
+        var resolver = Substitute.For<ITenantTemplateResolver>();
+        resolver.IsTemplateInCurrentTenantAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        return resolver;
+    }
+
     private readonly IEaRepository<CustomApplicationStatus> _customStatusRepo = Substitute.For<IEaRepository<CustomApplicationStatus>>();
     private readonly IEaRepository<User> _userRepo = Substitute.For<IEaRepository<User>>();
     private readonly IHttpContextAccessor _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
@@ -54,6 +63,7 @@ public class UpdateCustomApplicationStatusCommandHandlerTests
             _customStatusRepo,
             _userRepo,
             _httpContextAccessor,
+            AllowAllTenantTemplates(),
             _unitOfWork);
     }
     [Theory]
@@ -109,6 +119,7 @@ public class UpdateCustomApplicationStatusCommandHandlerTests
             _customStatusRepo,
             _userRepo,
             httpContextAccessor,
+            AllowAllTenantTemplates(),
             _unitOfWork);
 
         var command = new UpdateCustomApplicationStatusCommand(_testTemplateId, ApplicationStatus.Submitted, label);
@@ -140,6 +151,7 @@ public class UpdateCustomApplicationStatusCommandHandlerTests
             _customStatusRepo,
             userRepo,
             _httpContextAccessor,
+            AllowAllTenantTemplates(),
             _unitOfWork);
 
         var command = new UpdateCustomApplicationStatusCommand(_testTemplateId, ApplicationStatus.Submitted, label);

@@ -45,6 +45,10 @@ public class DeleteFileCommandHandlerTests
         _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         _fileFactory = Substitute.For<IFileFactory>();
 
+        var tenantPermissionFilter = Substitute.For<ITenantPermissionFilter>();
+        tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+
         _handler = new DeleteFileCommandHandler(
             _fileRepository,
             _userRepository,
@@ -53,7 +57,8 @@ public class DeleteFileCommandHandlerTests
             _fileStorageService,
             _permissionCheckerService,
             _httpContextAccessor,
-            _fileFactory);
+            _fileFactory,
+            tenantPermissionFilter);
     }
 
     [Theory]

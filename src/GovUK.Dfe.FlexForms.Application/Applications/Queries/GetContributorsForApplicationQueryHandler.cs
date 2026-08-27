@@ -1,6 +1,7 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Applications.Commands;
 using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
@@ -20,7 +21,8 @@ public sealed class GetContributorsForApplicationQueryHandler(
     IEaRepository<Domain.Entities.Application> applicationRepo,
     IEaRepository<User> userRepo,
     IHttpContextAccessor httpContextAccessor,
-    IPermissionCheckerService permissionCheckerService) : IRequestHandler<GetContributorsForApplicationQuery, Result<IReadOnlyCollection<UserDto>>>
+    IPermissionCheckerService permissionCheckerService,
+    ITenantPermissionFilter tenantPermissionFilter) : IRequestHandler<GetContributorsForApplicationQuery, Result<IReadOnlyCollection<UserDto>>>
 {
     public async Task<Result<IReadOnlyCollection<UserDto>>> Handle(
         GetContributorsForApplicationQuery request,
@@ -73,6 +75,11 @@ public sealed class GetContributorsForApplicationQueryHandler(
             if (!isOwner && !isAdmin)
                 return Result<IReadOnlyCollection<UserDto>>.Forbid("Only the application owner or admin can view contributors");
 
+            if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(request.ApplicationId, cancellationToken))
+            {
+                return Result<IReadOnlyCollection<UserDto>>.NotFound("Application not found");
+            }
+
             // Get all contributors
             var contributors = await (new GetContributorsForApplicationQueryObject(applicationId))
                 .Apply(userRepo.Query().AsNoTracking())
@@ -111,4 +118,4 @@ public sealed class GetContributorsForApplicationQueryHandler(
             return Result<IReadOnlyCollection<UserDto>>.Failure(e.Message);
         }
     }
-} 
+}

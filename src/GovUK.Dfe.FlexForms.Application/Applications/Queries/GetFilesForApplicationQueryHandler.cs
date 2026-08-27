@@ -1,6 +1,7 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
@@ -21,7 +22,8 @@ public class GetFilesForApplicationQueryHandler(
     IEaRepository<Domain.Entities.Application> applicationRepository,
     IEaRepository<User> userRepository,
     IHttpContextAccessor httpContextAccessor,
-    IPermissionCheckerService permissionCheckerService)
+    IPermissionCheckerService permissionCheckerService,
+    ITenantPermissionFilter tenantPermissionFilter)
     : IRequestHandler<GetFilesForApplicationQuery, Result<IReadOnlyCollection<UploadDto>>>
 {
     public async Task<Result<IReadOnlyCollection<UploadDto>>> Handle(GetFilesForApplicationQuery request, CancellationToken cancellationToken)
@@ -59,6 +61,13 @@ public class GetFilesForApplicationQueryHandler(
         if (application == null)
             return Result<IReadOnlyCollection<UploadDto>>.NotFound("Application not found");
 
+        if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(
+                request.ApplicationId.Value,
+                cancellationToken))
+        {
+            return Result<IReadOnlyCollection<UploadDto>>.NotFound("Application not found");
+        }
+
         // Permission check: user must have read permission for this application (File resource)
         if (!permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, application.Id!.Value.ToString(), AccessType.Read))
             return Result<IReadOnlyCollection<UploadDto>>.Forbid("User does not have permission to list files for this application");
@@ -84,4 +93,4 @@ public class GetFilesForApplicationQueryHandler(
 
         return Result<IReadOnlyCollection<UploadDto>>.Success(uploads);
     }
-} 
+}

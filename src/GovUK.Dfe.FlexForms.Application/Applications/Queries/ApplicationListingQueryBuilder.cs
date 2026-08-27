@@ -32,9 +32,10 @@ internal static class ApplicationListingQueryBuilder
 
         if (templateIdsFilter.Count == 0)
         {
-            // User may still have explicit application permissions after losing template access
-            // (e.g. template write removed). Do not hide their existing applications.
-            return query;
+            // Empty filter must not mean "unscoped" — that leaked cross-tenant apps on shared EA
+            // when a foreign templateId emptied the filter. Listing handlers pass the tenant
+            // catalogue when the user still has application permissions after losing template access.
+            return appRepo.Query().AsNoTracking().Where(_ => false);
         }
 
         return new GetApplicationsByTemplateIdsQueryObject(templateIdsFilter)

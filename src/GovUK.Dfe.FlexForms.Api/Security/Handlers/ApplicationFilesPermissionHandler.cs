@@ -5,7 +5,9 @@ using Microsoft.AspNetCore.Authorization;
 namespace GovUK.Dfe.FlexForms.Api.Security.Handlers
 {
     /// <summary>
-    /// Authorization handler that checks user permission claims for application files resource 
+    /// Authorization handler that checks user permission claims for application files resource.
+    /// Tenant membership for the application is enforced in application handlers as NotFound (404),
+    /// so missing or cross-tenant IDs do not surface as 403 from this gate.
     /// </summary>
     public sealed class ApplicationFilesPermissionHandler(IHttpContextAccessor accessor)
         : AuthorizationHandler<ApplicationFilesPermissionRequirement>
@@ -14,15 +16,15 @@ namespace GovUK.Dfe.FlexForms.Api.Security.Handlers
             AuthorizationHandlerContext context,
             ApplicationFilesPermissionRequirement requirement)
         {
+            var applicationId = accessor.HttpContext?.Request.RouteValues["applicationId"]?.ToString();
+            if (string.IsNullOrWhiteSpace(applicationId))
+                return Task.CompletedTask;
+
             if (PermissionClaimEvaluator.HasFullAdminAccess(context.User))
             {
                 context.Succeed(requirement);
                 return Task.CompletedTask;
             }
-
-            var applicationId = accessor.HttpContext?.Request.RouteValues["applicationId"]?.ToString();
-            if (string.IsNullOrWhiteSpace(applicationId))
-                return Task.CompletedTask;
 
             var hasAccess = requirement.Action switch
             {

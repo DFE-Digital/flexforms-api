@@ -26,6 +26,14 @@ public class AddContributorCommandHandlerTests
 {
     private static readonly Guid TestTenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
 
+    private static ITenantPermissionFilter CreateTenantPermissionFilter(bool belongsToTenant = true)
+    {
+        var filter = Substitute.For<ITenantPermissionFilter>();
+        filter.ApplicationBelongsToCurrentTenantAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(belongsToTenant);
+        return filter;
+    }
+
     private static ITenantContextAccessor CreateContributorTenantContext()
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
@@ -143,6 +151,7 @@ public class AddContributorCommandHandlerTests
             cacheInvalidator,
             CreateContributorTenantContext(),
             membershipService,
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -257,6 +266,7 @@ public class AddContributorCommandHandlerTests
             cacheInvalidator,
             CreateContributorTenantContext(),
             membershipService,
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -416,6 +426,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -579,6 +590,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             membershipService,
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -636,6 +648,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -677,6 +690,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -723,6 +737,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -782,6 +797,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -850,6 +866,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -885,6 +902,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -926,6 +944,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -984,6 +1003,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -1087,6 +1107,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -1192,6 +1213,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -1262,6 +1284,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -1364,6 +1387,7 @@ public class AddContributorCommandHandlerTests
             Substitute.For<IUserCacheInvalidator>(),
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act

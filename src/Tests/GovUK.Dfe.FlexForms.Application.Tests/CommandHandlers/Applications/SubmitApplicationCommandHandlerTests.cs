@@ -378,6 +378,10 @@ public class SubmitApplicationCommandHandlerTests
         var resolver = modeResolver ?? Substitute.For<IFileValidationModeResolver>();
         resolver.Resolve(Arg.Any<Guid?>()).Returns(FileValidationMode.Off);
 
+        var tenantPermissionFilter = Substitute.For<ITenantPermissionFilter>();
+        tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+
         return new SubmitApplicationCommandHandler(
             applicationRepo,
             files,
@@ -386,6 +390,7 @@ public class SubmitApplicationCommandHandlerTests
             resolver,
             policy ?? new ApplicationFileValidationPolicy(),
             Substitute.For<IUserCacheInvalidator>(),
+            tenantPermissionFilter,
             unitOfWork);
     }
 }

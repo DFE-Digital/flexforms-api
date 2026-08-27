@@ -26,7 +26,8 @@ public class DownloadFileQueryHandler(
     ITenantAwareFileStorageService fileStorageService,
     IEaRepository<Domain.Entities.Application> applicationRepository,
     IPermissionCheckerService permissionCheckerService,
-    IHttpContextAccessor httpContextAccessor)
+    IHttpContextAccessor httpContextAccessor,
+    ITenantPermissionFilter tenantPermissionFilter)
     : IRequestHandler<DownloadFileQuery, Result<DownloadFileResult>>
 {
     public async Task<Result<DownloadFileResult>> Handle(DownloadFileQuery request, CancellationToken cancellationToken)
@@ -68,6 +69,11 @@ public class DownloadFileQueryHandler(
             // Permission check: user must have read permission for this file
             if (!permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, application.Id!.Value.ToString(), AccessType.Read))
                 return Result<DownloadFileResult>.Forbid("User does not have permission to download this file");
+
+            if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(request.ApplicationId.Value, cancellationToken))
+            {
+                return Result<DownloadFileResult>.NotFound("Application not found");
+            }
 
             var upload = new GetFileByIdQueryObject(new FileId(request.FileId))
                 .Apply(uploadRepository.Query())

@@ -28,7 +28,8 @@ public class TenantAdminController(ISender sender) : ControllerBase
 {
     /// <summary>
     /// Triggers an immediate refresh of the in-memory tenant configuration cache.
-    /// Requires an interactive Admin user JWT.
+    /// Requires an interactive Admin user JWT. SuperAdmin receives the full tenant
+    /// catalogue in the response; Tenant Admin only receives their own tenant summary.
     /// </summary>
     [HttpPost("refresh")]
     [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
