@@ -16,13 +16,28 @@ public static class SuperAdminOnlyTenantSettingCategories
     public const string ConnectionStrings = "ConnectionStrings";
 
     /// <summary>
+    /// Required per-tenant file storage. Host DI uses GlobalConfiguration:FileStorage to register
+    /// CoreLibs only; runtime file ops require this tenant row and do not fall back to host.
+    /// Must not be edited by Tenant Admins.
+    /// </summary>
+    public const string FileStorage = "FileStorage";
+
+    /// <summary>
+    /// Required per-tenant email (Notify keys, support address). Host registration uses
+    /// GlobalConfiguration:Email; runtime sends require this tenant row and do not fall back to host.
+    /// </summary>
+    public const string Email = "Email";
+
+    /// <summary>
     /// Categories restricted to SuperAdmin. Extend this set when locking more settings.
     /// </summary>
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         ApplicationTemplates,
         Template,
-        ConnectionStrings
+        ConnectionStrings,
+        FileStorage,
+        Email
     };
 
     public static bool IsRestricted(string? category) =>

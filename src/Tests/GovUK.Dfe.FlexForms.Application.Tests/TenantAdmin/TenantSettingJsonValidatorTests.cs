@@ -293,4 +293,59 @@ public class TenantSettingJsonValidatorTests
 
         Assert.Contains(errors, e => e.Contains("DefaultTemplateId"));
     }
+
+    [Fact]
+    public void Validate_ShouldAcceptValidFileStorageLocal()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "FileStorage",
+            "Api",
+            """{"Provider":"Local","Local":{"BaseDirectory":"/uploads"}}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_ShouldRejectFileStorageWithoutProvider()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "FileStorage",
+            "Api",
+            """{"Local":{"BaseDirectory":"/uploads"}}""");
+
+        Assert.Contains(errors, e => e.Contains("Provider"));
+    }
+
+    [Fact]
+    public void Validate_ShouldRejectInvalidFileStorageProvider()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "FileStorage",
+            "Api",
+            """{"Provider":"S3"}""");
+
+        Assert.Contains(errors, e => e.Contains("Local or Azure"));
+    }
+
+    [Fact]
+    public void Validate_ShouldAcceptValidEmail()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "Email",
+            "Api",
+            """{"Provider":"GovUkNotify","ServiceSupportEmailAddress":"a@b.com","GovUkNotify":{"ApiKey":"key"}}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_ShouldRejectInvalidEmailProvider()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "Email",
+            "Api",
+            """{"Provider":"SendGrid"}""");
+
+        Assert.Contains(errors, e => e.Contains("GovUkNotify"));
+    }
 }

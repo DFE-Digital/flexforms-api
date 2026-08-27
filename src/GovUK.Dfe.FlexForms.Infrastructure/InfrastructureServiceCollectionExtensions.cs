@@ -22,7 +22,7 @@ namespace Microsoft.Extensions.DependencyInjection
             IConfiguration config,
             ITenantConfigurationProvider tenantConfigurationProvider)
         {
-            // Get the first tenant's configuration for services that need root-level config
+            // Host-shaped config for caching (GlobalConfiguration preferred; see CoreLibsHostConfiguration).
             var firstTenant = tenantConfigurationProvider.GetAllTenants().FirstOrDefault()
                 ?? throw new InvalidOperationException("At least one tenant must be configured.");
             var tenantConfig = CoreLibsHostConfiguration.Resolve(config, firstTenant.Settings);

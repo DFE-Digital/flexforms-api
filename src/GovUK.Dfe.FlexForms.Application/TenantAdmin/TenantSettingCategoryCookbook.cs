@@ -59,6 +59,36 @@ public static class TenantSettingCategoryCookbook
             requiresObject: true),
 
         Entry(
+            "FileStorage",
+            "Required per-tenant file storage (Local or Azure File Share). Missing/incomplete config fails that tenant's file ops.",
+            ["Api", "Shared"],
+            example: """{"Provider":"Local","Local":{"BaseDirectory":"/uploads","CreateDirectoryIfNotExists":true,"AllowOverwrite":true,"AllowedExtensions":["jpg","png","pdf"]}}""",
+            notes:
+            [
+                "Forced secret category",
+                "SuperAdmin only",
+                "Host GlobalConfiguration:FileStorage registers CoreLibs DI only — runtime does not fall back to host",
+                "Local requires Local.BaseDirectory; Azure/Hybrid require Azure.ConnectionString and ShareName",
+                "Deleting this category breaks file upload/download/delete for the tenant"
+            ],
+            requiresObject: true),
+
+        Entry(
+            "Email",
+            "Required per-tenant GOV.UK Notify settings (API key, support address). Missing/incomplete config fails that tenant's email ops.",
+            ["Api", "Shared"],
+            example: """{"Provider":"GovUkNotify","ServiceSupportEmailAddress":"support@education.gov.uk","GovUkNotify":{"ApiKey":"...","BaseUrl":"https://api.notifications.service.gov.uk","TimeoutSeconds":30}}""",
+            notes:
+            [
+                "Forced secret category",
+                "SuperAdmin only",
+                "Host GlobalConfiguration:Email registers IEmailService only — runtime does not fall back to host",
+                "Requires Email.Provider and (for GovUkNotify) GovUkNotify.ApiKey; feedback also needs ServiceSupportEmailAddress",
+                "Deleting this category breaks outbound email for the tenant"
+            ],
+            requiresObject: true),
+
+        Entry(
             "InternalServiceAuth",
             "Service-to-service JWT credentials and optional API keys.",
             ["Api", "Web", "Shared"],

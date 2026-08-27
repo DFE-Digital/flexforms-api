@@ -15,6 +15,7 @@ public static class TenantSettingsSecretCategories
         "EntraSso",
         "TestAuthentication",
         "Email",
+        "FileStorage",
         "AuthProviders"
     };
 

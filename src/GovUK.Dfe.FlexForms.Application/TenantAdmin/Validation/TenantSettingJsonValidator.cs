@@ -119,6 +119,8 @@ public static class TenantSettingJsonValidator
             "SchemaEvents" => true,
             "EventTriggers" => true,
             "FileValidation" => true,
+            "FileStorage" => true,
+            "Email" => true,
             "SelfRegistration" => true,
             "ApplicationTemplates" => true,
             "Template" => true,
@@ -268,6 +270,14 @@ public static class TenantSettingJsonValidator
 
             case "FileValidation":
                 ValidateFileValidation(root, errors);
+                break;
+
+            case "FileStorage":
+                ValidateFileStorage(root, errors);
+                break;
+
+            case "Email":
+                ValidateEmail(root, errors);
                 break;
 
             case "SelfRegistration":
@@ -568,6 +578,63 @@ public static class TenantSettingJsonValidator
 
     private static readonly HashSet<string> AllowedFileValidationModes =
         new(StringComparer.OrdinalIgnoreCase) { "Off", "FailOnInvalid", "RequirePassed" };
+
+    private static readonly HashSet<string> AllowedFileStorageProviders =
+        new(StringComparer.OrdinalIgnoreCase) { "Local", "Azure" };
+
+    private static readonly HashSet<string> AllowedEmailProviders =
+        new(StringComparer.OrdinalIgnoreCase) { "GovUkNotify" };
+
+    private static void ValidateFileStorage(JsonElement root, List<string> errors)
+    {
+        var provider = GetString(root, "Provider");
+        if (provider is null)
+        {
+            if (root.TryGetProperty("Provider", out _) || root.TryGetProperty("provider", out _))
+                errors.Add("FileStorage.Provider must be a non-empty string.");
+            else
+                errors.Add("FileStorage.Provider is required (Local or Azure).");
+            return;
+        }
+
+        if (!AllowedFileStorageProviders.Contains(provider))
+        {
+            errors.Add("FileStorage.Provider must be Local or Azure.");
+            return;
+        }
+
+        if (provider.Equals("Local", StringComparison.OrdinalIgnoreCase)
+            && root.TryGetProperty("Local", out var local)
+            && local.ValueKind == JsonValueKind.Object)
+        {
+            RequireStringIfPresent(local, "BaseDirectory", errors, "FileStorage.Local.");
+        }
+
+        if (provider.Equals("Azure", StringComparison.OrdinalIgnoreCase)
+            && root.TryGetProperty("Azure", out var azure)
+            && azure.ValueKind == JsonValueKind.Object)
+        {
+            RequireStringIfPresent(azure, "ConnectionString", errors, "FileStorage.Azure.");
+            RequireStringIfPresent(azure, "ShareName", errors, "FileStorage.Azure.");
+        }
+    }
+
+    private static void ValidateEmail(JsonElement root, List<string> errors)
+    {
+        var provider = GetString(root, "Provider");
+        if (provider is not null && !AllowedEmailProviders.Contains(provider))
+        {
+            errors.Add("Email.Provider must be GovUkNotify when present.");
+        }
+
+        if (root.TryGetProperty("GovUkNotify", out var notify)
+            && notify.ValueKind == JsonValueKind.Object)
+        {
+            RequireStringIfPresent(notify, "ApiKey", errors, "Email.GovUkNotify.");
+        }
+
+        RequireStringIfPresent(root, "ServiceSupportEmailAddress", errors);
+    }
 
     private static void ValidateFileValidation(JsonElement root, List<string> errors)
     {
