@@ -84,7 +84,7 @@ public static class TenantSettingCategoryCookbook
             [
                 "Forced secret category",
                 "SuperAdmin only",
-                "Host GlobalConfiguration:Email registers IEmailService only — runtime does not fall back to host",
+                "Host GlobalConfiguration:Email registers CoreLibs DI only (dummy ApiKey OK) — runtime uses tenant GovUkNotify.ApiKey via TenantEmailServiceFactory",
                 "Requires Email.Provider and (for GovUkNotify) GovUkNotify.ApiKey; feedback also needs ServiceSupportEmailAddress",
                 "Deleting this category breaks outbound email for the tenant"
             ],

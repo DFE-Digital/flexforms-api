@@ -149,7 +149,9 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<ITenantAwareFileStorageService, TenantAwareFileStorageService>();
 
             services.AddEmailServicesWithGovUkNotify(tenantConfig);
-            // Host Email registers the provider; tenant Email must be present at runtime or sends fail.
+            // Per-tenant GOV.UK Notify clients (TenantConfig ApiKey). Host key is DI boot only.
+            services.AddSingleton<ITenantEmailServiceFactory, TenantEmailServiceFactory>();
+            // Host Email registers the provider; runtime sends use tenant factory via decorator.
             services.Decorate<IEmailService, TenantAwareEmailService>();
 
             // Skip MassTransit during NSwag/CodeGeneration to prevent assembly loading issues

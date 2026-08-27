@@ -5,7 +5,7 @@ namespace GovUK.Dfe.FlexForms.Application.Services;
 
 /// <summary>
 /// Ensures the current tenant has Email settings required for outbound mail.
-/// Host <c>GlobalConfiguration:Email</c> registers <c>IEmailService</c> at startup only;
+/// Host <c>GlobalConfiguration:Email</c> registers CoreLibs email DI at startup only;
 /// missing or deleted tenant Email must fail the tenant, not silently use host values.
 /// </summary>
 public static class TenantEmailConfiguration
@@ -17,6 +17,13 @@ public static class TenantEmailConfiguration
         var tenant = tenantContextAccessor.CurrentTenant
             ?? throw new InvalidOperationException(
                 "No tenant context available for email operation.");
+
+        EnsureConfiguredForTenant(tenant);
+    }
+
+    public static void EnsureConfiguredForTenant(TenantConfiguration tenant)
+    {
+        ArgumentNullException.ThrowIfNull(tenant);
 
         var provider = tenant.Settings.GetValue<string>("Email:Provider");
         if (string.IsNullOrWhiteSpace(provider))

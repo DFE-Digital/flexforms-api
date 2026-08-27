@@ -12,6 +12,8 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.Services;
 public class TenantAwareEmailServiceTests
 {
     private readonly IEmailService _inner;
+    private readonly IEmailService _tenantEmail;
+    private readonly ITenantEmailServiceFactory _tenantEmailFactory;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ITenantContextAccessor _tenantContextAccessor;
     private readonly TenantAwareEmailService _service;
@@ -19,6 +21,8 @@ public class TenantAwareEmailServiceTests
     public TenantAwareEmailServiceTests()
     {
         _inner = Substitute.For<IEmailService>();
+        _tenantEmail = Substitute.For<IEmailService>();
+        _tenantEmailFactory = Substitute.For<ITenantEmailServiceFactory>();
         _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
 
@@ -27,7 +31,8 @@ public class TenantAwareEmailServiceTests
         var serviceProvider = services.BuildServiceProvider();
         _httpContextAccessor.HttpContext.Returns(new DefaultHttpContext { RequestServices = serviceProvider });
 
-        _service = new TenantAwareEmailService(_inner, _httpContextAccessor);
+        _tenantEmailFactory.GetRequiredEmailService().Returns(_tenantEmail);
+        _service = new TenantAwareEmailService(_inner, _tenantEmailFactory, _httpContextAccessor);
     }
 
     private static TenantConfiguration CreateTenantWithEmail()
@@ -45,23 +50,25 @@ public class TenantAwareEmailServiceTests
     }
 
     [Fact]
-    public async Task SendEmailAsync_ShouldDelegate_WhenTenantEmailConfigured()
+    public async Task SendEmailAsync_ShouldUseTenantFactory_NotHostInner()
     {
         _tenantContextAccessor.CurrentTenant.Returns(CreateTenantWithEmail());
         var message = new EmailMessage { ToEmail = "a@b.com", TemplateId = "t1" };
         var expected = new EmailResponse { Id = "1", Status = EmailStatus.Sent };
-        _inner.SendEmailAsync(message, Arg.Any<CancellationToken>()).Returns(expected);
+        _tenantEmail.SendEmailAsync(message, Arg.Any<CancellationToken>()).Returns(expected);
 
         var result = await _service.SendEmailAsync(message);
 
         Assert.Same(expected, result);
-        await _inner.Received(1).SendEmailAsync(message, Arg.Any<CancellationToken>());
+        await _tenantEmail.Received(1).SendEmailAsync(message, Arg.Any<CancellationToken>());
+        await _inner.DidNotReceiveWithAnyArgs().SendEmailAsync(default!, default);
     }
 
     [Fact]
-    public async Task SendEmailAsync_ShouldThrow_WhenNoTenantContext()
+    public async Task SendEmailAsync_ShouldPropagateFactoryFailure_WhenNoTenantContext()
     {
-        _tenantContextAccessor.CurrentTenant.Returns((TenantConfiguration?)null);
+        _tenantEmailFactory.GetRequiredEmailService()
+            .Returns(_ => throw new InvalidOperationException("No tenant context available for email operation."));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _service.SendEmailAsync(new EmailMessage { ToEmail = "a@b.com" }));
@@ -71,16 +78,11 @@ public class TenantAwareEmailServiceTests
     }
 
     [Fact]
-    public async Task SendEmailAsync_ShouldThrow_WhenEmailProviderMissing()
+    public async Task SendEmailAsync_ShouldPropagateFactoryFailure_WhenEmailProviderMissing()
     {
-        var settings = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Email:ServiceSupportEmailAddress"] = "support@education.gov.uk"
-            })
-            .Build();
-        _tenantContextAccessor.CurrentTenant.Returns(
-            new TenantConfiguration(Guid.NewGuid(), "BrokenTenant", settings, Array.Empty<string>()));
+        _tenantEmailFactory.GetRequiredEmailService()
+            .Returns(_ => throw new InvalidOperationException(
+                "Tenant 'BrokenTenant' has no Email:Provider configured."));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _service.SendEmailAsync(new EmailMessage { ToEmail = "a@b.com" }));
@@ -90,16 +92,11 @@ public class TenantAwareEmailServiceTests
     }
 
     [Fact]
-    public async Task SendEmailAsync_ShouldThrow_WhenGovUkNotifyApiKeyMissing()
+    public async Task SendEmailAsync_ShouldPropagateFactoryFailure_WhenGovUkNotifyApiKeyMissing()
     {
-        var settings = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["Email:Provider"] = "GovUkNotify"
-            })
-            .Build();
-        _tenantContextAccessor.CurrentTenant.Returns(
-            new TenantConfiguration(Guid.NewGuid(), "BrokenTenant", settings, Array.Empty<string>()));
+        _tenantEmailFactory.GetRequiredEmailService()
+            .Returns(_ => throw new InvalidOperationException(
+                "Tenant 'BrokenTenant' Email Provider is GovUkNotify but Email:GovUkNotify:ApiKey is missing."));
 
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _service.SendEmailAsync(new EmailMessage { ToEmail = "a@b.com" }));
@@ -116,6 +113,7 @@ public class TenantAwareEmailServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _service.SendEmailAsync(new EmailMessage { ToEmail = "a@b.com" }));
 
+        _tenantEmailFactory.DidNotReceive().GetRequiredEmailService();
         await _inner.DidNotReceiveWithAnyArgs().SendEmailAsync(default!, default);
     }
 }
