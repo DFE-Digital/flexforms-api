@@ -60,15 +60,17 @@ public static class TenantSettingCategoryCookbook
 
         Entry(
             "FileStorage",
-            "Required per-tenant file storage (Local or Azure File Share). Missing/incomplete config fails that tenant's file ops.",
+            "Required per-tenant file storage (Local, Azure File Share, or Hybrid). Missing/incomplete config fails that tenant's file ops.",
             ["Api", "Shared"],
-            example: """{"Provider":"Local","Local":{"BaseDirectory":"/uploads","CreateDirectoryIfNotExists":true,"AllowOverwrite":true,"AllowedExtensions":["jpg","png","pdf"]}}""",
+            example: """{"Provider":"Azure","Azure":{"ConnectionString":"...","ShareName":"uploads"},"Local":{"AllowedExtensions":["jpg","png","pdf"],"MaxFileSizeBytes":10000000}}""",
             notes:
             [
                 "Forced secret category",
                 "SuperAdmin only",
-                "Host GlobalConfiguration:FileStorage registers CoreLibs DI only — runtime does not fall back to host",
-                "Local requires Local.BaseDirectory; Azure/Hybrid require Azure.ConnectionString and ShareName",
+                "Host GlobalConfiguration:FileStorage Provider must match the tenant Provider (same CoreLibs implementation)",
+                "Azure — files on Azure File Share; set host Provider=Azure",
+                "Local — files on disk; tenant Local.BaseDirectory is required",
+                "Hybrid — CoreLibs writes to local disk and uses Azure only for SAS (not for upload). Prefer Azure on App Service",
                 "Deleting this category breaks file upload/download/delete for the tenant"
             ],
             requiresObject: true),

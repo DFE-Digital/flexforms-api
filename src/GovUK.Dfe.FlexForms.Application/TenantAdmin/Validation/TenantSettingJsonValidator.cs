@@ -580,7 +580,7 @@ public static class TenantSettingJsonValidator
         new(StringComparer.OrdinalIgnoreCase) { "Off", "FailOnInvalid", "RequirePassed" };
 
     private static readonly HashSet<string> AllowedFileStorageProviders =
-        new(StringComparer.OrdinalIgnoreCase) { "Local", "Azure" };
+        new(StringComparer.OrdinalIgnoreCase) { "Local", "Azure", "Hybrid" };
 
     private static readonly HashSet<string> AllowedEmailProviders =
         new(StringComparer.OrdinalIgnoreCase) { "GovUkNotify" };
@@ -593,24 +593,26 @@ public static class TenantSettingJsonValidator
             if (root.TryGetProperty("Provider", out _) || root.TryGetProperty("provider", out _))
                 errors.Add("FileStorage.Provider must be a non-empty string.");
             else
-                errors.Add("FileStorage.Provider is required (Local or Azure).");
+                errors.Add("FileStorage.Provider is required (Local, Azure, or Hybrid).");
             return;
         }
 
         if (!AllowedFileStorageProviders.Contains(provider))
         {
-            errors.Add("FileStorage.Provider must be Local or Azure.");
+            errors.Add("FileStorage.Provider must be Local, Azure, or Hybrid.");
             return;
         }
 
-        if (provider.Equals("Local", StringComparison.OrdinalIgnoreCase)
+        if ((provider.Equals("Local", StringComparison.OrdinalIgnoreCase)
+                || provider.Equals("Hybrid", StringComparison.OrdinalIgnoreCase))
             && root.TryGetProperty("Local", out var local)
             && local.ValueKind == JsonValueKind.Object)
         {
             RequireStringIfPresent(local, "BaseDirectory", errors, "FileStorage.Local.");
         }
 
-        if (provider.Equals("Azure", StringComparison.OrdinalIgnoreCase)
+        if ((provider.Equals("Azure", StringComparison.OrdinalIgnoreCase)
+                || provider.Equals("Hybrid", StringComparison.OrdinalIgnoreCase))
             && root.TryGetProperty("Azure", out var azure)
             && azure.ValueKind == JsonValueKind.Object)
         {

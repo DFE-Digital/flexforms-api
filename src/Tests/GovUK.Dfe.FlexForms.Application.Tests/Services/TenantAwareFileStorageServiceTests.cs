@@ -65,6 +65,21 @@ public class TenantAwareFileStorageServiceTests
         return new TenantConfiguration(Guid.NewGuid(), "TestTenant", settings, Array.Empty<string>());
     }
 
+    private static TenantConfiguration CreateTenantWithHybridFileStorage(string baseDirectory)
+    {
+        var settings = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["FileStorage:Provider"] = "Hybrid",
+                ["FileStorage:Local:BaseDirectory"] = baseDirectory,
+                ["FileStorage:Azure:ConnectionString"] = "UseDevelopmentStorage=true",
+                ["FileStorage:Azure:ShareName"] = "uploads"
+            })
+            .Build();
+
+        return new TenantConfiguration(Guid.NewGuid(), "TestTenant", settings, Array.Empty<string>());
+    }
+
     [Fact]
     public async Task UploadAsync_ShouldCallInnerService_WithTenantOptions_WhenTenantConfigured()
     {
@@ -150,9 +165,24 @@ public class TenantAwareFileStorageServiceTests
         // Act
         await _service.UploadAsync("test/path", stream, "file.txt");
 
-        // Assert — Azure uses host-registered service after tenant validation
+        // Assert — Azure uses host-registered service (no Local options override in CoreLibs)
         await _innerFileStorageService.Received(1).UploadAsync(
             "test/path", stream, "file.txt", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UploadAsync_ShouldCallInnerWithLocalOptions_WhenHybridConfigured()
+    {
+        // Hybrid stores files on disk; Local options must come from the tenant.
+        _tenantContextAccessor.CurrentTenant.Returns(CreateTenantWithHybridFileStorage("/mnt/uploads/tenantA"));
+        var stream = new MemoryStream();
+
+        await _service.UploadAsync("test/path", stream, "file.txt");
+
+        await _innerFileStorageService.Received(1).UploadAsync(
+            "test/path", stream, "file.txt",
+            Arg.Is<LocalFileStorageOptions>(o => o.BaseDirectory == "/mnt/uploads/tenantA"),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

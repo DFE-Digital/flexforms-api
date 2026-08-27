@@ -324,7 +324,7 @@ public class TenantSettingJsonValidatorTests
             "Api",
             """{"Provider":"S3"}""");
 
-        Assert.Contains(errors, e => e.Contains("Local or Azure"));
+        Assert.Contains(errors, e => e.Contains("Local, Azure, or Hybrid", StringComparison.Ordinal));
     }
 
     [Fact]
