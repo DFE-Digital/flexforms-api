@@ -114,16 +114,26 @@ internal static class ApplicationListingTestHelper
         return repository;
     }
 
+    internal static ITenantTemplateCatalogue CreateTemplateCatalogue(params TemplateId[] templateIds)
+    {
+        var catalogue = Substitute.For<ITenantTemplateCatalogue>();
+        catalogue.GetTemplateIdsAsync(Arg.Any<CancellationToken>())
+            .Returns(templateIds.ToList().AsReadOnly());
+        return catalogue;
+    }
+
     internal static GetApplicationsForUserQueryHandler CreateGetApplicationsForUserQueryHandler(
         IEaRepository<User> userRepo,
         IPermissionCheckerService permissionCheckerService,
         IEaRepository<Domain.Entities.Application> appRepo,
         ITenantContextAccessor tenantContextAccessor,
         IUserAccessibleTemplateService accessibleTemplateService,
-        ICacheService<IRedisCacheType>? cache = null)
+        ICacheService<IRedisCacheType>? cache = null,
+        ITenantTemplateCatalogue? tenantTemplateCatalogue = null)
     {
         cache ??= Substitute.For<ICacheService<IRedisCacheType>>();
         ConfigurePassthroughCache(cache, nameof(GetApplicationsForUserQueryHandler));
+        tenantTemplateCatalogue ??= CreateTemplateCatalogue();
 
         return new GetApplicationsForUserQueryHandler(
             userRepo,
@@ -133,6 +143,7 @@ internal static class ApplicationListingTestHelper
             cache,
             tenantContextAccessor,
             accessibleTemplateService,
+            tenantTemplateCatalogue,
             Substitute.For<ILogger<GetApplicationsForUserQueryHandler>>());
     }
 
@@ -141,11 +152,13 @@ internal static class ApplicationListingTestHelper
         IEaRepository<Domain.Entities.Application> appRepo,
         IUserAccessibleTemplateService accessibleTemplateService,
         ICacheService<IRedisCacheType>? cache = null,
-        ITenantContextAccessor? tenantContextAccessor = null)
+        ITenantContextAccessor? tenantContextAccessor = null,
+        ITenantTemplateCatalogue? tenantTemplateCatalogue = null)
     {
         cache ??= Substitute.For<ICacheService<IRedisCacheType>>();
         ConfigurePassthroughCache(cache, nameof(GetApplicationsForUserByExternalProviderIdQueryHandler));
         tenantContextAccessor ??= Substitute.For<ITenantContextAccessor>();
+        tenantTemplateCatalogue ??= CreateTemplateCatalogue();
 
         return new GetApplicationsForUserByExternalProviderIdQueryHandler(
             userRepo,
@@ -153,7 +166,8 @@ internal static class ApplicationListingTestHelper
             CreateApplicationRepository(),
             cache,
             tenantContextAccessor,
-            accessibleTemplateService);
+            accessibleTemplateService,
+            tenantTemplateCatalogue);
     }
 
     internal static GetApplicationsByTemplateQueryHandler CreateGetApplicationsByTemplateQueryHandler(

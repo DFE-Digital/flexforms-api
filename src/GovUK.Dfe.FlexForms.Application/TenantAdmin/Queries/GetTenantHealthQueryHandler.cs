@@ -48,19 +48,24 @@ public sealed class GetTenantHealthQueryHandler(
         var settingsList = await settingsQuery.ListSettingsAsync(request.TenantId, cancellationToken);
         var settingCount = settingsList?.Settings.Count ?? 0;
 
+        var isSuperAdmin = permissionChecker.IsInteractivePlatformAdmin();
+
+        // Mirror GetTenantEffectiveConfiguration: never expose platform catalogue size,
+        // auth-provider registry size, or CORS origins to Tenant Admin.
         var effective = new TenantEffectiveConfigurationDto(
             request.TenantId,
             currentTenant.Name,
             tenantConfigProvider.Source,
-            refreshState?.LastRefreshedUtc,
-            refreshState?.ActiveTenantCount ?? tenantConfigProvider.GetAllTenants().Count,
+            isSuperAdmin ? refreshState?.LastRefreshedUtc : null,
+            isSuperAdmin ? refreshState?.ActiveTenantCount ?? tenantConfigProvider.GetAllTenants().Count : 0,
             scheme,
             testEnabled,
             entraEnabled,
             dsiConfigured,
-            authProviderRegistry.GetAll().Count,
+            isSuperAdmin ? authProviderRegistry.GetAll().Count : 0,
             hostnames,
-            origins);
+            isSuperAdmin ? origins : []);
+
 
         var checks = new List<TenantHealthCheckDto>
         {
@@ -81,18 +86,23 @@ public sealed class GetTenantHealthQueryHandler(
 
             Check("cors", "CORS origins",
                 origins.Length > 0
-                    ? ("Pass", string.Join(", ", origins))
+                    ? ("Pass", isSuperAdmin
+                        ? string.Join(", ", origins)
+                        : $"{origins.Length} origin(s) configured")
                     : ("Warn", "No frontend origins configured")),
 
             Check("auth-scheme", "Interactive auth scheme",
                 BuildAuthCheck(scheme, testEnabled, entraEnabled, dsiConfigured)),
 
+            // SuperAdmin-only timestamp; Tenant Admin always sees Warn (no platform refresh leak).
             Check("catalogue-refresh", "Catalogue refresh",
                 effective.LastCatalogueRefreshUtc is { } refreshed
                     ? (DateTimeOffset.UtcNow - refreshed < TimeSpan.FromMinutes(10)
                         ? ("Pass", $"Last refresh {refreshed:u}")
                         : ("Warn", $"Last refresh {refreshed:u} (stale?)"))
-                    : ("Warn", "Catalogue has never been refreshed")),
+                    : (isSuperAdmin
+                        ? ("Warn", "Catalogue has never been refreshed")
+                        : ("Pass", "OK"))),
         };
 
         var overall = checks.Any(c => c.Status == "Fail") ? "Fail"

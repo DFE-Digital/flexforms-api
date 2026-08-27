@@ -22,6 +22,14 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.Applications;
 
 public class RemoveContributorCommandHandlerTests
 {
+    private static ITenantPermissionFilter CreateTenantPermissionFilter(bool belongsToTenant = true)
+    {
+        var filter = Substitute.For<ITenantPermissionFilter>();
+        filter.ApplicationBelongsToCurrentTenantAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(belongsToTenant);
+        return filter;
+    }
+
     [Theory]
     [CustomAutoData(typeof(ApplicationCustomization))]
     public async Task Handle_ShouldRemoveContributor_WhenValidRequest(
@@ -104,6 +112,7 @@ public class RemoveContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -140,6 +149,7 @@ public class RemoveContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -180,6 +190,7 @@ public class RemoveContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -225,6 +236,7 @@ public class RemoveContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -292,6 +304,7 @@ public class RemoveContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -350,6 +363,7 @@ public class RemoveContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -417,6 +431,7 @@ public class RemoveContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act
@@ -498,6 +513,7 @@ public class RemoveContributorCommandHandlerTests
             permissionCheckerService,
             userFactory,
             Substitute.For<IUserCacheInvalidator>(),
+            CreateTenantPermissionFilter(),
             unitOfWork);
 
         // Act

@@ -27,7 +27,8 @@ public sealed class GetApplicationsForUserByExternalProviderIdQueryHandler(
     IApplicationRepository applicationRepository,
     ICacheService<IRedisCacheType> cacheService,
     ITenantContextAccessor tenantContextAccessor,
-    IUserAccessibleTemplateService userAccessibleTemplateService)
+    IUserAccessibleTemplateService userAccessibleTemplateService,
+    ITenantTemplateCatalogue tenantTemplateCatalogue)
     : IRequestHandler<GetApplicationsForUserByExternalProviderIdQuery, Result<PagedResult<ApplicationDto>>>
 {
     public async Task<Result<PagedResult<ApplicationDto>>> Handle(
@@ -66,6 +67,22 @@ public sealed class GetApplicationsForUserByExternalProviderIdQueryHandler(
                         templatePermissions,
                         request.TemplateId,
                         cancellationToken);
+
+                    if (request.TemplateId.HasValue && templateIdsFilter.Count == 0)
+                    {
+                        return Result<PagedResult<ApplicationDto>>.Success(
+                            ApplicationListingQueryBuilder.EmptyPagedResult(request.PageNumber, request.PageSize));
+                    }
+
+                    if (templateIdsFilter.Count == 0)
+                    {
+                        templateIdsFilter = await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken);
+                        if (templateIdsFilter.Count == 0)
+                        {
+                            return Result<PagedResult<ApplicationDto>>.Success(
+                                ApplicationListingQueryBuilder.EmptyPagedResult(request.PageNumber, request.PageSize));
+                        }
+                    }
 
                     var query = ApplicationListingQueryBuilder.BuildMyApplicationsQuery(
                         appRepo,

@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Templates.Queries;
 using GovUK.Dfe.FlexForms.Domain.Entities;
@@ -12,6 +13,14 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.QueryHandlers.Templates;
 
 public class GetCustomApplicationStatusesQueryHandlerTests
 {
+    private static ITenantTemplateResolver AllowAllTenantTemplates()
+    {
+        var resolver = Substitute.For<ITenantTemplateResolver>();
+        resolver.IsTemplateInCurrentTenantAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+        return resolver;
+    }
+
     [Theory]
     [CustomAutoData]
     public async Task Handle_ReturnsAllApplicationStatuses_WithCustomLabels(
@@ -43,7 +52,7 @@ public class GetCustomApplicationStatusesQueryHandlerTests
         var queryable = existingStatuses.AsQueryable().BuildMock();
         customStatusRepo.Query().Returns(queryable);
 
-        var handler = new GetCustomApplicationStatusesQueryHandler(customStatusRepo);
+        var handler = new GetCustomApplicationStatusesQueryHandler(customStatusRepo, AllowAllTenantTemplates());
         var query = new GetCustomApplicationStatusesQuery(templateId);
 
         // Act
@@ -77,7 +86,7 @@ public class GetCustomApplicationStatusesQueryHandlerTests
         var queryable = emptyList.AsQueryable().BuildMock();
         customStatusRepo.Query().Returns(queryable);
 
-        var handler = new GetCustomApplicationStatusesQueryHandler(customStatusRepo);
+        var handler = new GetCustomApplicationStatusesQueryHandler(customStatusRepo, AllowAllTenantTemplates());
         var query = new GetCustomApplicationStatusesQuery(templateId);
 
         // Act
@@ -104,7 +113,7 @@ public class GetCustomApplicationStatusesQueryHandlerTests
         var customStatusRepo = Substitute.For<IEaRepository<CustomApplicationStatus>>();
         customStatusRepo.Query().Returns(_ => throw new Exception("Database error"));
 
-        var handler = new GetCustomApplicationStatusesQueryHandler(customStatusRepo);
+        var handler = new GetCustomApplicationStatusesQueryHandler(customStatusRepo, AllowAllTenantTemplates());
         var query = new GetCustomApplicationStatusesQuery(templateId);
 
         // Act

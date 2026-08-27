@@ -7296,7 +7296,8 @@ namespace GovUK.Dfe.FlexForms.Api.Client
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
         /// Triggers an immediate refresh of the in-memory tenant configuration cache.
-        /// <br/>Requires an interactive Admin user JWT.
+        /// <br/>Requires an interactive Admin user JWT. SuperAdmin receives the full tenant
+        /// <br/>catalogue in the response; Tenant Admin only receives their own tenant summary.
         /// </summary>
         /// <returns>Tenant configuration refreshed.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>

@@ -32,6 +32,7 @@ public sealed class GetApplicationsForUserQueryHandler(
     ICacheService<IRedisCacheType> cacheService,
     ITenantContextAccessor tenantContextAccessor,
     IUserAccessibleTemplateService userAccessibleTemplateService,
+    ITenantTemplateCatalogue tenantTemplateCatalogue,
     ILogger<GetApplicationsForUserQueryHandler> logger)
     : IRequestHandler<GetApplicationsForUserQuery, Result<PagedResult<ApplicationDto>>>
 {
@@ -80,6 +81,25 @@ public sealed class GetApplicationsForUserQueryHandler(
                         templatePermissions,
                         request.TemplateId,
                         cancellationToken);
+
+                    // Foreign / inaccessible requested template → empty, never unscoped.
+                    if (request.TemplateId.HasValue && templateIdsFilter.Count == 0)
+                    {
+                        return Result<PagedResult<ApplicationDto>>.Success(
+                            ApplicationListingQueryBuilder.EmptyPagedResult(request.PageNumber, request.PageSize));
+                    }
+
+                    // User may retain application permissions after losing template grants.
+                    // Still constrain to the current tenant catalogue on shared EA DBs.
+                    if (templateIdsFilter.Count == 0)
+                    {
+                        templateIdsFilter = await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken);
+                        if (templateIdsFilter.Count == 0)
+                        {
+                            return Result<PagedResult<ApplicationDto>>.Success(
+                                ApplicationListingQueryBuilder.EmptyPagedResult(request.PageNumber, request.PageSize));
+                        }
+                    }
 
                     logger.LogInformation(
                         "My applications listing (own applications only). Tenant={Tenant}, Email={Email}, Role={Role}, ExplicitApplicationCount={ApplicationCount}, RequestedTemplateId={RequestedTemplateId}, EffectiveTemplateCount={EffectiveTemplateCount}",

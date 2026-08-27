@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.CoreLibs.Security.Configurations;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Applications.Queries;
@@ -19,6 +20,14 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.QueryHandlers.Applications;
 
 public class GenerateApplicationPreviewHtmlQueryHandlerTests
 {
+    private static ITenantPermissionFilter CreateTenantPermissionFilter(bool belongsToTenant = true)
+    {
+        var filter = Substitute.For<ITenantPermissionFilter>();
+        filter.ApplicationBelongsToCurrentTenantAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(belongsToTenant);
+        return filter;
+    }
+
     private readonly IEaRepository<Domain.Entities.Application> _applicationRepo;
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly IPermissionCheckerService _permissionCheckerService;
@@ -39,7 +48,8 @@ public class GenerateApplicationPreviewHtmlQueryHandlerTests
             _httpContextAccessor,
             _permissionCheckerService,
             _htmlGeneratorService,
-            _tenantContextAccessor);
+            _tenantContextAccessor,
+            CreateTenantPermissionFilter());
     }
 
     [Theory]

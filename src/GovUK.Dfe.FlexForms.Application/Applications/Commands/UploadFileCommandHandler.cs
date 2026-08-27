@@ -41,7 +41,8 @@ public class UploadFileCommandHandler(
     IFileFactory fileFactory,
     IHttpContextAccessor httpContextAccessor,
     IPermissionCheckerService permissionCheckerService,
-    IFileValidationModeResolver fileValidationModeResolver)
+    IFileValidationModeResolver fileValidationModeResolver,
+    ITenantPermissionFilter tenantPermissionFilter)
     : IRequestHandler<UploadFileCommand, Result<UploadDto>>
 {
     public async Task<Result<UploadDto>> Handle(UploadFileCommand request, CancellationToken cancellationToken)
@@ -91,6 +92,11 @@ public class UploadFileCommandHandler(
             // Permission check: user must have write permission for this application (File resource)
             if (!permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, request.ApplicationId.Value.ToString(), AccessType.Write))
                 return Result<UploadDto>.Forbid("User does not have permission to upload files for this application");
+
+            if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(request.ApplicationId.Value, cancellationToken))
+            {
+                return Result<UploadDto>.NotFound("Application not found");
+            }
 
             // Generate hashed file name
             var hashedFileName = FileNameHasher.HashFileName(request.OriginalFileName);

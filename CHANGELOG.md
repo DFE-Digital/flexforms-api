@@ -2,9 +2,14 @@
 
 All notable changes to this service will be documented in this file.
 
-## [2.2.3] � Public Beta
+## [2.1.2] - Public Beta
 ### Notes
 - Added default HostConfig for Email adn Storage, this prevents the platform to crash if tenant level settings missing.
+
+## [2.1.1] - Public Beta
+### Notes
+- Various bug fixes and improvements
+- Token claims cleanup
 
 ## [2.1.0] - Application delete functionality
 ### Notes

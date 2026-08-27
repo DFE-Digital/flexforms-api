@@ -5,8 +5,8 @@
 		<NoWarn>$(NoWarn);1591</NoWarn>
 		<TargetFramework>net10.0</TargetFramework>
     <UserSecretsId>f714ca7a-fc08-46ff-b0cc-373d6f04cf4c</UserSecretsId>
-	  <Version>2.2.3</Version>
-	  <InformationalVersion>2.2.3</InformationalVersion>
+	  <Version>2.1.2</Version>
+	  <InformationalVersion>2.1.2</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

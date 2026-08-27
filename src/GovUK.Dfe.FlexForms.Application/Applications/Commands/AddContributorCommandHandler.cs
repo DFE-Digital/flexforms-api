@@ -38,6 +38,7 @@ public sealed class AddContributorCommandHandler(
     IUserCacheInvalidator userCacheInvalidator,
     ITenantContextAccessor tenantContextAccessor,
     ITenantMembershipService tenantMembershipService,
+    ITenantPermissionFilter tenantPermissionFilter,
     IUnitOfWork unitOfWork) : IRequestHandler<AddContributorCommand, Result<UserDto>>
 {
     public async Task<Result<UserDto>> Handle(
@@ -94,6 +95,11 @@ public sealed class AddContributorCommandHandler(
 
             if (!isOwner && !isAdmin)
                 return Result<UserDto>.Forbid("Only the application owner or admin can add contributors");
+
+            if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(request.ApplicationId, cancellationToken))
+            {
+                return Result<UserDto>.NotFound("Application not found");
+            }
 
             // Load permissions so idempotent grants work (including Template form access).
             var existingContributor = await (new GetUserWithAllPermissionsByEmailQueryObject(request.Email))

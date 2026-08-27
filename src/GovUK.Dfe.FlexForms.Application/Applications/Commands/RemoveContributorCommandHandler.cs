@@ -28,6 +28,7 @@ public sealed class RemoveContributorCommandHandler(
     IPermissionCheckerService permissionCheckerService,
     IUserFactory userFactory,
     IUserCacheInvalidator userCacheInvalidator,
+    ITenantPermissionFilter tenantPermissionFilter,
     IUnitOfWork unitOfWork) : IRequestHandler<RemoveContributorCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(
@@ -80,6 +81,11 @@ public sealed class RemoveContributorCommandHandler(
 
             if (!isOwner && !isAdmin)
                 return Result<bool>.Forbid("Only the application owner or admin can remove contributors");
+
+            if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(request.ApplicationId, cancellationToken))
+            {
+                return Result<bool>.NotFound("Application not found");
+            }
 
             // Get the contributor to remove
             var contributorId = new UserId(request.UserId);

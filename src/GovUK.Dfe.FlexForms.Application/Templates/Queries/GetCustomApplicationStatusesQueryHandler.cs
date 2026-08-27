@@ -1,6 +1,8 @@
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Templates.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using MediatR;
@@ -15,7 +17,8 @@ namespace GovUK.Dfe.FlexForms.Application.Templates.Queries
        : IRequest<Result<IReadOnlyCollection<CustomApplicationStatusDto>>>;
 
     public sealed class GetCustomApplicationStatusesQueryHandler(
-        IEaRepository<CustomApplicationStatus> repo)
+        IEaRepository<CustomApplicationStatus> repo,
+        ITenantTemplateResolver tenantTemplateResolver)
         : IRequestHandler<GetCustomApplicationStatusesQuery, Result<IReadOnlyCollection<CustomApplicationStatusDto>>>
     {
         public async Task<Result<IReadOnlyCollection<CustomApplicationStatusDto>>> Handle(
@@ -24,6 +27,12 @@ namespace GovUK.Dfe.FlexForms.Application.Templates.Queries
         {
             try
             {
+                var templateId = new TemplateId(request.TemplateId);
+                if (!await tenantTemplateResolver.IsTemplateInCurrentTenantAsync(templateId, cancellationToken))
+                {
+                    return Result<IReadOnlyCollection<CustomApplicationStatusDto>>.NotFound("Template not found");
+                }
+
                 // Load existing custom statuses for the template
                 var existing = await new GetCustomApplicationStatusesByTemplateIdQueryObject(request.TemplateId)
                     .Apply(repo.Query().AsNoTracking())

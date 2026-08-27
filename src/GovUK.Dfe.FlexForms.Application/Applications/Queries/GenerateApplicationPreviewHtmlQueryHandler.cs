@@ -2,6 +2,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Security.Configurations;
 using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using MediatR;
@@ -22,7 +23,8 @@ public sealed class GenerateApplicationPreviewHtmlQueryHandler(
     IHttpContextAccessor httpContextAccessor,
     IPermissionCheckerService permissionCheckerService,
     IStaticHtmlGeneratorService htmlGeneratorService,
-    ITenantContextAccessor tenantContextAccessor)
+    ITenantContextAccessor tenantContextAccessor,
+    ITenantPermissionFilter tenantPermissionFilter)
     : IRequestHandler<GenerateApplicationPreviewHtmlQuery, Result<DownloadFileResult>>
 {
     public async Task<Result<DownloadFileResult>> Handle(
@@ -42,6 +44,13 @@ public sealed class GenerateApplicationPreviewHtmlQueryHandler(
 
             if (application is null)
                 return Result<DownloadFileResult>.NotFound("Application not found");
+
+            if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(
+                    application.Id!.Value,
+                    cancellationToken))
+            {
+                return Result<DownloadFileResult>.NotFound("Application not found");
+            }
 
             // Check if user has permission to read this application
             var canAccess = permissionCheckerService.HasPermission(

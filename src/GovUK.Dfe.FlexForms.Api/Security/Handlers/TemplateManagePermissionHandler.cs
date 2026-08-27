@@ -1,4 +1,6 @@
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 
@@ -10,17 +12,33 @@ namespace GovUK.Dfe.FlexForms.Api.Security.Handlers;
 public sealed class TemplateManagePermissionHandler(IHttpContextAccessor accessor)
     : AuthorizationHandler<TemplateManagePermissionRequirement>
 {
-    protected override Task HandleRequirementAsync(
+    protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
         TemplateManagePermissionRequirement requirement)
     {
-        var templateId = accessor.HttpContext?.Request.RouteValues["templateId"]?.ToString();
-        if ((!string.IsNullOrWhiteSpace(templateId) && PermissionClaimEvaluator.CanManageTemplate(context.User, templateId))
-            || PermissionClaimEvaluator.CanManageTemplates(context.User))
+        var templateIdRaw = accessor.HttpContext?.Request.RouteValues["templateId"]?.ToString();
+        if (!string.IsNullOrWhiteSpace(templateIdRaw) && Guid.TryParse(templateIdRaw, out var templateGuid))
         {
-            context.Succeed(requirement);
+            var tenantTemplateResolver = accessor.HttpContext?.RequestServices
+                .GetService(typeof(ITenantTemplateResolver)) as ITenantTemplateResolver;
+            if (tenantTemplateResolver is null
+                || !await tenantTemplateResolver.IsTemplateInCurrentTenantAsync(
+                    new TemplateId(templateGuid),
+                    CancellationToken.None))
+            {
+                return;
+            }
+
+            if (PermissionClaimEvaluator.CanManageTemplate(context.User, templateIdRaw)
+                || PermissionClaimEvaluator.CanManageTemplates(context.User))
+            {
+                context.Succeed(requirement);
+            }
+
+            return;
         }
 
-        return Task.CompletedTask;
+        if (PermissionClaimEvaluator.CanManageTemplates(context.User))
+            context.Succeed(requirement);
     }
 }
