@@ -60,17 +60,17 @@ public static class TenantSettingCategoryCookbook
 
         Entry(
             "FileStorage",
-            "Required per-tenant file storage. Azure ConnectionString/ShareName are read from this tenant row at runtime (host GlobalConfiguration is boot-only).",
+            "Required per-tenant file storage. On Container Apps with an Azure Files mount, use Hybrid.",
             ["Api", "Shared"],
-            example: """{"Provider":"Azure","Azure":{"ConnectionString":"...","ShareName":"uploads"},"Local":{"AllowedExtensions":["jpg","png","pdf"],"MaxFileSizeBytes":10000000}}""",
+            example: """{"Provider":"Hybrid","Local":{"BaseDirectory":"/uploads","AllowedExtensions":["jpg","png","pdf"],"MaxFileSizeBytes":10000000},"Azure":{"ConnectionString":"...","ShareName":"uploads"}}""",
             notes:
             [
                 "Forced secret category",
                 "SuperAdmin only",
-                "Host GlobalConfiguration:FileStorage may be Local with a dummy path — only needed so the process can start",
-                "Provider=Azure — uploads/downloads/SAS use this tenant's Azure ConnectionString and ShareName",
-                "Provider=Local — disk via host with tenant Local.BaseDirectory overlay",
-                "Provider=Hybrid — disk via host Local options; SAS via tenant Azure (prefer Azure on App Service)",
+                "Host GlobalConfiguration:FileStorage may be Local with a dummy path — boot only",
+                "Hybrid (recommended on Container Apps): File Share is mounted at Local.BaseDirectory (e.g. /uploads). App writes 'locally' to the mount; files appear on the share. SAS uses tenant Azure ConnectionString + ShareName",
+                "Local — disk only (dev). Tenant Local.BaseDirectory required",
+                "Azure — Azure SDK upload/download (no mount). Prefer Hybrid when using a volume mount",
                 "Deleting this category breaks file upload/download/delete for the tenant"
             ],
             requiresObject: true),

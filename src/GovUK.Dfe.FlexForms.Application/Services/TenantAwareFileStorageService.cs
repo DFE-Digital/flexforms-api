@@ -10,11 +10,15 @@ namespace GovUK.Dfe.FlexForms.Application.Services
 {
     /// <summary>
     /// Tenant-aware file storage. Host <c>GlobalConfiguration:FileStorage</c> only boots CoreLibs DI
-    /// (typically Local with a dummy path). Runtime credentials and targets come from TenantConfig:
+    /// (typically Local with a dummy path). Runtime behaviour comes from TenantConfig:
     /// <list type="bullet">
-    /// <item><c>Azure</c> — upload/download/delete/SAS use the tenant Azure ConnectionString + ShareName.</item>
-    /// <item><c>Local</c> — disk via host Local/Hybrid service with tenant Local options overlay.</item>
-    /// <item><c>Hybrid</c> — disk via host with tenant Local options; SAS via tenant Azure settings.</item>
+    /// <item>
+    /// <c>Hybrid</c> (Container Apps with Azure Files mount) — write/read via local disk at
+    /// <c>Local.BaseDirectory</c> (the mount, e.g. <c>/uploads</c>); generate SAS with tenant
+    /// <c>Azure.ConnectionString</c> + <c>ShareName</c> against the same share.
+    /// </item>
+    /// <item><c>Local</c> — disk only via host with tenant Local options overlay.</item>
+    /// <item><c>Azure</c> — upload/download/delete/SAS via Azure SDK using tenant Azure settings (no mount).</item>
     /// </list>
     /// </summary>
     public class TenantAwareFileStorageService : ITenantAwareFileStorageService
