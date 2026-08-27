@@ -219,15 +219,9 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                     UserTemplateAccess.GetTemplateIds(dbUser).Count);
             }
 
-            // Caller was already authenticated by the API pipeline (ServiceCallers → CompositeScheme →
-            // TenantBearer, etc.). There is no legacy "AzureEntra" scheme; Entra roles live on User.
-            var httpCtx = httpCtxAcc.HttpContext!;
-            var requestPrincipal = httpCtx.User;
-            var svcRoles = requestPrincipal.Identity?.IsAuthenticated == true
-                ? requestPrincipal.Claims.Where(c => c.Type == ClaimTypes.Role || c.Type == "roles")
-                : Enumerable.Empty<Claim>();
-
-            // Create new identity with only specific claims from external user
+            // Create new identity with only specific claims from the IdP subject + membership role.
+            // Do NOT copy Entra app roles (API.*, Platform.*, etc.) from the machine token used to
+            // call /tokens/exchange — those are for service principals on PlatformBearer / ServiceCallers.
             var identity = new ClaimsIdentity();
 
             // SaaS: stamp tenant_id on the issued internal JWT so cross-tenant replay can be
@@ -257,25 +251,6 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             if (!identity.HasClaim(c => c.Type == ClaimTypes.Role && c.Value == membershipRoleName))
             {
                 identity.AddClaim(new Claim(ClaimTypes.Role, membershipRoleName));
-            }
-
-            // Merge Entra / app roles from the authenticated request principal, avoiding duplicates
-            foreach (var svcRole in svcRoles)
-            {
-                var isExcludedRole =
-                    (svcRole.Type == ClaimTypes.Role || svcRole.Type == "roles") &&
-                    (svcRole.Value.Equals(RoleNames.SuperAdmin, StringComparison.OrdinalIgnoreCase) ||
-                     svcRole.Value.Equals(RoleNames.Admin, StringComparison.OrdinalIgnoreCase) ||
-                     svcRole.Value.Equals(RoleNames.User, StringComparison.OrdinalIgnoreCase) ||
-                     svcRole.Value.Equals(RoleTemplates.CaseworkerKey, StringComparison.OrdinalIgnoreCase));
-
-                if (isExcludedRole)
-                    continue;
-
-                if (!identity.HasClaim(c => c.Type == svcRole.Type && c.Value == svcRole.Value))
-                {
-                    identity.AddClaim(svcRole);
-                }
             }
 
             var mergedUser = new ClaimsPrincipal(identity);

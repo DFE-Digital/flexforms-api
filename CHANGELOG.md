@@ -2,6 +2,10 @@
 
 All notable changes to this service will be documented in this file.
 
+## [2.1.1] - Public Beta
+### Notes
+- Various bug fixes and improvements
+- Token claims cleanup
 
 ## [2.0.0] � Public Beta
 ### Notes
@@ -10,6 +14,11 @@ All notable changes to this service will be documented in this file.
 ## [2.1.0] - Application delete functionality
 ### Notes
 - Added functionality to soft delete an application, which will be marked with the deleted status in the DB
+
+## [2.0.0] � Public Beta
+### Notes
+- FlexForms (Forms Engine SaaS)
+
 
 
 ---------------------------------------------------------------------------
