@@ -7,7 +7,9 @@ using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
 using GovUK.Dfe.CoreLibs.FileStorage.Interfaces;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Interfaces;
+using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Models;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -45,7 +47,7 @@ public class FileUploadedDomainEventHandlerTests
             _logger,
             _eventPublisher,
             _tenantContextAccessor,
-            _azureOps,
+            [_azureOps],
             _applicationRepository,
             _userRepository,
             _eventTriggerDispatcher);
@@ -97,6 +99,71 @@ public class FileUploadedDomainEventHandlerTests
                 && e.Metadata.ContainsKey("templateId")),
             Arg.Any<GovUK.Dfe.CoreLibs.Messaging.MassTransit.Models.AzureServiceBusMessageProperties>(),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldUseSas_WhenAzureOpsRegistered_EvenInHybridStyleSetup()
+    {
+        var tenantConfig = new TenantConfiguration(
+            Guid.NewGuid(), "TestTenant",
+            new ConfigurationBuilder().Build(),
+            Array.Empty<string>());
+        _tenantContextAccessor.CurrentTenant.Returns(tenantConfig);
+
+        _azureOps.GenerateSasTokenAsync(
+                Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("https://account.file.core.windows.net/share/file?sv=sas");
+
+        var @event = new FileUploadedDomainEvent(CreateFileWithApplication(), "hash-abc", DateTime.UtcNow);
+
+        await _handler.Handle(@event, CancellationToken.None);
+
+        await _azureOps.Received(1).GenerateSasTokenAsync(
+            Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        var publishedCalls = _eventPublisher.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IEventPublisher.PublishAsync))
+            .Select(c => c.GetArguments()[0])
+            .OfType<ScanRequestedEvent>()
+            .ToList();
+        Assert.Single(publishedCalls);
+        Assert.True(publishedCalls[0].IsAzureFileShare);
+        Assert.StartsWith("https://", publishedCalls[0].FileUri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldUseFileUri_WhenAzureOpsNotRegistered()
+    {
+        var localOnlyHandler = new FileUploadedDomainEventHandler(
+            _logger,
+            _eventPublisher,
+            _tenantContextAccessor,
+            Array.Empty<IAzureSpecificOperations>(),
+            _applicationRepository,
+            _userRepository,
+            _eventTriggerDispatcher);
+
+        var tenantConfig = new TenantConfiguration(
+            Guid.NewGuid(), "TestTenant",
+            new ConfigurationBuilder().Build(),
+            Array.Empty<string>());
+        _tenantContextAccessor.CurrentTenant.Returns(tenantConfig);
+
+        var @event = new FileUploadedDomainEvent(CreateFileWithApplication(), "hash-abc", DateTime.UtcNow);
+
+        await localOnlyHandler.Handle(@event, CancellationToken.None);
+
+        await _azureOps.DidNotReceive()
+            .GenerateSasTokenAsync(Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        var publishedCalls = _eventPublisher.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IEventPublisher.PublishAsync))
+            .Select(c => c.GetArguments()[0])
+            .OfType<ScanRequestedEvent>()
+            .ToList();
+        Assert.Single(publishedCalls);
+        Assert.False(publishedCalls[0].IsAzureFileShare);
+        Assert.StartsWith("file:///", publishedCalls[0].FileUri, StringComparison.Ordinal);
     }
 
     private static File CreateFileWithApplication()

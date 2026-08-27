@@ -22,6 +22,7 @@ using GovUK.Dfe.FlexForms.Application.Notifications;
 using GovUK.Dfe.CoreLibs.Utilities.RateLimiting;
 using Microsoft.AspNetCore.Http;
 using GovUK.Dfe.CoreLibs.Email;
+using GovUK.Dfe.CoreLibs.Email.Interfaces;
 using GovUK.Dfe.CoreLibs.Security.Interfaces;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Entities.Topics;
@@ -41,9 +42,9 @@ namespace Microsoft.Extensions.DependencyInjection
             ITenantConfigurationProvider tenantConfigurationProvider)
         {
             // Host-shaped config for CoreLibs DI (FileStorage, Email, Notifications, Cache).
-            // Prefer GlobalConfiguration; Local/Development may fall back to the first tenant.
-            // Non-local environments require GlobalConfiguration:FileStorage:Provider so a
-            // misconfigured tenant cannot take down the API process.
+            // Prefer GlobalConfiguration; Local/Development may fall back to the first tenant
+            // for process startup only. Runtime file/email ops require per-tenant settings
+            // and do not fall back to host GlobalConfiguration.
             var firstTenant = tenantConfigurationProvider.GetAllTenants().FirstOrDefault()
                 ?? throw new InvalidOperationException("At least one tenant must be configured.");
             var tenantConfig = CoreLibsHostConfiguration.Resolve(config, firstTenant.Settings);
@@ -143,6 +144,8 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<ITenantAwareFileStorageService, TenantAwareFileStorageService>();
 
             services.AddEmailServicesWithGovUkNotify(tenantConfig);
+            // Host Email registers the provider; tenant Email must be present at runtime or sends fail.
+            services.Decorate<IEmailService, TenantAwareEmailService>();
 
             // Skip MassTransit during NSwag/CodeGeneration to prevent assembly loading issues
             var skipMassTransit = config.GetValue<bool>("SkipMassTransit", false);

@@ -60,30 +60,31 @@ public static class TenantSettingCategoryCookbook
 
         Entry(
             "FileStorage",
-            "Optional per-tenant file storage overlay (Local or Azure File Share).",
+            "Required per-tenant file storage (Local or Azure File Share). Missing/incomplete config fails that tenant's file ops.",
             ["Api", "Shared"],
             example: """{"Provider":"Local","Local":{"BaseDirectory":"/uploads","CreateDirectoryIfNotExists":true,"AllowOverwrite":true,"AllowedExtensions":["jpg","png","pdf"]}}""",
             notes:
             [
                 "Forced secret category",
                 "SuperAdmin only",
-                "Host DI requires GlobalConfiguration:FileStorage:Provider — tenant FileStorage is runtime overlay only",
-                "Do not leave the first tenant without Provider in Local/Development fallback scenarios",
-                "Azure example: Provider=Azure with Azure.ConnectionString and Azure.ShareName"
+                "Host GlobalConfiguration:FileStorage registers CoreLibs DI only — runtime does not fall back to host",
+                "Local requires Local.BaseDirectory; Azure/Hybrid require Azure.ConnectionString and ShareName",
+                "Deleting this category breaks file upload/download/delete for the tenant"
             ],
             requiresObject: true),
 
         Entry(
             "Email",
-            "Optional per-tenant GOV.UK Notify overlay (API key, support address, templates).",
+            "Required per-tenant GOV.UK Notify settings (API key, support address). Missing/incomplete config fails that tenant's email ops.",
             ["Api", "Shared"],
             example: """{"Provider":"GovUkNotify","ServiceSupportEmailAddress":"support@education.gov.uk","GovUkNotify":{"ApiKey":"...","BaseUrl":"https://api.notifications.service.gov.uk","TimeoutSeconds":30}}""",
             notes:
             [
                 "Forced secret category",
                 "SuperAdmin only",
-                "Prefer GlobalConfiguration:Email on the API host for non-local environments",
-                "Tenant Email is an optional runtime overlay; missing host Email can break Notify sends"
+                "Host GlobalConfiguration:Email registers IEmailService only — runtime does not fall back to host",
+                "Requires Email.Provider and (for GovUkNotify) GovUkNotify.ApiKey; feedback also needs ServiceSupportEmailAddress",
+                "Deleting this category breaks outbound email for the tenant"
             ],
             requiresObject: true),
 

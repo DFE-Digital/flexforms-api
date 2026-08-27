@@ -16,14 +16,15 @@ public static class SuperAdminOnlyTenantSettingCategories
     public const string ConnectionStrings = "ConnectionStrings";
 
     /// <summary>
-    /// Per-tenant file storage overlay. Host DI requires GlobalConfiguration:FileStorage;
-    /// tenant rows are optional runtime overrides and must not be edited by Tenant Admins.
+    /// Required per-tenant file storage. Host DI uses GlobalConfiguration:FileStorage to register
+    /// CoreLibs only; runtime file ops require this tenant row and do not fall back to host.
+    /// Must not be edited by Tenant Admins.
     /// </summary>
     public const string FileStorage = "FileStorage";
 
     /// <summary>
-    /// Per-tenant email overlay (Notify keys, support address). Host registration should use
-    /// GlobalConfiguration:Email in non-local environments.
+    /// Required per-tenant email (Notify keys, support address). Host registration uses
+    /// GlobalConfiguration:Email; runtime sends require this tenant row and do not fall back to host.
     /// </summary>
     public const string Email = "Email";
 

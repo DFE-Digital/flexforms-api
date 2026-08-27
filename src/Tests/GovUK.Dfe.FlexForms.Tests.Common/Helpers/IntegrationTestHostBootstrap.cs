@@ -29,7 +29,8 @@ public static class IntegrationTestHostBootstrap
         Environment.SetEnvironmentVariable("GlobalConfiguration__Email__GovUkNotify__ApiKey", "test-notify-key");
         Environment.SetEnvironmentVariable("GlobalConfiguration__Email__ServiceSupportEmailAddress", "some.email@education.gov.uk");
 
-        // Tenant overlay still used by TenantAwareFileStorageService / per-tenant email.
+        // Tenant FileStorage/Email must also be present at runtime (no host fallback).
+        // See TestTenantConfigurationProvider.
         Environment.SetEnvironmentVariable("Tenants__Transfers__FileStorage__Provider", "Local");
         Environment.SetEnvironmentVariable("Tenants__Transfers__FileStorage__Local__BaseDirectory", "/uploads");
         Environment.SetEnvironmentVariable("Tenants__Transfers__FileStorage__Local__AllowedExtensions__0", "jpg");

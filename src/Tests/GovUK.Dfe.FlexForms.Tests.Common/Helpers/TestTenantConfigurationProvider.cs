@@ -20,6 +20,7 @@ public sealed class TestTenantConfigurationProvider : ITenantConfigurationProvid
             {
                 { "ApplicationReference:Prefix", "TRF" },
                 { "ApplicationTemplates:HostMappings:Transfers", EaContextSeeder.TemplateId },
+                { "FileStorage:Provider", "Local" },
                 { "FileStorage:Local:BaseDirectory", "/uploads" },
                 { "FileStorage:Local:AllowedExtensions:0", "jpg" },
                 { "FileStorage:Local:AllowedExtensions:1", "png" },
@@ -30,6 +31,8 @@ public sealed class TestTenantConfigurationProvider : ITenantConfigurationProvid
                 { "FrontendSettings:PreviewContentSelector", ".govuk-grid-column-full" },
                 { "InternalServiceAuth:Services:0:Email", "test-service@service.com" },
                 { "InternalServiceAuth:Services:0:ApiKey", "secret" },
+                { "Email:Provider", "GovUkNotify" },
+                { "Email:GovUkNotify:ApiKey", "test-notify-key" },
                 { "Email:ServiceSupportEmailAddress", "some.email@education.gov.uk" },
                 // Authorization:TokenSettings here so the per-tenant named TokenSettings registered by
                 // AddCustomAuthorization matches the integration test signing config.
