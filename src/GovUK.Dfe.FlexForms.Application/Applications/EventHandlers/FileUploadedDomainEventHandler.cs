@@ -23,6 +23,7 @@ public sealed class FileUploadedDomainEventHandler(
     ILogger<FileUploadedDomainEventHandler> logger,
     IEventPublisher publishEndpoint,
     ITenantContextAccessor tenantContextAccessor,
+    ITenantAzureFileStorageFactory tenantAzureFileStorageFactory,
     IEnumerable<IAzureSpecificOperations> azureSpecificOperations,
     IApplicationRepository applicationRepository,
     IEaRepository<User> userRepository,
@@ -40,10 +41,12 @@ public sealed class FileUploadedDomainEventHandler(
         // FileURL is the Azure File Share path: {applicationReference}/{hashedFileName}
         var fileUrl = $"{file.Path}/{fileName}";
 
-        // Local provider does not register IAzureSpecificOperations → file:// for local scanners.
-        // Azure and Hybrid both register it → generate a real SAS (Hybrid stores on disk but
-        // still uses Azure for SAS so the scanner can fetch the file).
-        var azureOps = azureSpecificOperations.FirstOrDefault();
+        // Prefer tenant Azure credentials (TenantConfig) for SAS. Fall back to host DI only when
+        // the tenant is not Azure-backed (e.g. Local host Hybrid registration).
+        var tenantAzure = tenantAzureFileStorageFactory.GetAzureOperationsOrNull();
+        IAzureSpecificOperations? azureOps = tenantAzure;
+        azureOps ??= azureSpecificOperations.FirstOrDefault();
+
         string sasUri;
         bool isAzureFileShare;
         if (azureOps is null)
@@ -61,7 +64,8 @@ public sealed class FileUploadedDomainEventHandler(
                 fileUrl, DateTimeOffset.UtcNow.AddHours(1), "r", cancellationToken);
             isAzureFileShare = true;
             logger.LogInformation(
-                "Generated Azure SAS for scan request (Hybrid or Azure FileStorage): {SasUri}",
+                "Generated Azure SAS for scan request from {Source}: {SasUri}",
+                tenantAzure is not null ? "tenant FileStorage:Azure" : "host IAzureSpecificOperations",
                 sasUri);
         }
 

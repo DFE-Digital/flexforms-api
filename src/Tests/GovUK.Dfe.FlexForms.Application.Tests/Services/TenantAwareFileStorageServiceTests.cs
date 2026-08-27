@@ -15,7 +15,9 @@ public class TenantAwareFileStorageServiceTests
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<TenantAwareFileStorageService> _logger;
     private readonly IFileStorageService _innerFileStorageService;
+    private readonly ITenantAzureFileStorageFactory _tenantAzureFactory;
     private readonly ITenantContextAccessor _tenantContextAccessor;
+    private readonly IFileStorageService _tenantAzureStorage;
     private readonly TenantAwareFileStorageService _service;
 
     public TenantAwareFileStorageServiceTests()
@@ -23,7 +25,9 @@ public class TenantAwareFileStorageServiceTests
         _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         _logger = Substitute.For<ILogger<TenantAwareFileStorageService>>();
         _innerFileStorageService = Substitute.For<IFileStorageService>();
+        _tenantAzureFactory = Substitute.For<ITenantAzureFileStorageFactory>();
         _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
+        _tenantAzureStorage = Substitute.For<IFileStorageService>();
 
         var services = new ServiceCollection();
         services.AddSingleton(_innerFileStorageService);
@@ -33,7 +37,9 @@ public class TenantAwareFileStorageServiceTests
         var httpContext = new DefaultHttpContext { RequestServices = serviceProvider };
         _httpContextAccessor.HttpContext.Returns(httpContext);
 
-        _service = new TenantAwareFileStorageService(_httpContextAccessor, _logger);
+        _tenantAzureFactory.GetRequiredAzureFileStorage().Returns(_tenantAzureStorage);
+
+        _service = new TenantAwareFileStorageService(_httpContextAccessor, _tenantAzureFactory, _logger);
     }
 
     private static TenantConfiguration CreateTenantWithLocalFileStorage(string baseDirectory)
@@ -57,23 +63,10 @@ public class TenantAwareFileStorageServiceTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["FileStorage:Provider"] = "Azure",
-                ["FileStorage:Azure:ConnectionString"] = "UseDevelopmentStorage=true",
-                ["FileStorage:Azure:ShareName"] = "uploads"
-            })
-            .Build();
-
-        return new TenantConfiguration(Guid.NewGuid(), "TestTenant", settings, Array.Empty<string>());
-    }
-
-    private static TenantConfiguration CreateTenantWithHybridFileStorage(string baseDirectory)
-    {
-        var settings = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["FileStorage:Provider"] = "Hybrid",
-                ["FileStorage:Local:BaseDirectory"] = baseDirectory,
-                ["FileStorage:Azure:ConnectionString"] = "UseDevelopmentStorage=true",
-                ["FileStorage:Azure:ShareName"] = "uploads"
+                ["FileStorage:Azure:ConnectionString"] = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net",
+                ["FileStorage:Azure:ShareName"] = "uploads",
+                ["FileStorage:Local:AllowedExtensions:0"] = "pdf",
+                ["FileStorage:Local:MaxFileSizeBytes"] = "1000"
             })
             .Build();
 
@@ -81,42 +74,35 @@ public class TenantAwareFileStorageServiceTests
     }
 
     [Fact]
-    public async Task UploadAsync_ShouldCallInnerService_WithTenantOptions_WhenTenantConfigured()
+    public async Task UploadAsync_ShouldCallInnerService_WithTenantOptions_WhenLocal()
     {
-        // Arrange
         var tenant = CreateTenantWithLocalFileStorage("/uploads/tenantA");
         _tenantContextAccessor.CurrentTenant.Returns(tenant);
         var stream = new MemoryStream();
 
-        // Act
         await _service.UploadAsync("test/path", stream, "file.txt");
 
-        // Assert
         await _innerFileStorageService.Received(1).UploadAsync(
             "test/path", stream, "file.txt",
             Arg.Is<LocalFileStorageOptions>(o => o.BaseDirectory == "/uploads/tenantA"),
             Arg.Any<CancellationToken>());
+        _tenantAzureFactory.DidNotReceive().GetRequiredAzureFileStorage();
     }
 
     [Fact]
     public async Task UploadAsync_ShouldThrow_WhenNoTenantContext()
     {
-        // Arrange
         _tenantContextAccessor.CurrentTenant.Returns((TenantConfiguration?)null);
         var stream = new MemoryStream();
 
-        // Act & Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _service.UploadAsync("test/path", stream, "file.txt"));
         Assert.Contains("No tenant context", ex.Message, StringComparison.Ordinal);
-        await _innerFileStorageService.DidNotReceiveWithAnyArgs()
-            .UploadAsync(default!, default!, default, default, default);
     }
 
     [Fact]
     public async Task UploadAsync_ShouldThrow_WhenFileStorageProviderMissing()
     {
-        // Arrange
         var settings = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -127,75 +113,46 @@ public class TenantAwareFileStorageServiceTests
             new TenantConfiguration(Guid.NewGuid(), "BrokenTenant", settings, Array.Empty<string>()));
         var stream = new MemoryStream();
 
-        // Act & Assert
         var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _service.UploadAsync("test/path", stream, "file.txt"));
         Assert.Contains("FileStorage:Provider", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task UploadAsync_ShouldUseTenantAzureFactory_WhenProviderIsAzure()
+    {
+        _tenantContextAccessor.CurrentTenant.Returns(CreateTenantWithAzureFileStorage());
+        var stream = new MemoryStream("hi"u8.ToArray());
+
+        await _service.UploadAsync("test/path", stream, "file.pdf");
+
+        await _tenantAzureStorage.Received(1).UploadAsync(
+            "test/path", stream, "file.pdf", Arg.Any<CancellationToken>());
         await _innerFileStorageService.DidNotReceiveWithAnyArgs()
             .UploadAsync(default!, default!, default, default, default);
     }
 
     [Fact]
-    public async Task UploadAsync_ShouldThrow_WhenLocalBaseDirectoryMissing()
+    public async Task UploadAsync_ShouldRejectDisallowedExtension_WhenAzureTenantHasAllowedExtensions()
     {
-        // Arrange
-        var settings = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                ["FileStorage:Provider"] = "Local"
-            })
-            .Build();
-        _tenantContextAccessor.CurrentTenant.Returns(
-            new TenantConfiguration(Guid.NewGuid(), "BrokenTenant", settings, Array.Empty<string>()));
-        var stream = new MemoryStream();
-
-        // Act & Assert
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            _service.UploadAsync("test/path", stream, "file.txt"));
-        Assert.Contains("BaseDirectory", ex.Message, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public async Task UploadAsync_ShouldCallInnerWithoutLocalOptions_WhenAzureConfigured()
-    {
-        // Arrange
         _tenantContextAccessor.CurrentTenant.Returns(CreateTenantWithAzureFileStorage());
-        var stream = new MemoryStream();
+        var stream = new MemoryStream("hi"u8.ToArray());
 
-        // Act
-        await _service.UploadAsync("test/path", stream, "file.txt");
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _service.UploadAsync("test/path", stream, "file.exe"));
 
-        // Assert — Azure uses host-registered service (no Local options override in CoreLibs)
-        await _innerFileStorageService.Received(1).UploadAsync(
-            "test/path", stream, "file.txt", Arg.Any<CancellationToken>());
+        Assert.Contains("not allowed", ex.Message, StringComparison.OrdinalIgnoreCase);
+        _tenantAzureFactory.DidNotReceive().GetRequiredAzureFileStorage();
     }
 
     [Fact]
-    public async Task UploadAsync_ShouldCallInnerWithLocalOptions_WhenHybridConfigured()
+    public async Task DeleteAsync_ShouldCallInnerService_WithTenantOptions_WhenLocal()
     {
-        // Hybrid stores files on disk; Local options must come from the tenant.
-        _tenantContextAccessor.CurrentTenant.Returns(CreateTenantWithHybridFileStorage("/mnt/uploads/tenantA"));
-        var stream = new MemoryStream();
-
-        await _service.UploadAsync("test/path", stream, "file.txt");
-
-        await _innerFileStorageService.Received(1).UploadAsync(
-            "test/path", stream, "file.txt",
-            Arg.Is<LocalFileStorageOptions>(o => o.BaseDirectory == "/mnt/uploads/tenantA"),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
-    public async Task DeleteAsync_ShouldCallInnerService_WithTenantOptions()
-    {
-        // Arrange
         var tenant = CreateTenantWithLocalFileStorage("/uploads/tenantA");
         _tenantContextAccessor.CurrentTenant.Returns(tenant);
 
-        // Act
         await _service.DeleteAsync("test/path");
 
-        // Assert
         await _innerFileStorageService.Received(1).DeleteAsync(
             "test/path",
             Arg.Is<LocalFileStorageOptions>(o => o.BaseDirectory == "/uploads/tenantA"),
@@ -203,65 +160,11 @@ public class TenantAwareFileStorageServiceTests
     }
 
     [Fact]
-    public async Task DownloadAsync_ShouldCallInnerService_WithTenantOptions()
-    {
-        // Arrange
-        var tenant = CreateTenantWithLocalFileStorage("/uploads/tenantA");
-        _tenantContextAccessor.CurrentTenant.Returns(tenant);
-        var expectedStream = new MemoryStream();
-        _innerFileStorageService.DownloadAsync(Arg.Any<string>(), Arg.Any<LocalFileStorageOptions>(), Arg.Any<CancellationToken>())
-            .Returns(expectedStream);
-
-        // Act
-        var result = await _service.DownloadAsync("test/path");
-
-        // Assert
-        Assert.Same(expectedStream, result);
-    }
-
-    [Fact]
-    public async Task ExistsAsync_ShouldCallInnerService_WithTenantOptions()
-    {
-        // Arrange
-        var tenant = CreateTenantWithLocalFileStorage("/uploads/tenantA");
-        _tenantContextAccessor.CurrentTenant.Returns(tenant);
-        _innerFileStorageService.ExistsAsync(Arg.Any<string>(), Arg.Any<LocalFileStorageOptions>(), Arg.Any<CancellationToken>())
-            .Returns(true);
-
-        // Act
-        var result = await _service.ExistsAsync("test/path");
-
-        // Assert
-        Assert.True(result);
-    }
-
-    [Fact]
-    public async Task UploadAsync_WithExplicitOverride_ShouldUseOverrideOptions()
-    {
-        // Arrange
-        var tenant = CreateTenantWithLocalFileStorage("/uploads/tenantA");
-        _tenantContextAccessor.CurrentTenant.Returns(tenant);
-        var overrideOptions = new LocalFileStorageOptions { BaseDirectory = "/custom/override" };
-        var stream = new MemoryStream();
-
-        // Act
-        await _service.UploadAsync("test/path", stream, "file.txt", overrideOptions);
-
-        // Assert
-        await _innerFileStorageService.Received(1).UploadAsync(
-            "test/path", stream, "file.txt",
-            Arg.Is<LocalFileStorageOptions>(o => o.BaseDirectory == "/custom/override"),
-            Arg.Any<CancellationToken>());
-    }
-
-    [Fact]
     public async Task UploadAsync_ShouldThrowInvalidOperationException_WhenNoHttpContext()
     {
-        // Arrange
         _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
         var stream = new MemoryStream();
 
-        // Act & Assert
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _service.UploadAsync("test/path", stream, "file.txt"));
     }

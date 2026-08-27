@@ -9,108 +9,96 @@ using Microsoft.Extensions.Logging;
 namespace GovUK.Dfe.FlexForms.Application.Services
 {
     /// <summary>
-    /// Tenant-aware file storage service that resolves file storage settings
-    /// from the current tenant's configuration at runtime.
-    ///
-    /// Host <c>GlobalConfiguration:FileStorage</c> registers the CoreLibs provider at startup.
-    /// The tenant <c>FileStorage:Provider</c> must match that host registration:
+    /// Tenant-aware file storage. Host <c>GlobalConfiguration:FileStorage</c> only boots CoreLibs DI
+    /// (typically Local with a dummy path). Runtime credentials and targets come from TenantConfig:
     /// <list type="bullet">
-    /// <item><c>Local</c> — files on disk; tenant Local options override BaseDirectory etc.</item>
-    /// <item><c>Azure</c> — files on Azure File Share (host must be Provider=Azure).</item>
-    /// <item><c>Hybrid</c> — CoreLibs writes to <b>local disk</b> and uses Azure only for SAS tokens
-    /// (not for upload/download). Prefer <c>Azure</c> on App Service / containers.</item>
+    /// <item><c>Azure</c> — upload/download/delete/SAS use the tenant Azure ConnectionString + ShareName.</item>
+    /// <item><c>Local</c> — disk via host Local/Hybrid service with tenant Local options overlay.</item>
+    /// <item><c>Hybrid</c> — disk via host with tenant Local options; SAS via tenant Azure settings.</item>
     /// </list>
     /// </summary>
     public class TenantAwareFileStorageService : ITenantAwareFileStorageService
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly ITenantAzureFileStorageFactory _tenantAzureFactory;
         private readonly ILogger<TenantAwareFileStorageService> _logger;
 
         public TenantAwareFileStorageService(
             IHttpContextAccessor httpContextAccessor,
+            ITenantAzureFileStorageFactory tenantAzureFactory,
             ILogger<TenantAwareFileStorageService> logger)
         {
             _httpContextAccessor = httpContextAccessor;
+            _tenantAzureFactory = tenantAzureFactory;
             _logger = logger;
-
-            _logger.LogDebug("TenantAwareFileStorageService initialized with lazy resolution support");
         }
 
-        #region Default Interface Methods (without options override)
+        #region Default Interface Methods
 
         public Task UploadAsync(string path, Stream content, string? originalFileName = null, CancellationToken cancellationToken = default)
         {
-            var innerService = GetInnerService();
             var (provider, localOptions) = ResolveRequiredTenantStorage();
-            EnsureHostMatchesTenantProvider(provider, innerService);
 
-            if (localOptions != null)
+            if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
-                _logger.LogDebug(
-                    "Uploading file with tenant Local options (Provider={Provider}): path={Path}, baseDirectory={BaseDirectory}",
-                    provider, path, localOptions.BaseDirectory);
-                return innerService.UploadAsync(path, content, originalFileName, localOptions, cancellationToken);
+                ValidateAgainstTenantLocalRules(originalFileName, content, localOptions);
+                var azure = _tenantAzureFactory.GetRequiredAzureFileStorage();
+                _logger.LogDebug("Uploading to tenant Azure File Share: path={Path}", path);
+                return azure.UploadAsync(path, content, originalFileName, cancellationToken);
             }
 
-            _logger.LogDebug("Uploading file with Azure host registration (Provider={Provider}): path={Path}", provider, path);
-            return innerService.UploadAsync(path, content, originalFileName, cancellationToken);
+            var inner = GetInnerHostService();
+            _logger.LogDebug(
+                "Uploading with host disk service (Provider={Provider}): path={Path}, baseDirectory={BaseDirectory}",
+                provider, path, localOptions?.BaseDirectory);
+            return inner.UploadAsync(path, content, originalFileName, localOptions!, cancellationToken);
         }
 
         public Task DeleteAsync(string path, CancellationToken cancellationToken = default)
         {
-            var innerService = GetInnerService();
             var (provider, localOptions) = ResolveRequiredTenantStorage();
-            EnsureHostMatchesTenantProvider(provider, innerService);
 
-            if (localOptions != null)
+            if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
-                return innerService.DeleteAsync(path, localOptions, cancellationToken);
+                return _tenantAzureFactory.GetRequiredAzureFileStorage().DeleteAsync(path, cancellationToken);
             }
 
-            return innerService.DeleteAsync(path, cancellationToken);
+            return GetInnerHostService().DeleteAsync(path, localOptions!, cancellationToken);
         }
 
         public Task<Stream> DownloadAsync(string path, CancellationToken cancellationToken = default)
         {
-            var innerService = GetInnerService();
             var (provider, localOptions) = ResolveRequiredTenantStorage();
-            EnsureHostMatchesTenantProvider(provider, innerService);
 
-            if (localOptions != null)
+            if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
-                return innerService.DownloadAsync(path, localOptions, cancellationToken);
+                return _tenantAzureFactory.GetRequiredAzureFileStorage().DownloadAsync(path, cancellationToken);
             }
 
-            return innerService.DownloadAsync(path, cancellationToken);
+            return GetInnerHostService().DownloadAsync(path, localOptions!, cancellationToken);
         }
 
         public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)
         {
-            var innerService = GetInnerService();
             var (provider, localOptions) = ResolveRequiredTenantStorage();
-            EnsureHostMatchesTenantProvider(provider, innerService);
 
-            if (localOptions != null)
+            if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
-                return innerService.ExistsAsync(path, localOptions, cancellationToken);
+                return _tenantAzureFactory.GetRequiredAzureFileStorage().ExistsAsync(path, cancellationToken);
             }
 
-            return innerService.ExistsAsync(path, cancellationToken);
+            return GetInnerHostService().ExistsAsync(path, localOptions!, cancellationToken);
         }
 
         #endregion
 
-        #region Interface Methods with Options Override
+        #region Options Override
 
         public Task UploadAsync(string path, Stream content, string? originalFileName, LocalFileStorageOptions? optionsOverride, CancellationToken cancellationToken = default)
         {
-            var innerService = GetInnerService();
-
             if (optionsOverride != null)
             {
-                _logger.LogDebug("Uploading file with explicit options override: path={Path}, baseDirectory={BaseDirectory}",
-                    path, optionsOverride.BaseDirectory);
-                return innerService.UploadAsync(path, content, originalFileName, optionsOverride, cancellationToken);
+                return GetInnerHostService().UploadAsync(path, content, originalFileName, optionsOverride, cancellationToken);
             }
 
             return UploadAsync(path, content, originalFileName, cancellationToken);
@@ -118,11 +106,9 @@ namespace GovUK.Dfe.FlexForms.Application.Services
 
         public Task DeleteAsync(string path, LocalFileStorageOptions? optionsOverride, CancellationToken cancellationToken = default)
         {
-            var innerService = GetInnerService();
-
             if (optionsOverride != null)
             {
-                return innerService.DeleteAsync(path, optionsOverride, cancellationToken);
+                return GetInnerHostService().DeleteAsync(path, optionsOverride, cancellationToken);
             }
 
             return DeleteAsync(path, cancellationToken);
@@ -130,11 +116,9 @@ namespace GovUK.Dfe.FlexForms.Application.Services
 
         public Task<Stream> DownloadAsync(string path, LocalFileStorageOptions? optionsOverride, CancellationToken cancellationToken = default)
         {
-            var innerService = GetInnerService();
-
             if (optionsOverride != null)
             {
-                return innerService.DownloadAsync(path, optionsOverride, cancellationToken);
+                return GetInnerHostService().DownloadAsync(path, optionsOverride, cancellationToken);
             }
 
             return DownloadAsync(path, cancellationToken);
@@ -142,11 +126,9 @@ namespace GovUK.Dfe.FlexForms.Application.Services
 
         public Task<bool> ExistsAsync(string path, LocalFileStorageOptions? optionsOverride, CancellationToken cancellationToken = default)
         {
-            var innerService = GetInnerService();
-
             if (optionsOverride != null)
             {
-                return innerService.ExistsAsync(path, optionsOverride, cancellationToken);
+                return GetInnerHostService().ExistsAsync(path, optionsOverride, cancellationToken);
             }
 
             return ExistsAsync(path, cancellationToken);
@@ -156,7 +138,7 @@ namespace GovUK.Dfe.FlexForms.Application.Services
 
         #region Private Helpers
 
-        private IFileStorageService GetInnerService()
+        private IFileStorageService GetInnerHostService()
         {
             var requestServices = _httpContextAccessor.HttpContext?.RequestServices
                 ?? throw new InvalidOperationException("No HttpContext available for file storage operation");
@@ -165,8 +147,8 @@ namespace GovUK.Dfe.FlexForms.Application.Services
         }
 
         /// <summary>
-        /// Returns tenant provider and Local options when files are stored on disk (Local or Hybrid).
-        /// Azure returns null local options (CoreLibs has no Azure options override).
+        /// For Azure, LocalOptions may still carry AllowedExtensions / MaxFileSize from the tenant Local section.
+        /// For Local/Hybrid, LocalOptions is required for disk BaseDirectory.
         /// </summary>
         private (string Provider, LocalFileStorageOptions? LocalOptions) ResolveRequiredTenantStorage()
         {
@@ -184,7 +166,14 @@ namespace GovUK.Dfe.FlexForms.Application.Services
             {
                 throw new InvalidOperationException(
                     $"Tenant '{tenant.Name}' has no FileStorage:Provider configured. " +
-                    "File operations require a tenant FileStorage setting and do not fall back to host GlobalConfiguration.");
+                    "File operations require a tenant FileStorage setting.");
+            }
+
+            if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
+            {
+                // Azure credentials come from the factory; Local section is optional (validation rules only).
+                var optionalLocal = TryBuildLocalOptions(tenant);
+                return (provider, optionalLocal);
             }
 
             if (string.Equals(provider, "Local", StringComparison.OrdinalIgnoreCase)
@@ -192,6 +181,7 @@ namespace GovUK.Dfe.FlexForms.Application.Services
             {
                 if (string.Equals(provider, "Hybrid", StringComparison.OrdinalIgnoreCase))
                 {
+                    // Ensure Azure section exists for SAS; factory will read it when needed.
                     EnsureAzureSectionPresent(tenant, provider);
                 }
 
@@ -199,23 +189,10 @@ namespace GovUK.Dfe.FlexForms.Application.Services
                 if (string.IsNullOrEmpty(baseDirectory))
                 {
                     throw new InvalidOperationException(
-                        $"Tenant '{tenant.Name}' FileStorage Provider is {provider} but FileStorage:Local:BaseDirectory is missing. " +
-                        (string.Equals(provider, "Hybrid", StringComparison.OrdinalIgnoreCase)
-                            ? "Hybrid stores files on local disk (Azure is used only for SAS). For Azure File Share uploads use Provider=Azure."
-                            : string.Empty));
+                        $"Tenant '{tenant.Name}' FileStorage Provider is {provider} but FileStorage:Local:BaseDirectory is missing.");
                 }
 
-                var options = BuildLocalOptions(tenant, baseDirectory);
-                _logger.LogDebug(
-                    "Resolved tenant disk options for {TenantName} Provider={Provider}: BaseDirectory={BaseDirectory}",
-                    tenant.Name, provider, options.BaseDirectory);
-                return (provider, options);
-            }
-
-            if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
-            {
-                EnsureAzureSectionPresent(tenant, provider);
-                return (provider, null);
+                return (provider, BuildLocalOptions(tenant, baseDirectory));
             }
 
             throw new InvalidOperationException(
@@ -231,6 +208,20 @@ namespace GovUK.Dfe.FlexForms.Application.Services
                 throw new InvalidOperationException(
                     $"Tenant '{tenant.Name}' FileStorage Provider is {provider} but FileStorage:Azure:ConnectionString and/or ShareName is missing.");
             }
+        }
+
+        private static LocalFileStorageOptions? TryBuildLocalOptions(TenantConfiguration tenant)
+        {
+            var baseDirectory = tenant.Settings.GetValue<string>("FileStorage:Local:BaseDirectory");
+            // Even without BaseDirectory, AllowedExtensions / MaxFileSizeBytes may be set under Local.
+            var hasExtensions = tenant.Settings.GetSection("FileStorage:Local:AllowedExtensions").Exists();
+            var hasMax = tenant.Settings.GetValue<long?>("FileStorage:Local:MaxFileSizeBytes").HasValue;
+            if (string.IsNullOrEmpty(baseDirectory) && !hasExtensions && !hasMax)
+            {
+                return null;
+            }
+
+            return BuildLocalOptions(tenant, baseDirectory ?? string.Empty);
         }
 
         private static LocalFileStorageOptions BuildLocalOptions(TenantConfiguration tenant, string baseDirectory)
@@ -255,64 +246,38 @@ namespace GovUK.Dfe.FlexForms.Application.Services
         }
 
         /// <summary>
-        /// Host DI picks one CoreLibs implementation at startup. Tenant Provider must match that
-        /// implementation or uploads silently hit the wrong store (e.g. Local /app/uploads).
-        /// Unknown types (test doubles) are skipped.
+        /// CoreLibs Azure service does not enforce Local AllowedExtensions / MaxFileSize; apply tenant rules here.
         /// </summary>
-        private static void EnsureHostMatchesTenantProvider(string tenantProvider, IFileStorageService inner)
+        private static void ValidateAgainstTenantLocalRules(
+            string? originalFileName,
+            Stream content,
+            LocalFileStorageOptions? rules)
         {
-            var hostImpl = inner.GetType().Name;
-            if (!KnownCoreLibsImplementations.Contains(hostImpl))
+            if (rules is null)
             {
                 return;
             }
 
-            if (string.Equals(tenantProvider, "Azure", StringComparison.OrdinalIgnoreCase))
+            if (rules.AllowedExtensions is { Length: > 0 })
             {
-                if (!string.Equals(hostImpl, "AzureFileStorageService", StringComparison.Ordinal))
+                var extension = Path.GetExtension(originalFileName ?? string.Empty).TrimStart('.').ToLowerInvariant();
+                if (string.IsNullOrEmpty(extension)
+                    || !rules.AllowedExtensions.Any(e =>
+                        string.Equals(e.TrimStart('.'), extension, StringComparison.OrdinalIgnoreCase)))
                 {
-                    throw new InvalidOperationException(
-                        $"Tenant FileStorage Provider is Azure but the API host registered '{hostImpl}'. " +
-                        "Set GlobalConfiguration:FileStorage:Provider=Azure with Azure:ConnectionString and ShareName on the API host. " +
-                        "Provider=Hybrid stores files on local disk and only uses Azure for SAS tokens — use Provider=Azure for Azure File Share.");
+                    var friendly = string.IsNullOrWhiteSpace(rules.AllowedExtensionsFriendlyList)
+                        ? string.Join(", ", rules.AllowedExtensions)
+                        : rules.AllowedExtensionsFriendlyList;
+                    throw new InvalidOperationException($"File extension is not allowed. Allowed: {friendly}");
                 }
-
-                return;
             }
 
-            if (string.Equals(tenantProvider, "Hybrid", StringComparison.OrdinalIgnoreCase))
+            if (rules.MaxFileSizeBytes > 0 && content.CanSeek && content.Length > rules.MaxFileSizeBytes)
             {
-                if (!string.Equals(hostImpl, "HybridFileStorageService", StringComparison.Ordinal))
-                {
-                    throw new InvalidOperationException(
-                        $"Tenant FileStorage Provider is Hybrid but the API host registered '{hostImpl}'. " +
-                        "Set GlobalConfiguration:FileStorage:Provider=Hybrid (Local + Azure sections) on the API host, " +
-                        "or change the tenant Provider to match the host (Azure for File Share, Local for disk). " +
-                        "Hybrid always writes files to local disk; Azure is only used for SAS.");
-                }
-
-                return;
-            }
-
-            if (string.Equals(tenantProvider, "Local", StringComparison.OrdinalIgnoreCase))
-            {
-                // Local tenant can use Local or Hybrid host (both support Local options override).
-                if (!string.Equals(hostImpl, "LocalFileStorageService", StringComparison.Ordinal)
-                    && !string.Equals(hostImpl, "HybridFileStorageService", StringComparison.Ordinal))
-                {
-                    throw new InvalidOperationException(
-                        $"Tenant FileStorage Provider is Local but the API host registered '{hostImpl}'. " +
-                        "Set GlobalConfiguration:FileStorage:Provider=Local (or Hybrid) on the API host.");
-                }
+                throw new InvalidOperationException(
+                    $"File size exceeds the maximum allowed size of {rules.MaxFileSizeBytes} bytes.");
             }
         }
-
-        private static readonly HashSet<string> KnownCoreLibsImplementations = new(StringComparer.Ordinal)
-        {
-            "LocalFileStorageService",
-            "AzureFileStorageService",
-            "HybridFileStorageService"
-        };
 
         #endregion
     }

@@ -24,6 +24,7 @@ public class FileUploadedDomainEventHandlerTests
     private readonly ILogger<FileUploadedDomainEventHandler> _logger;
     private readonly IEventPublisher _eventPublisher;
     private readonly ITenantContextAccessor _tenantContextAccessor;
+    private readonly ITenantAzureFileStorageFactory _tenantAzureFactory;
     private readonly IAzureSpecificOperations _azureOps;
     private readonly IApplicationRepository _applicationRepository;
     private readonly IEaRepository<User> _userRepository;
@@ -35,6 +36,7 @@ public class FileUploadedDomainEventHandlerTests
         _logger = Substitute.For<ILogger<FileUploadedDomainEventHandler>>();
         _eventPublisher = Substitute.For<IEventPublisher>();
         _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
+        _tenantAzureFactory = Substitute.For<ITenantAzureFileStorageFactory>();
         _azureOps = Substitute.For<IAzureSpecificOperations>();
         _applicationRepository = Substitute.For<IApplicationRepository>();
         _userRepository = Substitute.For<IEaRepository<User>>();
@@ -42,11 +44,13 @@ public class FileUploadedDomainEventHandlerTests
 
         _applicationRepository.Query().Returns(Array.Empty<Domain.Entities.Application>().AsQueryable());
         _userRepository.Query().Returns(Array.Empty<User>().AsQueryable());
+        _tenantAzureFactory.GetAzureOperationsOrNull().Returns((IAzureSpecificOperations?)null);
 
         _handler = new FileUploadedDomainEventHandler(
             _logger,
             _eventPublisher,
             _tenantContextAccessor,
+            _tenantAzureFactory,
             [_azureOps],
             _applicationRepository,
             _userRepository,
@@ -138,6 +142,7 @@ public class FileUploadedDomainEventHandlerTests
             _logger,
             _eventPublisher,
             _tenantContextAccessor,
+            _tenantAzureFactory,
             Array.Empty<IAzureSpecificOperations>(),
             _applicationRepository,
             _userRepository,

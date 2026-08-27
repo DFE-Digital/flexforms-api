@@ -16,9 +16,9 @@ public static class SuperAdminOnlyTenantSettingCategories
     public const string ConnectionStrings = "ConnectionStrings";
 
     /// <summary>
-    /// Required per-tenant file storage. Host DI uses GlobalConfiguration:FileStorage to register
-    /// CoreLibs only; runtime file ops require this tenant row and do not fall back to host.
-    /// Must not be edited by Tenant Admins.
+    /// Required per-tenant file storage. Host DI uses GlobalConfiguration:FileStorage only to
+    /// boot CoreLibs (can be Local with a dummy path). Azure ConnectionString/ShareName are read
+    /// from this tenant row at runtime. Must not be edited by Tenant Admins.
     /// </summary>
     public const string FileStorage = "FileStorage";
 

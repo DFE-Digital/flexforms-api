@@ -138,7 +138,10 @@ namespace Microsoft.Extensions.DependencyInjection
             });
 
             services.AddFileStorage(tenantConfig);
-            
+
+            // Per-tenant Azure File Share clients (TenantConfig ConnectionString/ShareName).
+            services.AddSingleton<ITenantAzureFileStorageFactory, TenantAzureFileStorageFactory>();
+
             // Register the tenant-aware file storage wrapper
             // Register under a DIFFERENT interface to avoid breaking CoreLibs internal 
             services.AddScoped<ITenantAwareFileStorageService, TenantAwareFileStorageService>();
