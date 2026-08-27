@@ -148,7 +148,9 @@ sequenceDiagram
 
 Common categories: `ConnectionStrings`, `AzureAd`, `DfESignIn`, `EntraSso`, `Authorization`, `ApplicationTemplates`, `Email`, `EmailTemplates`, `EmailPlaceholderMappings`, `EventMappings`, `EventTriggers`, `SchemaEvents`, `FileStorage`, `FileValidation`, `FormEngine` (Web), `Layout` (Web), `InternalServiceAuth`, …
 
-Secrets (`IsSecret = 1`) are encrypted with ASP.NET Data Protection.
+**SuperAdmin-only (cannot be edited by Tenant Admins):** `ConnectionStrings`, `ApplicationTemplates`, `Template`, `FileStorage`, `Email`.
+
+Secrets (`IsSecret = 1`) are encrypted with ASP.NET Data Protection. Forced-secret categories include `Email`, `FileStorage`, auth settings, and connection strings.
 
 ### Configuration provider
 
@@ -380,7 +382,7 @@ flowchart LR
 ```
 
 - **Shared** Service Bus namespace and SignalR resource for all tenants; tenant stamped on messages (`TenantAwareEventPublisher` / `TenantContextConsumeFilter`).
-- File storage is tenant-aware (`TenantAwareFileStorageService`).
+- File storage host registration uses `GlobalConfiguration:FileStorage`; runtime paths remain tenant-aware (`TenantAwareFileStorageService`).
 - Virus scan (`ScanRequestedEvent`) is platform-owned. Tenant Excel/schema checks use the HTTP callback below — not Service Bus.
 
 ---
@@ -413,6 +415,11 @@ flowchart LR
 | `MassTransit` / Service Bus | Messaging (or `SkipMassTransit` for codegen) |
 | `DataProtection` | Secret settings encryption |
 | `GlobalConfiguration:ApplicationInsights:ConnectionString` | Serilog → App Insights sink |
+| `GlobalConfiguration:FileStorage:Provider` | **Required** for host FileStorage DI outside Local/Development |
+| `GlobalConfiguration:Email` | Preferred host Notify registration (non-local) |
+| `AllowTenantHostConfigFallback` | Optional; force/disable first-tenant fallback for host DI |
+
+**Host CoreLibs DI (`FileStorage`, Email, Notifications, Cache):** `CoreLibsHostConfiguration.Resolve` uses `GlobalConfiguration` when `FileStorage:Provider` is set. Non-local environments **must** set this — the API no longer falls back to the first tenant’s `FileStorage`, so a misconfigured tenant cannot take down the process. Local/Development may still fall back to the first tenant. Per-tenant `FileStorage` / `Email` remain optional **runtime overlays** (SuperAdmin-only).
 
 Per-tenant secrets and connections live in **TenantConfig**, not only in appsettings.
 

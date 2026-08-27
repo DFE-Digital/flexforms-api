@@ -9,22 +9,76 @@ namespace GovUK.Dfe.FlexForms.Utils.Configuration;
 /// </summary>
 public static class CoreLibsHostConfiguration
 {
-    /// <summary>
-    /// Prefers <c>GlobalConfiguration</c> when it already contains FileStorage (host shape);
-    /// otherwise uses the first tenant's settings. Overlays Redis connection from root when needed,
-    /// and always forces FlexForms Redis key prefixes so shared Redis with legacy EAT does not collide.
-    /// </summary>
-    public static IConfiguration Resolve(IConfiguration root, IConfiguration firstTenantSettings)
-    {
-        var global = root.GetSection("GlobalConfiguration");
-        var primary = global.Exists() && global.GetSection("FileStorage").GetChildren().Any()
-            ? (IConfiguration)global
-            : firstTenantSettings;
+    public const string GlobalConfigurationSection = "GlobalConfiguration";
+    public const string FileStorageProviderKey = "FileStorage:Provider";
+    public const string EmailProviderKey = "Email:Provider";
 
-        return OverlayFlexFormsCacheAndRedis(primary, root);
+    /// <summary>
+    /// Builds host-shaped configuration for CoreLibs DI.
+    /// Prefers <c>GlobalConfiguration</c> when it contains required host sections.
+    /// Falls back to the first tenant only in Local / Development / CodeGeneration (or when
+    /// <c>AllowTenantHostConfigFallback=true</c>) so local, NSwag, and integration tests keep working.
+    /// Non-local environments require <c>GlobalConfiguration:FileStorage:Provider</c>
+    /// so a misconfigured tenant cannot take down the API process.
+    /// </summary>
+    public static IConfiguration Resolve(IConfiguration root, IConfiguration? firstTenantSettings)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+
+        var global = root.GetSection(GlobalConfigurationSection);
+        var globalHasFileStorage = HasNonEmptyValue(global, FileStorageProviderKey);
+
+        if (globalHasFileStorage)
+        {
+            // FileStorage comes from GlobalConfiguration; Redis/Email gaps may still be
+            // filled from root or the first tenant so CodeGeneration / Local keep working.
+            return OverlayFlexFormsCacheAndRedis(global, root, firstTenantSettings);
+        }
+
+        if (AllowTenantFallback(root)
+            && firstTenantSettings is not null
+            && HasNonEmptyValue(firstTenantSettings, FileStorageProviderKey))
+        {
+            return OverlayFlexFormsCacheAndRedis(firstTenantSettings, root, fallback: null);
+        }
+
+        throw new InvalidOperationException(
+            "GlobalConfiguration:FileStorage:Provider is required for host FileStorage registration. "
+            + "Set GlobalConfiguration__FileStorage__Provider (and Azure/Local settings) on the API host. "
+            + "Do not rely on TenantConfig FileStorage for process startup — that is optional per-tenant "
+            + "runtime overlay only. "
+            + "Local/Development/CodeGeneration may fall back to the first tenant when "
+            + "AllowTenantHostConfigFallback is not disabled.");
     }
 
-    private static IConfiguration OverlayFlexFormsCacheAndRedis(IConfiguration primary, IConfiguration root)
+    /// <summary>
+    /// True when Local/Development/CodeGeneration (or explicit flag) may use first-tenant settings for host DI.
+    /// </summary>
+    public static bool AllowTenantFallback(IConfiguration root)
+    {
+        if (root.GetValue<bool>("AllowTenantHostConfigFallback"))
+            return true;
+
+        // Explicit opt-out for Local boxes that should mirror Test/Prod.
+        if (root.GetValue<bool?>("AllowTenantHostConfigFallback") == false)
+            return false;
+
+        var env = root["ASPNETCORE_ENVIRONMENT"]
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? string.Empty;
+
+        return env.Equals("Local", StringComparison.OrdinalIgnoreCase)
+            || env.Equals("Development", StringComparison.OrdinalIgnoreCase)
+            || env.Equals("CodeGeneration", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasNonEmptyValue(IConfiguration configuration, string key) =>
+        !string.IsNullOrWhiteSpace(configuration[key]);
+
+    private static IConfiguration OverlayFlexFormsCacheAndRedis(
+        IConfiguration primary,
+        IConfiguration root,
+        IConfiguration? fallback)
     {
         var overlay = new Dictionary<string, string?>
         {
@@ -35,10 +89,7 @@ public static class CoreLibsHostConfiguration
 
         if (!HasRedisConnection(primary))
         {
-            var redis = root.GetConnectionString("Redis")
-                ?? root["Redis:ConnectionString"]
-                ?? root["NotificationService:RedisConnectionString"];
-
+            var redis = ResolveRedisConnection(root) ?? ResolveRedisConnection(fallback);
             if (!string.IsNullOrWhiteSpace(redis))
             {
                 overlay["ConnectionStrings:Redis"] = redis;
@@ -68,9 +119,18 @@ public static class CoreLibsHostConfiguration
             .Build();
     }
 
+    private static string? ResolveRedisConnection(IConfiguration? configuration)
+    {
+        if (configuration is null)
+            return null;
+
+        return configuration.GetConnectionString("Redis")
+            ?? configuration["ConnectionStrings:Redis"]
+            ?? configuration["Redis:ConnectionString"]
+            ?? configuration["NotificationService:RedisConnectionString"]
+            ?? configuration["Redis"];
+    }
+
     private static bool HasRedisConnection(IConfiguration configuration) =>
-        !string.IsNullOrWhiteSpace(configuration.GetConnectionString("Redis"))
-        || !string.IsNullOrWhiteSpace(configuration["Redis:ConnectionString"])
-        || !string.IsNullOrWhiteSpace(configuration["NotificationService:RedisConnectionString"])
-        || !string.IsNullOrWhiteSpace(configuration["Redis"]);
+        !string.IsNullOrWhiteSpace(ResolveRedisConnection(configuration));
 }

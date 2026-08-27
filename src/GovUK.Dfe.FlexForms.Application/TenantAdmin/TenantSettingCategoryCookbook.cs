@@ -59,6 +59,35 @@ public static class TenantSettingCategoryCookbook
             requiresObject: true),
 
         Entry(
+            "FileStorage",
+            "Optional per-tenant file storage overlay (Local or Azure File Share).",
+            ["Api", "Shared"],
+            example: """{"Provider":"Local","Local":{"BaseDirectory":"/uploads","CreateDirectoryIfNotExists":true,"AllowOverwrite":true,"AllowedExtensions":["jpg","png","pdf"]}}""",
+            notes:
+            [
+                "Forced secret category",
+                "SuperAdmin only",
+                "Host DI requires GlobalConfiguration:FileStorage:Provider — tenant FileStorage is runtime overlay only",
+                "Do not leave the first tenant without Provider in Local/Development fallback scenarios",
+                "Azure example: Provider=Azure with Azure.ConnectionString and Azure.ShareName"
+            ],
+            requiresObject: true),
+
+        Entry(
+            "Email",
+            "Optional per-tenant GOV.UK Notify overlay (API key, support address, templates).",
+            ["Api", "Shared"],
+            example: """{"Provider":"GovUkNotify","ServiceSupportEmailAddress":"support@education.gov.uk","GovUkNotify":{"ApiKey":"...","BaseUrl":"https://api.notifications.service.gov.uk","TimeoutSeconds":30}}""",
+            notes:
+            [
+                "Forced secret category",
+                "SuperAdmin only",
+                "Prefer GlobalConfiguration:Email on the API host for non-local environments",
+                "Tenant Email is an optional runtime overlay; missing host Email can break Notify sends"
+            ],
+            requiresObject: true),
+
+        Entry(
             "InternalServiceAuth",
             "Service-to-service JWT credentials and optional API keys.",
             ["Api", "Web", "Shared"],

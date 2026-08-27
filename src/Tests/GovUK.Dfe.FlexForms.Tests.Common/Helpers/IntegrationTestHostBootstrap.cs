@@ -16,6 +16,20 @@ public static class IntegrationTestHostBootstrap
         Environment.SetEnvironmentVariable("Tenants__Transfers__Id", TestTenantId);
         Environment.SetEnvironmentVariable("Tenants__Transfers__Name", "Transfers");
         Environment.SetEnvironmentVariable("Tenants__Transfers__Frontend__Origin", "https://localhost:7020");
+
+        // Host DI prefers GlobalConfiguration:FileStorage (required outside Local/Development).
+        Environment.SetEnvironmentVariable("GlobalConfiguration__FileStorage__Provider", "Local");
+        Environment.SetEnvironmentVariable("GlobalConfiguration__FileStorage__Local__BaseDirectory", "/uploads");
+        Environment.SetEnvironmentVariable("GlobalConfiguration__FileStorage__Local__AllowedExtensions__0", "jpg");
+        Environment.SetEnvironmentVariable("GlobalConfiguration__FileStorage__Local__AllowedExtensions__1", "png");
+        Environment.SetEnvironmentVariable("GlobalConfiguration__FileStorage__Local__AllowedExtensions__2", "pdf");
+        Environment.SetEnvironmentVariable("GlobalConfiguration__FileStorage__Local__AllowedExtensions__3", "docx");
+        Environment.SetEnvironmentVariable("GlobalConfiguration__FileStorage__Local__AllowedExtensions__4", "xlsx");
+        Environment.SetEnvironmentVariable("GlobalConfiguration__Email__Provider", "GovUkNotify");
+        Environment.SetEnvironmentVariable("GlobalConfiguration__Email__GovUkNotify__ApiKey", "test-notify-key");
+        Environment.SetEnvironmentVariable("GlobalConfiguration__Email__ServiceSupportEmailAddress", "some.email@education.gov.uk");
+
+        // Tenant overlay still used by TenantAwareFileStorageService / per-tenant email.
         Environment.SetEnvironmentVariable("Tenants__Transfers__FileStorage__Provider", "Local");
         Environment.SetEnvironmentVariable("Tenants__Transfers__FileStorage__Local__BaseDirectory", "/uploads");
         Environment.SetEnvironmentVariable("Tenants__Transfers__FileStorage__Local__AllowedExtensions__0", "jpg");

@@ -8,8 +8,11 @@ public class SuperAdminOnlyTenantSettingCategoriesTests
     [InlineData("ApplicationTemplates")]
     [InlineData("Template")]
     [InlineData("ConnectionStrings")]
+    [InlineData("FileStorage")]
+    [InlineData("Email")]
     [InlineData("applicationtemplates")]
     [InlineData("connectionstrings")]
+    [InlineData("filestorage")]
     public void IsRestricted_ShouldBeTrue_ForKnownCategories(string category)
     {
         Assert.True(SuperAdminOnlyTenantSettingCategories.IsRestricted(category));

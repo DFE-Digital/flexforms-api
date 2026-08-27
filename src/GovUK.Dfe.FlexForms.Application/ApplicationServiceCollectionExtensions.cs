@@ -40,10 +40,10 @@ namespace Microsoft.Extensions.DependencyInjection
             IConfiguration config,
             ITenantConfigurationProvider tenantConfigurationProvider)
         {
-            // CoreLibs FileStorage/Email/Notifications expect an IConfiguration shaped like their
-            // root sections. Prefer GlobalConfiguration when those sections are present; otherwise
-            // fall back to the first tenant for DI registration shape only. Runtime behaviour is
-            // still tenant-aware via TenantAwareFileStorageService and related wrappers.
+            // Host-shaped config for CoreLibs DI (FileStorage, Email, Notifications, Cache).
+            // Prefer GlobalConfiguration; Local/Development may fall back to the first tenant.
+            // Non-local environments require GlobalConfiguration:FileStorage:Provider so a
+            // misconfigured tenant cannot take down the API process.
             var firstTenant = tenantConfigurationProvider.GetAllTenants().FirstOrDefault()
                 ?? throw new InvalidOperationException("At least one tenant must be configured.");
             var tenantConfig = CoreLibsHostConfiguration.Resolve(config, firstTenant.Settings);
