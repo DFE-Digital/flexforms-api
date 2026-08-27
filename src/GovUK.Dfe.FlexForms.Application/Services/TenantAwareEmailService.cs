@@ -5,18 +5,14 @@ using Microsoft.AspNetCore.Http;
 namespace GovUK.Dfe.FlexForms.Application.Services;
 
 /// <summary>
-/// Decorator that sends email via a per-tenant GOV.UK Notify client built from TenantConfig.
-/// Host <c>GlobalConfiguration:Email</c> (e.g. <c>test-api-key</c>) is not used at runtime.
-/// The <paramref name="inner"/> parameter is required by Scrutor decorate and is unused for sends.
+/// <see cref="IEmailService"/> that sends via a per-tenant GOV.UK Notify client from TenantConfig.
+/// Does not depend on the host CoreLibs email registration (host <c>test-api-key</c> must never
+/// be constructed — Notify rejects it in <c>NotificationClient</c> ctor during DI).
 /// </summary>
 public sealed class TenantAwareEmailService(
-    IEmailService inner,
     ITenantEmailServiceFactory tenantEmailFactory,
     IHttpContextAccessor httpContextAccessor) : IEmailService
 {
-    // Keep reference so Scrutor / DI still wire the host chain for boot; never call it for sends.
-    private readonly IEmailService _ = inner;
-
     public string ProviderName => ResolveTenantEmail().ProviderName;
 
     public Task<EmailResponse> SendEmailAsync(EmailMessage message, CancellationToken cancellationToken = default)
@@ -54,7 +50,6 @@ public sealed class TenantAwareEmailService(
 
     private IEmailService ResolveTenantEmail()
     {
-        // Factory requires HttpContext; fail early with the same message tests expect.
         if (httpContextAccessor.HttpContext is null)
         {
             throw new InvalidOperationException("No HttpContext available for email operation");

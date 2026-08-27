@@ -1,36 +1,37 @@
-using GovUK.Dfe.FlexForms.Utils.Caching;
-using GovUK.Dfe.FlexForms.Utils.Configuration;
+using GovUK.Dfe.CoreLibs.Email;
+using GovUK.Dfe.CoreLibs.Email.Interfaces;
+using GovUK.Dfe.CoreLibs.FileStorage;
+using GovUK.Dfe.CoreLibs.FileStorage.Interfaces;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Entities.Topics;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
+using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions;
+using GovUK.Dfe.CoreLibs.Notifications.Extensions;
+using GovUK.Dfe.CoreLibs.Notifications.Interfaces;
+using GovUK.Dfe.CoreLibs.Notifications.Services;
+using GovUK.Dfe.CoreLibs.Security.Interfaces;
+using GovUK.Dfe.CoreLibs.Utilities.RateLimiting;
 using GovUK.Dfe.FlexForms.Application.Common.Behaviours;
 using GovUK.Dfe.FlexForms.Application.Common.Pipeline;
 using GovUK.Dfe.FlexForms.Application.Consumers;
 using GovUK.Dfe.FlexForms.Application.Messaging;
+using GovUK.Dfe.FlexForms.Application.Notifications;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Validation;
 using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Services.RoleProvisioners;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using GovUK.Dfe.FlexForms.Utils.Caching;
+using GovUK.Dfe.FlexForms.Utils.Configuration;
 using FluentValidation;
-using MediatR;
-using Microsoft.Extensions.Configuration;
-using System.Reflection;
-using GovUK.Dfe.CoreLibs.FileStorage;
-using GovUK.Dfe.CoreLibs.Notifications.Extensions;
-using GovUK.Dfe.CoreLibs.Notifications.Interfaces;
-using GovUK.Dfe.CoreLibs.Notifications.Services;
-using GovUK.Dfe.FlexForms.Application.Notifications;
-using GovUK.Dfe.CoreLibs.Utilities.RateLimiting;
-using Microsoft.AspNetCore.Http;
-using GovUK.Dfe.CoreLibs.Email;
-using GovUK.Dfe.CoreLibs.Email.Interfaces;
-using GovUK.Dfe.CoreLibs.Security.Interfaces;
-using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions;
-using GovUK.Dfe.CoreLibs.Messaging.Contracts.Entities.Topics;
-using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
-using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
-using GovUK.Dfe.CoreLibs.FileStorage.Interfaces;
-using Microsoft.Extensions.Logging;
 using MassTransit;
+using MediatR;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
+using System.Reflection;
 
 namespace Microsoft.Extensions.DependencyInjection
 {
@@ -148,11 +149,15 @@ namespace Microsoft.Extensions.DependencyInjection
             // Register under a DIFFERENT interface to avoid breaking CoreLibs internal 
             services.AddScoped<ITenantAwareFileStorageService, TenantAwareFileStorageService>();
 
+            // Host registration boots CoreLibs email types; replace IEmailService so Scrutor
+            // Decorate never constructs NotificationClient with the host dummy ApiKey
+            // (Notify rejects non-v2 keys in the client constructor during DI resolve).
             services.AddEmailServicesWithGovUkNotify(tenantConfig);
-            // Per-tenant GOV.UK Notify clients (TenantConfig ApiKey). Host key is DI boot only.
             services.AddSingleton<ITenantEmailServiceFactory, TenantEmailServiceFactory>();
-            // Host Email registers the provider; runtime sends use tenant factory via decorator.
-            services.Decorate<IEmailService, TenantAwareEmailService>();
+            services.RemoveAll<IEmailService>();
+            services.RemoveAll<IEmailProvider>();
+            services.RemoveAll<INotificationClient>();
+            services.AddScoped<IEmailService, TenantAwareEmailService>();
 
             // Skip MassTransit during NSwag/CodeGeneration to prevent assembly loading issues
             var skipMassTransit = config.GetValue<bool>("SkipMassTransit", false);
