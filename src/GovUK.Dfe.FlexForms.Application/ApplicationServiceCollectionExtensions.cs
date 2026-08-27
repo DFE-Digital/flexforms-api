@@ -141,6 +141,8 @@ namespace Microsoft.Extensions.DependencyInjection
 
             // Per-tenant Azure File Share clients (TenantConfig ConnectionString/ShareName).
             services.AddSingleton<ITenantAzureFileStorageFactory, TenantAzureFileStorageFactory>();
+            // Per-tenant LocalFileStorageService from TenantConfig Local.BaseDirectory (Hybrid mount path).
+            services.AddSingleton<ITenantDiskFileStorageFactory, TenantDiskFileStorageFactory>();
 
             // Register the tenant-aware file storage wrapper
             // Register under a DIFFERENT interface to avoid breaking CoreLibs internal 

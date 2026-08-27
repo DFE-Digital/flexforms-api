@@ -10,30 +10,36 @@ namespace GovUK.Dfe.FlexForms.Application.Services
 {
     /// <summary>
     /// Tenant-aware file storage. Host <c>GlobalConfiguration:FileStorage</c> only boots CoreLibs DI
-    /// (typically Local with a dummy path). Runtime behaviour comes from TenantConfig:
+    /// (dummy Local path). Runtime behaviour comes from TenantConfig:
     /// <list type="bullet">
     /// <item>
-    /// <c>Hybrid</c> (Container Apps with Azure Files mount) — write/read via local disk at
-    /// <c>Local.BaseDirectory</c> (the mount, e.g. <c>/uploads</c>); generate SAS with tenant
-    /// <c>Azure.ConnectionString</c> + <c>ShareName</c> against the same share.
+    /// <c>Hybrid</c> (Container Apps with Azure Files mount) — write/read via a per-tenant
+    /// <see cref="ITenantDiskFileStorageFactory"/> at <c>Local.BaseDirectory</c> (e.g. <c>/uploads</c>);
+    /// SAS via tenant Azure credentials against the same share.
     /// </item>
-    /// <item><c>Local</c> — disk only via host with tenant Local options overlay.</item>
+    /// <item><c>Local</c> — disk only via <see cref="ITenantDiskFileStorageFactory"/>.</item>
     /// <item><c>Azure</c> — upload/download/delete/SAS via Azure SDK using tenant Azure settings (no mount).</item>
     /// </list>
+    /// Host <see cref="IFileStorageService"/> is not used for Local/Hybrid uploads: CoreLibs
+    /// <c>LocalFileStorageService</c> creates the host BaseDirectory in its constructor (e.g.
+    /// <c>/app/uploads</c>), which fails in containers before any options override can run.
     /// </summary>
     public class TenantAwareFileStorageService : ITenantAwareFileStorageService
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
         private readonly ITenantAzureFileStorageFactory _tenantAzureFactory;
+        private readonly ITenantDiskFileStorageFactory _tenantDiskFactory;
         private readonly ILogger<TenantAwareFileStorageService> _logger;
 
         public TenantAwareFileStorageService(
             IHttpContextAccessor httpContextAccessor,
             ITenantAzureFileStorageFactory tenantAzureFactory,
+            ITenantDiskFileStorageFactory tenantDiskFactory,
             ILogger<TenantAwareFileStorageService> logger)
         {
             _httpContextAccessor = httpContextAccessor;
             _tenantAzureFactory = tenantAzureFactory;
+            _tenantDiskFactory = tenantDiskFactory;
             _logger = logger;
         }
 
@@ -51,47 +57,47 @@ namespace GovUK.Dfe.FlexForms.Application.Services
                 return azure.UploadAsync(path, content, originalFileName, cancellationToken);
             }
 
-            var inner = GetInnerHostService();
+            var disk = _tenantDiskFactory.GetRequiredDiskFileStorage();
             _logger.LogDebug(
-                "Uploading with host disk service (Provider={Provider}): path={Path}, baseDirectory={BaseDirectory}",
+                "Uploading to tenant disk (Provider={Provider}): path={Path}, baseDirectory={BaseDirectory}",
                 provider, path, localOptions?.BaseDirectory);
-            return inner.UploadAsync(path, content, originalFileName, localOptions!, cancellationToken);
+            return disk.UploadAsync(path, content, originalFileName, cancellationToken);
         }
 
         public Task DeleteAsync(string path, CancellationToken cancellationToken = default)
         {
-            var (provider, localOptions) = ResolveRequiredTenantStorage();
+            var (provider, _) = ResolveRequiredTenantStorage();
 
             if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
                 return _tenantAzureFactory.GetRequiredAzureFileStorage().DeleteAsync(path, cancellationToken);
             }
 
-            return GetInnerHostService().DeleteAsync(path, localOptions!, cancellationToken);
+            return _tenantDiskFactory.GetRequiredDiskFileStorage().DeleteAsync(path, cancellationToken);
         }
 
         public Task<Stream> DownloadAsync(string path, CancellationToken cancellationToken = default)
         {
-            var (provider, localOptions) = ResolveRequiredTenantStorage();
+            var (provider, _) = ResolveRequiredTenantStorage();
 
             if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
                 return _tenantAzureFactory.GetRequiredAzureFileStorage().DownloadAsync(path, cancellationToken);
             }
 
-            return GetInnerHostService().DownloadAsync(path, localOptions!, cancellationToken);
+            return _tenantDiskFactory.GetRequiredDiskFileStorage().DownloadAsync(path, cancellationToken);
         }
 
         public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)
         {
-            var (provider, localOptions) = ResolveRequiredTenantStorage();
+            var (provider, _) = ResolveRequiredTenantStorage();
 
             if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
                 return _tenantAzureFactory.GetRequiredAzureFileStorage().ExistsAsync(path, cancellationToken);
             }
 
-            return GetInnerHostService().ExistsAsync(path, localOptions!, cancellationToken);
+            return _tenantDiskFactory.GetRequiredDiskFileStorage().ExistsAsync(path, cancellationToken);
         }
 
         #endregion
@@ -102,6 +108,7 @@ namespace GovUK.Dfe.FlexForms.Application.Services
         {
             if (optionsOverride != null)
             {
+                // Explicit override still goes through host CoreLibs service (test/rare path).
                 return GetInnerHostService().UploadAsync(path, content, originalFileName, optionsOverride, cancellationToken);
             }
 
@@ -175,7 +182,6 @@ namespace GovUK.Dfe.FlexForms.Application.Services
 
             if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
-                // Azure credentials come from the factory; Local section is optional (validation rules only).
                 var optionalLocal = TryBuildLocalOptions(tenant);
                 return (provider, optionalLocal);
             }
@@ -185,7 +191,6 @@ namespace GovUK.Dfe.FlexForms.Application.Services
             {
                 if (string.Equals(provider, "Hybrid", StringComparison.OrdinalIgnoreCase))
                 {
-                    // Ensure Azure section exists for SAS; factory will read it when needed.
                     EnsureAzureSectionPresent(tenant, provider);
                 }
 
@@ -217,7 +222,6 @@ namespace GovUK.Dfe.FlexForms.Application.Services
         private static LocalFileStorageOptions? TryBuildLocalOptions(TenantConfiguration tenant)
         {
             var baseDirectory = tenant.Settings.GetValue<string>("FileStorage:Local:BaseDirectory");
-            // Even without BaseDirectory, AllowedExtensions / MaxFileSizeBytes may be set under Local.
             var hasExtensions = tenant.Settings.GetSection("FileStorage:Local:AllowedExtensions").Exists();
             var hasMax = tenant.Settings.GetValue<long?>("FileStorage:Local:MaxFileSizeBytes").HasValue;
             if (string.IsNullOrEmpty(baseDirectory) && !hasExtensions && !hasMax)

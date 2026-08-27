@@ -68,8 +68,8 @@ public static class TenantSettingCategoryCookbook
                 "Forced secret category",
                 "SuperAdmin only",
                 "Host GlobalConfiguration:FileStorage may be Local with a dummy path — boot only",
-                "Hybrid (recommended on Container Apps): File Share is mounted at Local.BaseDirectory (e.g. /uploads). App writes 'locally' to the mount; files appear on the share. SAS uses tenant Azure ConnectionString + ShareName",
-                "Local — disk only (dev). Tenant Local.BaseDirectory required",
+                "Hybrid (recommended on Container Apps): File Share is mounted at Local.BaseDirectory (e.g. /uploads — absolute path). App writes to that mount via a per-tenant disk client (host GlobalConfiguration BaseDirectory is unused for uploads). SAS uses tenant Azure ConnectionString + ShareName",
+                "Local — disk only (dev). Tenant Local.BaseDirectory required (absolute path preferred in containers)",
                 "Azure — Azure SDK upload/download (no mount). Prefer Hybrid when using a volume mount",
                 "Deleting this category breaks file upload/download/delete for the tenant"
             ],

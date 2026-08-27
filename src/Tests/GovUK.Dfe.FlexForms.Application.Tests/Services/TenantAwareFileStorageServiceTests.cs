@@ -1,7 +1,6 @@
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.CoreLibs.FileStorage.Interfaces;
-using GovUK.Dfe.CoreLibs.FileStorage.Settings;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -15,7 +14,9 @@ public class TenantAwareFileStorageServiceTests
     private readonly IHttpContextAccessor _httpContextAccessor;
     private readonly ILogger<TenantAwareFileStorageService> _logger;
     private readonly IFileStorageService _innerFileStorageService;
+    private readonly IFileStorageService _tenantDiskStorage;
     private readonly ITenantAzureFileStorageFactory _tenantAzureFactory;
+    private readonly ITenantDiskFileStorageFactory _tenantDiskFactory;
     private readonly ITenantContextAccessor _tenantContextAccessor;
     private readonly IFileStorageService _tenantAzureStorage;
     private readonly TenantAwareFileStorageService _service;
@@ -25,7 +26,9 @@ public class TenantAwareFileStorageServiceTests
         _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         _logger = Substitute.For<ILogger<TenantAwareFileStorageService>>();
         _innerFileStorageService = Substitute.For<IFileStorageService>();
+        _tenantDiskStorage = Substitute.For<IFileStorageService>();
         _tenantAzureFactory = Substitute.For<ITenantAzureFileStorageFactory>();
+        _tenantDiskFactory = Substitute.For<ITenantDiskFileStorageFactory>();
         _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
         _tenantAzureStorage = Substitute.For<IFileStorageService>();
 
@@ -38,8 +41,10 @@ public class TenantAwareFileStorageServiceTests
         _httpContextAccessor.HttpContext.Returns(httpContext);
 
         _tenantAzureFactory.GetRequiredAzureFileStorage().Returns(_tenantAzureStorage);
+        _tenantDiskFactory.GetRequiredDiskFileStorage().Returns(_tenantDiskStorage);
 
-        _service = new TenantAwareFileStorageService(_httpContextAccessor, _tenantAzureFactory, _logger);
+        _service = new TenantAwareFileStorageService(
+            _httpContextAccessor, _tenantAzureFactory, _tenantDiskFactory, _logger);
     }
 
     private static TenantConfiguration CreateTenantWithLocalFileStorage(string baseDirectory)
@@ -51,6 +56,22 @@ public class TenantAwareFileStorageServiceTests
                 ["FileStorage:Local:BaseDirectory"] = baseDirectory,
                 ["FileStorage:Local:CreateDirectoryIfNotExists"] = "true",
                 ["FileStorage:Local:AllowOverwrite"] = "true"
+            })
+            .Build();
+
+        return new TenantConfiguration(Guid.NewGuid(), "TestTenant", settings, Array.Empty<string>());
+    }
+
+    private static TenantConfiguration CreateTenantWithHybridFileStorage(string baseDirectory)
+    {
+        var settings = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["FileStorage:Provider"] = "Hybrid",
+                ["FileStorage:Local:BaseDirectory"] = baseDirectory,
+                ["FileStorage:Local:CreateDirectoryIfNotExists"] = "true",
+                ["FileStorage:Azure:ConnectionString"] = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net",
+                ["FileStorage:Azure:ShareName"] = "uploads"
             })
             .Build();
 
@@ -74,7 +95,7 @@ public class TenantAwareFileStorageServiceTests
     }
 
     [Fact]
-    public async Task UploadAsync_ShouldCallInnerService_WithTenantOptions_WhenLocal()
+    public async Task UploadAsync_ShouldCallTenantDiskFactory_WhenLocal()
     {
         var tenant = CreateTenantWithLocalFileStorage("/uploads/tenantA");
         _tenantContextAccessor.CurrentTenant.Returns(tenant);
@@ -82,10 +103,24 @@ public class TenantAwareFileStorageServiceTests
 
         await _service.UploadAsync("test/path", stream, "file.txt");
 
-        await _innerFileStorageService.Received(1).UploadAsync(
-            "test/path", stream, "file.txt",
-            Arg.Is<LocalFileStorageOptions>(o => o.BaseDirectory == "/uploads/tenantA"),
-            Arg.Any<CancellationToken>());
+        await _tenantDiskStorage.Received(1).UploadAsync(
+            "test/path", stream, "file.txt", Arg.Any<CancellationToken>());
+        _tenantAzureFactory.DidNotReceive().GetRequiredAzureFileStorage();
+        await _innerFileStorageService.DidNotReceiveWithAnyArgs()
+            .UploadAsync(default!, default!, default, default, default);
+    }
+
+    [Fact]
+    public async Task UploadAsync_ShouldCallTenantDiskFactory_WhenHybrid()
+    {
+        var tenant = CreateTenantWithHybridFileStorage("/uploads");
+        _tenantContextAccessor.CurrentTenant.Returns(tenant);
+        var stream = new MemoryStream();
+
+        await _service.UploadAsync("test/path", stream, "file.pdf");
+
+        await _tenantDiskStorage.Received(1).UploadAsync(
+            "test/path", stream, "file.pdf", Arg.Any<CancellationToken>());
         _tenantAzureFactory.DidNotReceive().GetRequiredAzureFileStorage();
     }
 
@@ -128,8 +163,7 @@ public class TenantAwareFileStorageServiceTests
 
         await _tenantAzureStorage.Received(1).UploadAsync(
             "test/path", stream, "file.pdf", Arg.Any<CancellationToken>());
-        await _innerFileStorageService.DidNotReceiveWithAnyArgs()
-            .UploadAsync(default!, default!, default, default, default);
+        _tenantDiskFactory.DidNotReceive().GetRequiredDiskFileStorage();
     }
 
     [Fact]
@@ -146,17 +180,14 @@ public class TenantAwareFileStorageServiceTests
     }
 
     [Fact]
-    public async Task DeleteAsync_ShouldCallInnerService_WithTenantOptions_WhenLocal()
+    public async Task DeleteAsync_ShouldCallTenantDiskFactory_WhenLocal()
     {
         var tenant = CreateTenantWithLocalFileStorage("/uploads/tenantA");
         _tenantContextAccessor.CurrentTenant.Returns(tenant);
 
         await _service.DeleteAsync("test/path");
 
-        await _innerFileStorageService.Received(1).DeleteAsync(
-            "test/path",
-            Arg.Is<LocalFileStorageOptions>(o => o.BaseDirectory == "/uploads/tenantA"),
-            Arg.Any<CancellationToken>());
+        await _tenantDiskStorage.Received(1).DeleteAsync("test/path", Arg.Any<CancellationToken>());
     }
 
     [Fact]
