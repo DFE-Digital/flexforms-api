@@ -20,6 +20,12 @@ public sealed class TestTenantConfigurationProvider : ITenantConfigurationProvid
             {
                 { "ApplicationReference:Prefix", "TRF" },
                 { "ApplicationTemplates:HostMappings:Transfers", EaContextSeeder.TemplateId },
+                { "EmailTemplates:Transfers:BugReportInternal", "11111111-1111-1111-1111-111111111101" },
+                { "EmailTemplates:Transfers:BugReportUser", "11111111-1111-1111-1111-111111111102" },
+                { "EmailTemplates:Transfers:SupportRequestInternal", "11111111-1111-1111-1111-111111111103" },
+                { "EmailTemplates:Transfers:SupportRequestUser", "11111111-1111-1111-1111-111111111104" },
+                { "EmailTemplates:Transfers:FeedbackOrSuggestionInternal", "11111111-1111-1111-1111-111111111105" },
+                { "EmailTemplates:Transfers:ApplicationSubmitted", "11111111-1111-1111-1111-111111111106" },
                 { "FileStorage:Provider", "Local" },
                 { "FileStorage:Local:BaseDirectory", "/uploads" },
                 { "FileStorage:Local:AllowedExtensions:0", "jpg" },

@@ -13,6 +13,7 @@ using System.Net.Http.Headers;
 using System.Security.Claims;
 using GovUK.Dfe.CoreLibs.Notifications.Interfaces;
 using GovUK.Dfe.FlexForms.Api.Middleware;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Infrastructure.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -80,6 +81,10 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                     },
                     ExternalServicesConfiguration = services =>
                     {
+                        // Use tenant config from customization so HostMappings/EmailTemplates/FileStorage are present.
+                        services.RemoveAll<ITenantConfigurationProvider>();
+                        services.AddSingleton<ITenantConfigurationProvider>(new TestTenantConfigurationProvider(TestTenantId));
+
                         services.RemoveAll(typeof(IConfigureOptions<AuthenticationOptions>));
                         services.RemoveAll(typeof(IConfigureOptions<JwtBearerOptions>));
                         services.RemoveAll<IPostConfigureOptions<AuthenticationOptions>>();
