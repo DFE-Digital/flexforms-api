@@ -430,6 +430,7 @@ public static class TenantSettingJsonValidator
             }
 
             var index = 0;
+            var seenEventTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in triggerProperty.Value.EnumerateArray())
             {
                 var path = $"EventTriggers['{triggerProperty.Name}'][{index}]";
@@ -450,6 +451,16 @@ public static class TenantSettingJsonValidator
                 {
                     errors.Add(
                         $"{path}.eventType cannot be {SystemOnlyEventType}: virus scanning is published by the platform.");
+                }
+                else if (seenEventTypes.Contains(eventType))
+                {
+                    errors.Add(
+                        $"{path}.eventType '{eventType}' is duplicated under EventTriggers['{triggerProperty.Name}']. " +
+                        "Each trigger may only bind one entry per event type.");
+                }
+                else
+                {
+                    seenEventTypes.Add(eventType);
                 }
 
                 if (GetString(entry, "mappingId") is null && GetString(entry, "MappingId") is null)
@@ -514,6 +525,52 @@ public static class TenantSettingJsonValidator
                 {
                     errors.Add(
                         $"{category}['{templateProperty.Name}']['{eventProperty.Name}'].fieldMappings must be an object.");
+                }
+            }
+        }
+
+        ValidateUniqueMappingIds(category, root, errors);
+    }
+
+    /// <summary>
+    /// Each mappingId must appear only once per category document (template alias keys are not allowed to duplicate).
+    /// </summary>
+    private static void ValidateUniqueMappingIds(string category, JsonElement root, List<string> errors)
+    {
+        var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var templateProperty in root.EnumerateObject())
+        {
+            if (string.Equals(templateProperty.Name, "BasePath", StringComparison.OrdinalIgnoreCase)
+                || templateProperty.Value.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            foreach (var eventProperty in templateProperty.Value.EnumerateObject())
+            {
+                if (eventProperty.Value.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var mappingId = GetString(eventProperty.Value, "mappingId") ?? GetString(eventProperty.Value, "MappingId");
+                if (string.IsNullOrWhiteSpace(mappingId))
+                {
+                    continue;
+                }
+
+                var location =
+                    $"{category}['{templateProperty.Name}']['{eventProperty.Name}']";
+                if (seen.TryGetValue(mappingId, out var firstLocation))
+                {
+                    errors.Add(
+                        $"mappingId '{mappingId}' is duplicated between {firstLocation} and {location}. " +
+                        "Each mappingId must be unique; use one template key per mapping (runtime resolves schema aliases).");
+                }
+                else
+                {
+                    seen[mappingId] = location;
                 }
             }
         }

@@ -211,7 +211,8 @@ public static class TenantSettingCategoryCookbook
             [
                 "Non-secret",
                 "Saved with Target=Shared so the API runtime can read it",
-                "Also editable via Event mappings Admin page"
+                "Also editable via Event mappings Admin page",
+                "Each mappingId must be unique across all template keys (one row per mapping; runtime resolves GUID vs schema templateId aliases)"
             ],
             requiresObject: true),
 

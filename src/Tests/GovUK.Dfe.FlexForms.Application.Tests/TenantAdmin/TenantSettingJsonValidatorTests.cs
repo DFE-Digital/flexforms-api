@@ -348,4 +348,49 @@ public class TenantSettingJsonValidatorTests
 
         Assert.Contains(errors, e => e.Contains("GovUkNotify"));
     }
+
+    [Fact]
+    public void Validate_ShouldRejectDuplicateMappingId_InEventMappings()
+    {
+        var json = """
+            {
+              "form-001": {
+                "TransferApplicationSubmittedEvent": {
+                  "mappingId": "transfer-application-submitted-v1",
+                  "eventType": "TransferApplicationSubmittedEvent",
+                  "fieldMappings": { "AcademyName": { "sourceType": "DirectField", "sourceFieldId": "x" } }
+                }
+              },
+              "9a4e9c58-9135-468c-b154-7b966f7acfb7": {
+                "TransferApplicationSubmittedEvent": {
+                  "mappingId": "transfer-application-submitted-v1",
+                  "eventType": "TransferApplicationSubmittedEvent",
+                  "fieldMappings": { "AcademyName": { "sourceType": "DirectField", "sourceFieldId": "x" } }
+                }
+              }
+            }
+            """;
+
+        var errors = TenantSettingJsonValidator.Validate("EventMappings", "Shared", json);
+
+        Assert.Contains(errors, e => e.Contains("mappingId 'transfer-application-submitted-v1' is duplicated", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_ShouldRejectDuplicateEventType_InEventTriggers()
+    {
+        var json = """
+            {
+              "ApplicationSubmitted": [
+                { "eventKind": "Typed", "eventType": "TransferApplicationSubmittedEvent", "mappingId": "map-a" },
+                { "eventKind": "Typed", "eventType": "TransferApplicationSubmittedEvent", "mappingId": "map-b" }
+              ]
+            }
+            """;
+
+        var errors = TenantSettingJsonValidator.Validate("EventTriggers", "Shared", json);
+
+        Assert.Contains(errors, e => e.Contains("duplicated", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(errors, e => e.Contains("TransferApplicationSubmittedEvent", StringComparison.Ordinal));
+    }
 }
