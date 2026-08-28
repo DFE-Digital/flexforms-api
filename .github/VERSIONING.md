@@ -42,9 +42,9 @@ If omitted, the commit body (or “No release notes provided.”) is used.
 
 ## Local builds
 
-- With a full git clone, `dotnet build` picks up version from GitVersion automatically.
-- Docker builds use `APP_VERSION` (CI sets this from GitVersion). Local docker defaults to `0.0.0-local`.
+- Local `dotnet build` uses **`0.0.0-local`** unless you pass `-p:Version=x.y.z`.
+- Docker builds use `APP_VERSION` (CI sets this from the GitVersion workflow). Local docker defaults to `0.0.0-local`.
 
 ## First-time setup
 
-If no `v*` tags exist yet, `next-version` in `GitVersion.yml` sets the starting line (API: 2.1.4, Web: 2.2.3). After the first automated release, tags drive all future versions.
+Versioning is driven by existing **`v*`** git tags. Tag the first release manually if needed (e.g. `v2.1.4`), then merges to `main` increment patch automatically.

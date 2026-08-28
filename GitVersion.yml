@@ -1,6 +1,6 @@
 mode: ContinuousDelivery
+semantic-version-format: Loose
 tag-prefix: 'v'
-next-version: 2.1.4
 major-version-bump-message: '(?i)\+semver:\s?(breaking|major)'
 minor-version-bump-message: '(?i)\+semver:\s?(feature|minor)'
 patch-version-bump-message: '(?i)\+semver:\s?(fix|patch)'
