@@ -159,6 +159,22 @@ public class TenantResolutionMiddlewareTests
         Assert.True(nextCalled);
     }
 
+    [Fact]
+    public async Task InvokeAsync_ShouldBypassTenantResolution_ForDiagnosticsPath()
+    {
+        var nextCalled = false;
+        var middleware = new TenantResolutionMiddleware(
+            _ => { nextCalled = true; return Task.CompletedTask; },
+            _tenantConfigProvider, _logger);
+
+        var context = CreateHttpContext();
+        context.Request.Path = "/v1/diagnostics";
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(nextCalled);
+    }
+
     [Theory]
     [InlineData("/swagger")]
     [InlineData("/swagger/index.html")]

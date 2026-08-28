@@ -783,6 +783,13 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task RedeemHubCookieAsync(string ticket = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Clears the SignalR hubauth cookie. Safe to call without authentication.
+        /// </summary>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task SignOutHubCookieAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
     }
 
     

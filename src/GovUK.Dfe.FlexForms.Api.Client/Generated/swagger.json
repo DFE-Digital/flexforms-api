@@ -6077,6 +6077,20 @@
           }
         }
       }
+    },
+    "/auth/hub-signout": {
+      "post": {
+        "tags": [
+          "HubAuth"
+        ],
+        "summary": "Clears the SignalR hubauth cookie. Safe to call without authentication.",
+        "operationId": "HubAuth_SignOutHubCookie",
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
     }
   },
   "components": {

@@ -91,6 +91,18 @@ namespace GovUK.Dfe.FlexForms.Api.Controllers
             return NoContent();
         }
 
+        /// <summary>
+        /// Clears the SignalR <c>hubauth</c> cookie. Safe to call without authentication.
+        /// </summary>
+        [HttpPost("auth/hub-signout")]
+        [SwaggerResponse(204)]
+        [AllowAnonymous]
+        public async Task<IActionResult> SignOutHubCookie()
+        {
+            await HttpContext.SignOutAsync("HubCookie");
+            return NoContent();
+        }
+
         private static string BuildTicketKey(Guid tenantId, string ticket)
             => $"hub:ticket:{tenantId}:{ticket}";
     }
