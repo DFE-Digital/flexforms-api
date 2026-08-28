@@ -74,13 +74,17 @@ jobs:
     uses: ./.github/workflows/test-solution.yml
     secrets: inherit
 
+  gitversion:
+    uses: ./.github/workflows/gitversion.yml
+
   build-import:
     name: Build & import (${{ matrix.target }}) → ${{ needs.set-env.outputs.environment }}
     runs-on: ubuntu-24.04
-    needs: [ set-env, validate-packages, test ]
+    needs: [ set-env, validate-packages, test, gitversion ]
     if: |
       always() &&
       needs.set-env.result == 'success' &&
+      needs.gitversion.result == 'success' &&
       (needs.validate-packages.result == 'success' || needs.validate-packages.result == 'skipped') &&
       (needs.test.result == 'success' || needs.test.result == 'skipped')
     environment: ${{ needs.set-env.outputs.environment-lower == 'production' && 'production-build' || needs.set-env.outputs.environment }}
@@ -104,7 +108,9 @@ jobs:
         uses: DFE-Digital/deploy-azure-container-apps-action/.github/actions/build@8e72e403f05ff9da09668207eef1d79e1ce9d1a7 # v5.2.1
         with:
           image-name: ${{ needs.set-env.outputs.image-name }}
-          build-args: CI=true
+          build-args: |
+            CI=true
+            APP_VERSION=${{ needs.gitversion.outputs.version }}
           build-target: ${{ matrix.target }}
           tag-prefix: ${{ matrix.tag-prefix }}
           github-token: ${{ secrets.GITHUB_TOKEN }}

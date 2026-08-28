@@ -5,8 +5,6 @@
 		<NoWarn>$(NoWarn);1591</NoWarn>
 		<TargetFramework>net10.0</TargetFramework>
     <UserSecretsId>f714ca7a-fc08-46ff-b0cc-373d6f04cf4c</UserSecretsId>
-	  <Version>2.1.4</Version>
-	  <InformationalVersion>2.1.4</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +12,10 @@
   </ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="GitVersion.MsBuild" Version="6.7.0">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 		<PackageReference Include="Asp.Versioning.Mvc" Version="10.2.1" />
 		<PackageReference Include="Asp.Versioning.Mvc.ApiExplorer" Version="10.2.1" />
 		<PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.3" />

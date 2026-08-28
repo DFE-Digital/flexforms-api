@@ -6,6 +6,7 @@ ARG DOTNET_VERSION=10.0
 FROM mcr.microsoft.com/dotnet/sdk:${DOTNET_VERSION}-noble AS build
 WORKDIR /build
 ARG CI
+ARG APP_VERSION=0.0.0-local
 ENV CI=${CI}
 
 # Install Playwright CLI
@@ -15,13 +16,14 @@ ENV PATH="${PATH}:/root/.dotnet/tools"
 # Copy solution
 COPY ./src/ ./src/
 COPY Directory.Build.props ./
+COPY GitVersion.yml ./
 COPY GovUK.Dfe.FlexForms.Api.sln ./
 COPY script/ ./script/
 
 # Restore + build (Api pulls Infrastructure so EF --no-build can bundle both contexts)
 RUN dotnet restore GovUK.Dfe.FlexForms.Api.sln
-RUN dotnet build ./src/GovUK.Dfe.FlexForms.Infrastructure -c Release --no-restore
-RUN dotnet build ./src/GovUK.Dfe.FlexForms.Api -c Release --no-restore
+RUN dotnet build ./src/GovUK.Dfe.FlexForms.Infrastructure -c Release --no-restore -p:GitVersion_MajorMinorPatch=${APP_VERSION}
+RUN dotnet build ./src/GovUK.Dfe.FlexForms.Api -c Release --no-restore -p:GitVersion_MajorMinorPatch=${APP_VERSION}
 
 # Install Playwright browsers + OS dependencies (Ubuntu!)
 RUN playwright install --with-deps
