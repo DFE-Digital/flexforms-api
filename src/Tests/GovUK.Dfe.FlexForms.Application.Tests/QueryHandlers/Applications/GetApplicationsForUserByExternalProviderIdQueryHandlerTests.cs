@@ -242,10 +242,11 @@ public class GetApplicationsForUserByExternalProviderIdQueryHandlerTests
 
         appRepo.Query().Throws(new InvalidOperationException("Database connection failed"));
 
+        var templateId = new TemplateId(Guid.NewGuid());
         var handler = ApplicationListingTestHelper.CreateGetApplicationsForUserByExternalProviderIdQueryHandler(
             userRepo,
             appRepo,
-            ApplicationListingTestHelper.CreateEmptyAccessibleTemplateService());
+            ApplicationListingTestHelper.CreateAccessibleTemplateService(templateId));
         var result = await handler.Handle(new GetApplicationsForUserByExternalProviderIdQuery(externalProviderId), CancellationToken.None);
 
         // Assert
@@ -285,17 +286,16 @@ public class GetApplicationsForUserByExternalProviderIdQueryHandlerTests
         var appList = new List<Domain.Entities.Application> { app };
         appRepo.Query().Returns(appList.AsQueryable().BuildMock());
 
+        var templateId = new TemplateId(Guid.NewGuid());
         var handler = ApplicationListingTestHelper.CreateGetApplicationsForUserByExternalProviderIdQueryHandler(
             userRepo,
             appRepo,
-            ApplicationListingTestHelper.CreateEmptyAccessibleTemplateService());
+            ApplicationListingTestHelper.CreateAccessibleTemplateService(templateId));
         var result = await handler.Handle(new GetApplicationsForUserByExternalProviderIdQuery(externalProviderId), CancellationToken.None);
 
-        // Null TemplateVersion navigation is tolerated: the user still has an application grant.
+        // Apps without a TemplateVersion cannot be proven to belong to the tenant catalogue.
         Assert.True(result.IsSuccess);
-        var listed = Assert.Single(result.Value!.Items);
-        Assert.Equal(app.Id!.Value, listed.ApplicationId);
-        Assert.Equal(string.Empty, listed.TemplateName);
+        Assert.Empty(result.Value!.Items);
     }
 
     [Theory]

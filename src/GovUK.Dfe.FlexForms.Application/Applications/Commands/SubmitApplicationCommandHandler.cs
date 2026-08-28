@@ -26,6 +26,7 @@ public sealed class SubmitApplicationCommandHandler(
     IFileValidationModeResolver fileValidationModeResolver,
     IApplicationFileValidationPolicy fileValidationPolicy,
     IUserCacheInvalidator userCacheInvalidator,
+    ITenantPermissionFilter tenantPermissionFilter,
     IUnitOfWork unitOfWork) : IRequestHandler<SubmitApplicationCommand, Result<ApplicationDto>>
 {
     public async Task<Result<ApplicationDto>> Handle(
@@ -62,6 +63,11 @@ public sealed class SubmitApplicationCommandHandler(
 
             if (application is null)
                 return Result<ApplicationDto>.NotFound("Application not found");
+
+            if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(request.ApplicationId, cancellationToken))
+            {
+                return Result<ApplicationDto>.NotFound("Application not found");
+            }
 
             if (application.CreatedBy != dbUser.Id)
                 return Result<ApplicationDto>.Forbid("Only the user who created the application can submit it");

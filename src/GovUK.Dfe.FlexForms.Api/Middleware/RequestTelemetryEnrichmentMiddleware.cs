@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using GovUK.Dfe.CoreLibs.Http.Interfaces;
 using GovUK.Dfe.FlexForms.Api.Telemetry;
+using static GovUK.Dfe.FlexForms.Api.Telemetry.PiiMasking;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 
 namespace GovUK.Dfe.FlexForms.Api.Middleware;
@@ -33,8 +34,9 @@ public sealed class RequestTelemetryEnrichmentMiddleware(
         {
             telemetry.UserId = context.User.FindFirstValue(ClaimTypes.NameIdentifier)
                 ?? context.User.FindFirstValue("sub");
-            telemetry.UserEmail = context.User.FindFirstValue(ClaimTypes.Email)
+            var rawEmail = context.User.FindFirstValue(ClaimTypes.Email)
                 ?? context.User.Identity?.Name;
+            telemetry.UserEmail = string.IsNullOrWhiteSpace(rawEmail) ? null : MaskEmail(rawEmail);
         }
 
         if (context.Request.Headers.TryGetValue(TemplateIdHeader, out var templateHeader)

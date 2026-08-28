@@ -121,8 +121,73 @@ public class EmailTemplateResolverTests
         // Act
         var result = await _resolver.GetApplicationTypeAsync(templateId);
 
-        // Assert
+        // Assert — HostMappings "transfer" → candidate "Transfer", then EmailTemplates key casing
         Assert.Equal("Transfer", result);
+    }
+
+    [Fact]
+    public async Task ResolveEmailTemplateAsync_ShouldFallBackToSoleEmailTemplatesKey_WhenHostMappingMissing()
+    {
+        var settings = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["EmailTemplates:ProductOne:BugReportInternal"] = "8b51948c-d7d1-4a26-8ea6-f4a78a27ce5a",
+            })
+            .Build();
+
+        var tenant = new TenantConfiguration(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            "AnyTenant",
+            settings,
+            Array.Empty<string>());
+
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        accessor.CurrentTenant.Returns(tenant);
+        var resolver = new EmailTemplateResolver(accessor, _logger);
+
+        var result = await resolver.ResolveEmailTemplateAsync(
+            new TemplateId(Guid.Parse("9A4E9C58-9135-468C-B154-7B966F7ACFB7")),
+            "BugReportInternal");
+
+        Assert.Equal("8b51948c-d7d1-4a26-8ea6-f4a78a27ce5a", result);
+    }
+
+    [Fact]
+    public async Task ResolveEmailTemplateAsync_ShouldResolve_WhenHostMappingKeyIsFqdn()
+    {
+        var settings = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ApplicationTemplates:HostMappings:productone.dev.example.gov.uk"] =
+                    "9A4E9C58-9135-468C-B154-7B966F7ACFB7",
+                ["EmailTemplates:Productone:BugReportInternal"] = "8b51948c-d7d1-4a26-8ea6-f4a78a27ce5a",
+            })
+            .Build();
+
+        var tenant = new TenantConfiguration(
+            Guid.Parse("11111111-1111-4111-8111-111111111111"),
+            "AnyTenant",
+            settings,
+            Array.Empty<string>());
+
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        accessor.CurrentTenant.Returns(tenant);
+        var resolver = new EmailTemplateResolver(accessor, _logger);
+
+        var result = await resolver.ResolveEmailTemplateAsync(
+            new TemplateId(Guid.Parse("9A4E9C58-9135-468C-B154-7B966F7ACFB7")),
+            "BugReportInternal");
+
+        Assert.Equal("8b51948c-d7d1-4a26-8ea6-f4a78a27ce5a", result);
+    }
+
+    [Fact]
+    public void ConvertHostMappingToApplicationType_ShouldUseFirstFqdnLabel()
+    {
+        Assert.Equal("Transfer", EmailTemplateResolver.ConvertHostMappingToApplicationType("transfer"));
+        Assert.Equal("Productone",
+            EmailTemplateResolver.ConvertHostMappingToApplicationType("productone.dev-flexforms.example.gov.uk"));
+        Assert.Equal("Sigchange", EmailTemplateResolver.ConvertHostMappingToApplicationType("sigchange"));
     }
 
     [Fact]

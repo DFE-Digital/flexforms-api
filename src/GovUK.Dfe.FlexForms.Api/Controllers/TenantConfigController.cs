@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Asp.Versioning;
 using GovUK.Dfe.FlexForms.Application.TenantConfig.Queries;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
@@ -91,7 +92,7 @@ public class TenantConfigController(ISender sender) : ControllerBase
     [SwaggerResponse(403, "Missing Platform.TenantConfig.Read app role.", typeof(ExceptionResponse))]
     [SwaggerResponse(404, "Hostname not mapped to any tenant.", typeof(ExceptionResponse))]
     public async Task<IActionResult> ResolveTenantByHostname(
-        [FromQuery] string hostname,
+        [FromQuery, Required] string hostname,
         CancellationToken cancellationToken = default)
     {
         var result = await sender.Send(new ResolveTenantByHostnameQuery(hostname), cancellationToken);

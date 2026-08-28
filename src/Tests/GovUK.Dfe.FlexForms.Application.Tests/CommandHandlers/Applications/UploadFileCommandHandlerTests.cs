@@ -52,6 +52,10 @@ public class UploadFileCommandHandlerTests
         _fileValidationModeResolver.Resolve(Arg.Any<Guid?>()).Returns(FileValidationMode.Off);
         _fileValidationModeResolver.IsExtensionSubjectToValidation(Arg.Any<string?>()).Returns(true);
 
+        var tenantPermissionFilter = Substitute.For<ITenantPermissionFilter>();
+        tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(true);
+
         _handler = new UploadFileCommandHandler(
             _uploadRepository,
             _applicationRepository,
@@ -61,7 +65,8 @@ public class UploadFileCommandHandlerTests
             _fileFactory,
             _httpContextAccessor,
             _permissionCheckerService,
-            _fileValidationModeResolver);
+            _fileValidationModeResolver,
+            tenantPermissionFilter);
     }
 
     [Theory]

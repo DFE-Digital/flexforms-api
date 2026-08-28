@@ -8,6 +8,11 @@ namespace GovUK.Dfe.FlexForms.Application.TenantAdmin.Queries;
 public sealed record GetTenantSettingCategoryCookbookQuery
     : IRequest<Result<GetTenantSettingCategoryCookbookResponse>>;
 
+/// <summary>
+/// Returns category cookbook entries for Tenant Config UI guidance.
+/// SuperAdmin receives the full cookbook; Tenant Admin receives only non-SuperAdmin-only categories
+/// (so Auth/ConnectionStrings/FileStorage examples are not exposed as attack surface).
+/// </summary>
 public sealed class GetTenantSettingCategoryCookbookQueryHandler(
     IPermissionCheckerService permissionChecker)
     : IRequestHandler<GetTenantSettingCategoryCookbookQuery, Result<GetTenantSettingCategoryCookbookResponse>>
@@ -22,7 +27,13 @@ public sealed class GetTenantSettingCategoryCookbookQueryHandler(
                 "Only interactive tenant administrators can view the category cookbook."));
         }
 
-        var entries = TenantSettingCategoryCookbook.All;
+        var entries = permissionChecker.IsInteractivePlatformAdmin()
+            ? TenantSettingCategoryCookbook.All
+            : TenantSettingCategoryCookbook.All
+                .Where(e => !SuperAdminOnlyTenantSettingCategories.IsRestricted(e.Category))
+                .ToList()
+                .AsReadOnly();
+
         return Task.FromResult(Result<GetTenantSettingCategoryCookbookResponse>.Success(
             new GetTenantSettingCategoryCookbookResponse(entries)));
     }

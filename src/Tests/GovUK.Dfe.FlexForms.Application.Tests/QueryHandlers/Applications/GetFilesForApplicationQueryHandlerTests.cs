@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Applications.Queries;
@@ -21,6 +22,14 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.QueryHandlers.Applications;
 
 public class GetFilesForApplicationQueryHandlerTests
 {
+    private static ITenantPermissionFilter CreateTenantPermissionFilter(bool belongsToTenant = true)
+    {
+        var filter = Substitute.For<ITenantPermissionFilter>();
+        filter.ApplicationBelongsToCurrentTenantAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(belongsToTenant);
+        return filter;
+    }
+
     private readonly IEaRepository<File> _uploadRepository;
     private readonly IEaRepository<Domain.Entities.Application> _applicationRepository;
     private readonly IEaRepository<User> _userRepository;
@@ -41,7 +50,8 @@ public class GetFilesForApplicationQueryHandlerTests
             _applicationRepository,
             _userRepository,
             _httpContextAccessor,
-            _permissionCheckerService);
+            _permissionCheckerService,
+            CreateTenantPermissionFilter());
     }
 
     [Theory]

@@ -20,6 +20,13 @@ public sealed class TestTenantConfigurationProvider : ITenantConfigurationProvid
             {
                 { "ApplicationReference:Prefix", "TRF" },
                 { "ApplicationTemplates:HostMappings:Transfers", EaContextSeeder.TemplateId },
+                { "EmailTemplates:Transfers:BugReportInternal", "11111111-1111-1111-1111-111111111101" },
+                { "EmailTemplates:Transfers:BugReportUser", "11111111-1111-1111-1111-111111111102" },
+                { "EmailTemplates:Transfers:SupportRequestInternal", "11111111-1111-1111-1111-111111111103" },
+                { "EmailTemplates:Transfers:SupportRequestUser", "11111111-1111-1111-1111-111111111104" },
+                { "EmailTemplates:Transfers:FeedbackOrSuggestionInternal", "11111111-1111-1111-1111-111111111105" },
+                { "EmailTemplates:Transfers:ApplicationSubmitted", "11111111-1111-1111-1111-111111111106" },
+                { "FileStorage:Provider", "Local" },
                 { "FileStorage:Local:BaseDirectory", "/uploads" },
                 { "FileStorage:Local:AllowedExtensions:0", "jpg" },
                 { "FileStorage:Local:AllowedExtensions:1", "png" },
@@ -30,6 +37,8 @@ public sealed class TestTenantConfigurationProvider : ITenantConfigurationProvid
                 { "FrontendSettings:PreviewContentSelector", ".govuk-grid-column-full" },
                 { "InternalServiceAuth:Services:0:Email", "test-service@service.com" },
                 { "InternalServiceAuth:Services:0:ApiKey", "secret" },
+                { "Email:Provider", "GovUkNotify" },
+                { "Email:GovUkNotify:ApiKey", "test-notify-key" },
                 { "Email:ServiceSupportEmailAddress", "some.email@education.gov.uk" },
                 // Authorization:TokenSettings here so the per-tenant named TokenSettings registered by
                 // AddCustomAuthorization matches the integration test signing config.

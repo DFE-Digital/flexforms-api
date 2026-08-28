@@ -23,7 +23,8 @@ public sealed class FileUploadedDomainEventHandler(
     ILogger<FileUploadedDomainEventHandler> logger,
     IEventPublisher publishEndpoint,
     ITenantContextAccessor tenantContextAccessor,
-    IAzureSpecificOperations azureSpecificOperations,
+    ITenantAzureFileStorageFactory tenantAzureFileStorageFactory,
+    IEnumerable<IAzureSpecificOperations> azureSpecificOperations,
     IApplicationRepository applicationRepository,
     IEaRepository<User> userRepository,
     IEventTriggerDispatcher eventTriggerDispatcher)
@@ -40,21 +41,32 @@ public sealed class FileUploadedDomainEventHandler(
         // FileURL is the Azure File Share path: {applicationReference}/{hashedFileName}
         var fileUrl = $"{file.Path}/{fileName}";
 
-        string sasUri;
+        // Prefer tenant Azure credentials (TenantConfig) for SAS. Fall back to host DI only when
+        // the tenant is not Azure-backed (e.g. Local host Hybrid registration).
+        var tenantAzure = tenantAzureFileStorageFactory.GetAzureOperationsOrNull();
+        IAzureSpecificOperations? azureOps = tenantAzure;
+        azureOps ??= azureSpecificOperations.FirstOrDefault();
 
-        // Check if the service is running in a local environment
-        if (InstanceIdentifierHelper.IsLocalEnvironment())
+        string sasUri;
+        bool isAzureFileShare;
+        if (azureOps is null)
         {
-            // Build fake file:// URI so local function can load from disk
             var localPath = Path.Combine(Directory.GetCurrentDirectory(), "Uploads", fileUrl);
             sasUri = $"file:///{localPath.Replace("\\", "/")}";
-            logger.LogInformation("Local environment detected - using fake SAS URI: {SasUri}", sasUri);
+            isAzureFileShare = false;
+            logger.LogInformation(
+                "Local FileStorage provider — using file URI for scan request: {SasUri}",
+                sasUri);
         }
         else
         {
-            // Real Azure File Share SAS
-            sasUri = await azureSpecificOperations.GenerateSasTokenAsync(
+            sasUri = await azureOps.GenerateSasTokenAsync(
                 fileUrl, DateTimeOffset.UtcNow.AddHours(1), "r", cancellationToken);
+            isAzureFileShare = true;
+            logger.LogInformation(
+                "Generated Azure SAS for scan request from {Source}: {SasUri}",
+                tenantAzure is not null ? "tenant FileStorage:Azure" : "host IAzureSpecificOperations",
+                sasUri);
         }
 
         var tenant = tenantContextAccessor.CurrentTenant 
@@ -70,7 +82,7 @@ public sealed class FileUploadedDomainEventHandler(
             Reference:file.ApplicationId.Value.ToString(),
             FileName: fileName,
             Path:file.Path,
-            IsAzureFileShare: true,
+            IsAzureFileShare: isAzureFileShare,
             FileUri: sasUri,
             ServiceName: $"extapi-{tenant.Name}",
             Metadata: new Dictionary<string, object>

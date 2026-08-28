@@ -293,4 +293,104 @@ public class TenantSettingJsonValidatorTests
 
         Assert.Contains(errors, e => e.Contains("DefaultTemplateId"));
     }
+
+    [Fact]
+    public void Validate_ShouldAcceptValidFileStorageLocal()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "FileStorage",
+            "Api",
+            """{"Provider":"Local","Local":{"BaseDirectory":"/uploads"}}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_ShouldRejectFileStorageWithoutProvider()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "FileStorage",
+            "Api",
+            """{"Local":{"BaseDirectory":"/uploads"}}""");
+
+        Assert.Contains(errors, e => e.Contains("Provider"));
+    }
+
+    [Fact]
+    public void Validate_ShouldRejectInvalidFileStorageProvider()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "FileStorage",
+            "Api",
+            """{"Provider":"S3"}""");
+
+        Assert.Contains(errors, e => e.Contains("Local, Azure, or Hybrid", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_ShouldAcceptValidEmail()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "Email",
+            "Api",
+            """{"Provider":"GovUkNotify","ServiceSupportEmailAddress":"a@b.com","GovUkNotify":{"ApiKey":"key"}}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_ShouldRejectInvalidEmailProvider()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "Email",
+            "Api",
+            """{"Provider":"SendGrid"}""");
+
+        Assert.Contains(errors, e => e.Contains("GovUkNotify"));
+    }
+
+    [Fact]
+    public void Validate_ShouldRejectDuplicateMappingId_InEventMappings()
+    {
+        var json = """
+            {
+              "form-001": {
+                "TransferApplicationSubmittedEvent": {
+                  "mappingId": "transfer-application-submitted-v1",
+                  "eventType": "TransferApplicationSubmittedEvent",
+                  "fieldMappings": { "AcademyName": { "sourceType": "DirectField", "sourceFieldId": "x" } }
+                }
+              },
+              "9a4e9c58-9135-468c-b154-7b966f7acfb7": {
+                "TransferApplicationSubmittedEvent": {
+                  "mappingId": "transfer-application-submitted-v1",
+                  "eventType": "TransferApplicationSubmittedEvent",
+                  "fieldMappings": { "AcademyName": { "sourceType": "DirectField", "sourceFieldId": "x" } }
+                }
+              }
+            }
+            """;
+
+        var errors = TenantSettingJsonValidator.Validate("EventMappings", "Shared", json);
+
+        Assert.Contains(errors, e => e.Contains("mappingId 'transfer-application-submitted-v1' is duplicated", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_ShouldRejectDuplicateEventType_InEventTriggers()
+    {
+        var json = """
+            {
+              "ApplicationSubmitted": [
+                { "eventKind": "Typed", "eventType": "TransferApplicationSubmittedEvent", "mappingId": "map-a" },
+                { "eventKind": "Typed", "eventType": "TransferApplicationSubmittedEvent", "mappingId": "map-b" }
+              ]
+            }
+            """;
+
+        var errors = TenantSettingJsonValidator.Validate("EventTriggers", "Shared", json);
+
+        Assert.Contains(errors, e => e.Contains("duplicated", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(errors, e => e.Contains("TransferApplicationSubmittedEvent", StringComparison.Ordinal));
+    }
 }

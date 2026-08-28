@@ -1,13 +1,13 @@
 namespace GovUK.Dfe.FlexForms.Application.Common.Models;
 
 /// <summary>
-/// Configuration for mapping application template names to their GUIDs
+/// Configuration for mapping host-friendly names to form template GUIDs.
 /// </summary>
 public class ApplicationTemplatesConfiguration
 {
     /// <summary>
-    /// Maps host-friendly names to template GUIDs
-    /// E.g., "transfer" -> "9A4E9C58-9135-468C-B154-7B966F7ACFB7"
+    /// Maps HostMappings keys (short names or hostnames) to form template GUIDs.
+    /// Keys must align (case-insensitive) with EmailTemplates product keys after taking the first DNS label.
     /// </summary>
     public Dictionary<string, string> HostMappings { get; set; } = new();
 }

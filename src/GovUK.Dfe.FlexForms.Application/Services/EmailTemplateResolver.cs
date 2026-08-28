@@ -7,8 +7,8 @@ using Microsoft.Extensions.Logging;
 namespace GovUK.Dfe.FlexForms.Application.Services;
 
 /// <summary>
-/// Service for resolving email template IDs based on application template and email type.
-/// Reads configuration from the current tenant's settings at runtime.
+/// Resolves GOV.UK Notify template IDs from the current tenant's settings.
+/// Product / form keys come only from configuration — never from hardcoded service names.
 /// </summary>
 public class EmailTemplateResolver(
     ITenantContextAccessor tenantContextAccessor,
@@ -16,13 +16,20 @@ public class EmailTemplateResolver(
 {
     public Task<string?> ResolveEmailTemplateAsync(TemplateId templateId, string emailType)
     {
-        var (appTemplatesConfig, emailTemplatesConfig) = GetTenantConfigs();
+        var tenant = tenantContextAccessor.CurrentTenant
+            ?? throw new InvalidOperationException("No tenant context available for email template resolution.");
 
-        var applicationType = GetApplicationTypeByTemplateId(templateId.Value, appTemplatesConfig);
+        var (appTemplatesConfig, emailTemplatesConfig) = GetTenantConfigs(tenant);
+
+        var applicationType = ResolveApplicationType(templateId.Value, tenant, appTemplatesConfig, emailTemplatesConfig);
 
         if (string.IsNullOrEmpty(applicationType))
         {
-            logger.LogWarning("Could not determine application type for template ID {TemplateId}", templateId.Value);
+            logger.LogWarning(
+                "Could not determine application type for template ID {TemplateId}. " +
+                "Ensure ApplicationTemplates:HostMappings includes this form template GUID, " +
+                "or that EmailTemplates has a single product key / a key matching the tenant name.",
+                templateId.Value);
             return Task.FromResult<string?>(null);
         }
 
@@ -30,29 +37,35 @@ public class EmailTemplateResolver(
 
         if (string.IsNullOrEmpty(emailTemplateId))
         {
-            logger.LogWarning("Could not find email template for application type {ApplicationType} and email type {EmailType}",
-                applicationType, emailType);
+            logger.LogWarning(
+                "Could not find email template for application type {ApplicationType} and email type {EmailType}",
+                applicationType,
+                emailType);
             return Task.FromResult<string?>(null);
         }
 
-        logger.LogDebug("Resolved email template {TemplateId} for application type {ApplicationType} and email type {EmailType}",
-            emailTemplateId, applicationType, emailType);
+        logger.LogDebug(
+            "Resolved email template {TemplateId} for application type {ApplicationType} and email type {EmailType}",
+            emailTemplateId,
+            applicationType,
+            emailType);
 
         return Task.FromResult<string?>(emailTemplateId);
     }
 
     public Task<string?> GetApplicationTypeAsync(TemplateId templateId)
     {
-        var (appTemplatesConfig, _) = GetTenantConfigs();
-        var applicationType = GetApplicationTypeByTemplateId(templateId.Value, appTemplatesConfig);
-        return Task.FromResult(applicationType);
-    }
-
-    private (ApplicationTemplatesConfiguration appTemplates, EmailTemplatesConfiguration emailTemplates) GetTenantConfigs()
-    {
         var tenant = tenantContextAccessor.CurrentTenant
             ?? throw new InvalidOperationException("No tenant context available for email template resolution.");
 
+        var (appTemplatesConfig, emailTemplatesConfig) = GetTenantConfigs(tenant);
+        var applicationType = ResolveApplicationType(templateId.Value, tenant, appTemplatesConfig, emailTemplatesConfig);
+        return Task.FromResult(applicationType);
+    }
+
+    private static (ApplicationTemplatesConfiguration appTemplates, EmailTemplatesConfiguration emailTemplates)
+        GetTenantConfigs(TenantConfiguration tenant)
+    {
         var appTemplatesConfig = new ApplicationTemplatesConfiguration();
         tenant.Settings.GetSection("ApplicationTemplates").Bind(appTemplatesConfig);
 
@@ -62,29 +75,78 @@ public class EmailTemplateResolver(
         return (appTemplatesConfig, emailTemplatesConfig);
     }
 
-    private string? GetApplicationTypeByTemplateId(Guid templateId, ApplicationTemplatesConfiguration appTemplatesConfig)
+    private string? ResolveApplicationType(
+        Guid templateId,
+        TenantConfiguration tenant,
+        ApplicationTemplatesConfiguration appTemplatesConfig,
+        EmailTemplatesConfiguration emailTemplatesConfig)
+    {
+        var fromHostMappings = GetApplicationTypeCandidateByTemplateId(templateId, appTemplatesConfig);
+        if (!string.IsNullOrEmpty(fromHostMappings))
+        {
+            // Prefer the EmailTemplates key casing when a case-insensitive match exists.
+            return emailTemplatesConfig.FindApplicationTypeKey(fromHostMappings) ?? fromHostMappings;
+        }
+
+        // Single-product tenants often have EmailTemplates but incomplete HostMappings in Azure.
+        if (emailTemplatesConfig.Count == 1)
+        {
+            var soleKey = emailTemplatesConfig.Keys.First();
+            logger.LogWarning(
+                "Template ID {TemplateId} not found in ApplicationTemplates:HostMappings; " +
+                "falling back to sole EmailTemplates key {ApplicationType}.",
+                templateId,
+                soleKey);
+            return soleKey;
+        }
+
+        var fromTenantName = emailTemplatesConfig.FindApplicationTypeKey(tenant.Name);
+        if (!string.IsNullOrEmpty(fromTenantName))
+        {
+            logger.LogWarning(
+                "Template ID {TemplateId} not found in ApplicationTemplates:HostMappings; " +
+                "falling back to tenant name EmailTemplates key {ApplicationType}.",
+                templateId,
+                fromTenantName);
+            return fromTenantName;
+        }
+
+        logger.LogWarning("Template ID {TemplateId} not found in host mappings", templateId);
+        return null;
+    }
+
+    private static string? GetApplicationTypeCandidateByTemplateId(
+        Guid templateId,
+        ApplicationTemplatesConfiguration appTemplatesConfig)
     {
         var templateIdString = templateId.ToString();
 
         var mapping = appTemplatesConfig.HostMappings
             .FirstOrDefault(kvp => string.Equals(kvp.Value, templateIdString, StringComparison.OrdinalIgnoreCase));
 
-        if (mapping.Key == null)
-        {
-            logger.LogWarning("Template ID {TemplateId} not found in host mappings", templateIdString);
+        if (mapping.Key is null)
             return null;
-        }
 
         return ConvertHostMappingToApplicationType(mapping.Key);
     }
 
-    private static string ConvertHostMappingToApplicationType(string hostMapping)
+    /// <summary>
+    /// Derives an EmailTemplates product-key candidate from a HostMappings key.
+    /// Keys may be short names or FQDNs; the first DNS label is used, then matched
+    /// case-insensitively against configured EmailTemplates keys.
+    /// </summary>
+    internal static string ConvertHostMappingToApplicationType(string hostMapping)
     {
-        return hostMapping switch
-        {
-            "transfers" => "Transfers",
-            "sigchange" => "SigChange",
-            _ => string.Concat(hostMapping[0].ToString().ToUpper(), hostMapping.AsSpan(1))
-        };
+        ArgumentException.ThrowIfNullOrWhiteSpace(hostMapping);
+
+        var key = hostMapping.Trim();
+        var dot = key.IndexOf('.');
+        if (dot > 0)
+            key = key[..dot];
+
+        if (key.Length == 0)
+            return hostMapping.Trim();
+
+        return char.ToUpperInvariant(key[0]) + key[1..];
     }
 }

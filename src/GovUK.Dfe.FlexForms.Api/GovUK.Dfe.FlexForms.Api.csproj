@@ -5,8 +5,8 @@
 		<NoWarn>$(NoWarn);1591</NoWarn>
 		<TargetFramework>net10.0</TargetFramework>
     <UserSecretsId>f714ca7a-fc08-46ff-b0cc-373d6f04cf4c</UserSecretsId>
-	  <Version>2.0.0</Version>
-	  <InformationalVersion>2.0.0</InformationalVersion>
+    <Version Condition="'$(Version)' == ''">0.0.0-local</Version>
+    <InformationalVersion Condition="'$(InformationalVersion)' == ''">$(Version)</InformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

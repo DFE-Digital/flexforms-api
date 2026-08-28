@@ -156,21 +156,21 @@ public sealed class FieldMappingValueExtractor(
             logger.LogDebug(
                 "Collection {CollectionId} not found in form data",
                 collectionMapping.SourceCollectionFieldId);
-            return collectionMapping.ItemMappings != null ? new List<object>() : string.Empty;
+            return EmptyCollectionResult(collectionMapping);
         }
 
         try
         {
-            var decoded = System.Net.WebUtility.HtmlDecode(collectionValue?.ToString());
+            var decoded = NormalizeCollectionJson(collectionValue);
             if (string.IsNullOrEmpty(decoded))
             {
-                return collectionMapping.ItemMappings != null ? new List<object>() : string.Empty;
+                return EmptyCollectionResult(collectionMapping);
             }
 
             var items = JsonSerializer.Deserialize<List<Dictionary<string, JsonElement>>>(decoded);
             if (items == null || items.Count == 0)
             {
-                return collectionMapping.ItemMappings != null ? new List<object>() : string.Empty;
+                return EmptyCollectionResult(collectionMapping);
             }
 
             logger.LogDebug(
@@ -233,8 +233,36 @@ public sealed class FieldMappingValueExtractor(
                 ex,
                 "Failed to parse collection {CollectionId}",
                 collectionMapping.SourceCollectionFieldId);
-            return new List<object>();
+            return EmptyCollectionResult(collectionMapping);
         }
+    }
+
+    private static object EmptyCollectionResult(CollectionMapping collectionMapping) =>
+        collectionMapping.ItemMappings != null ? new List<object>() : string.Empty;
+
+    private static string? NormalizeCollectionJson(object? collectionValue)
+    {
+        if (collectionValue is null)
+            return null;
+
+        if (collectionValue is JsonElement jsonElement)
+        {
+            switch (jsonElement.ValueKind)
+            {
+                case JsonValueKind.String:
+                    return System.Net.WebUtility.HtmlDecode(jsonElement.GetString());
+                case JsonValueKind.Array:
+                    return jsonElement.GetRawText();
+                case JsonValueKind.Object:
+                    if (jsonElement.TryGetProperty("value", out var wrapped) && wrapped.ValueKind != JsonValueKind.Null)
+                        return NormalizeCollectionJson(wrapped);
+                    return jsonElement.GetRawText();
+                default:
+                    return System.Net.WebUtility.HtmlDecode(jsonElement.ToString());
+            }
+        }
+
+        return System.Net.WebUtility.HtmlDecode(collectionValue.ToString());
     }
 
     private static Dictionary<string, object> ConvertToFormData(Dictionary<string, JsonElement> item)

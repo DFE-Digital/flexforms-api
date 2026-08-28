@@ -52,14 +52,35 @@ public static class ApplicationFormDataParser
 
             foreach (var property in root.EnumerateObject())
             {
+                if (property.Name.StartsWith("TaskStatus_", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
                 if (property.Value.ValueKind == JsonValueKind.Null)
                     continue;
 
+                var fieldValue = UnwrapStoredFieldValue(property.Value);
+
                 // Clone so values stay usable after the JsonDocument is disposed.
-                result[property.Name] = property.Value.Clone();
+                result[property.Name] = fieldValue.Clone();
             }
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// Stored responses wrap each field in metadata ({ question, value, completed, dataType }).
+    /// Event mapping and email personalisation need the inner <c>value</c>.
+    /// </summary>
+    private static JsonElement UnwrapStoredFieldValue(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Object
+            && element.TryGetProperty("value", out var wrapped)
+            && wrapped.ValueKind != JsonValueKind.Null)
+        {
+            return wrapped;
+        }
+
+        return element;
     }
 }

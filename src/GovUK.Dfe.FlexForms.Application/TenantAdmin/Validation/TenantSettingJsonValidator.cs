@@ -119,6 +119,8 @@ public static class TenantSettingJsonValidator
             "SchemaEvents" => true,
             "EventTriggers" => true,
             "FileValidation" => true,
+            "FileStorage" => true,
+            "Email" => true,
             "SelfRegistration" => true,
             "ApplicationTemplates" => true,
             "Template" => true,
@@ -268,6 +270,14 @@ public static class TenantSettingJsonValidator
 
             case "FileValidation":
                 ValidateFileValidation(root, errors);
+                break;
+
+            case "FileStorage":
+                ValidateFileStorage(root, errors);
+                break;
+
+            case "Email":
+                ValidateEmail(root, errors);
                 break;
 
             case "SelfRegistration":
@@ -420,6 +430,7 @@ public static class TenantSettingJsonValidator
             }
 
             var index = 0;
+            var seenEventTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var entry in triggerProperty.Value.EnumerateArray())
             {
                 var path = $"EventTriggers['{triggerProperty.Name}'][{index}]";
@@ -440,6 +451,16 @@ public static class TenantSettingJsonValidator
                 {
                     errors.Add(
                         $"{path}.eventType cannot be {SystemOnlyEventType}: virus scanning is published by the platform.");
+                }
+                else if (seenEventTypes.Contains(eventType))
+                {
+                    errors.Add(
+                        $"{path}.eventType '{eventType}' is duplicated under EventTriggers['{triggerProperty.Name}']. " +
+                        "Each trigger may only bind one entry per event type.");
+                }
+                else
+                {
+                    seenEventTypes.Add(eventType);
                 }
 
                 if (GetString(entry, "mappingId") is null && GetString(entry, "MappingId") is null)
@@ -507,6 +528,52 @@ public static class TenantSettingJsonValidator
                 }
             }
         }
+
+        ValidateUniqueMappingIds(category, root, errors);
+    }
+
+    /// <summary>
+    /// Each mappingId must appear only once per category document (template alias keys are not allowed to duplicate).
+    /// </summary>
+    private static void ValidateUniqueMappingIds(string category, JsonElement root, List<string> errors)
+    {
+        var seen = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var templateProperty in root.EnumerateObject())
+        {
+            if (string.Equals(templateProperty.Name, "BasePath", StringComparison.OrdinalIgnoreCase)
+                || templateProperty.Value.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            foreach (var eventProperty in templateProperty.Value.EnumerateObject())
+            {
+                if (eventProperty.Value.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                var mappingId = GetString(eventProperty.Value, "mappingId") ?? GetString(eventProperty.Value, "MappingId");
+                if (string.IsNullOrWhiteSpace(mappingId))
+                {
+                    continue;
+                }
+
+                var location =
+                    $"{category}['{templateProperty.Name}']['{eventProperty.Name}']";
+                if (seen.TryGetValue(mappingId, out var firstLocation))
+                {
+                    errors.Add(
+                        $"mappingId '{mappingId}' is duplicated between {firstLocation} and {location}. " +
+                        "Each mappingId must be unique; use one template key per mapping (runtime resolves schema aliases).");
+                }
+                else
+                {
+                    seen[mappingId] = location;
+                }
+            }
+        }
     }
 
     private static void RequireString(
@@ -568,6 +635,65 @@ public static class TenantSettingJsonValidator
 
     private static readonly HashSet<string> AllowedFileValidationModes =
         new(StringComparer.OrdinalIgnoreCase) { "Off", "FailOnInvalid", "RequirePassed" };
+
+    private static readonly HashSet<string> AllowedFileStorageProviders =
+        new(StringComparer.OrdinalIgnoreCase) { "Local", "Azure", "Hybrid" };
+
+    private static readonly HashSet<string> AllowedEmailProviders =
+        new(StringComparer.OrdinalIgnoreCase) { "GovUkNotify" };
+
+    private static void ValidateFileStorage(JsonElement root, List<string> errors)
+    {
+        var provider = GetString(root, "Provider");
+        if (provider is null)
+        {
+            if (root.TryGetProperty("Provider", out _) || root.TryGetProperty("provider", out _))
+                errors.Add("FileStorage.Provider must be a non-empty string.");
+            else
+                errors.Add("FileStorage.Provider is required (Local, Azure, or Hybrid).");
+            return;
+        }
+
+        if (!AllowedFileStorageProviders.Contains(provider))
+        {
+            errors.Add("FileStorage.Provider must be Local, Azure, or Hybrid.");
+            return;
+        }
+
+        if ((provider.Equals("Local", StringComparison.OrdinalIgnoreCase)
+                || provider.Equals("Hybrid", StringComparison.OrdinalIgnoreCase))
+            && root.TryGetProperty("Local", out var local)
+            && local.ValueKind == JsonValueKind.Object)
+        {
+            RequireStringIfPresent(local, "BaseDirectory", errors, "FileStorage.Local.");
+        }
+
+        if ((provider.Equals("Azure", StringComparison.OrdinalIgnoreCase)
+                || provider.Equals("Hybrid", StringComparison.OrdinalIgnoreCase))
+            && root.TryGetProperty("Azure", out var azure)
+            && azure.ValueKind == JsonValueKind.Object)
+        {
+            RequireStringIfPresent(azure, "ConnectionString", errors, "FileStorage.Azure.");
+            RequireStringIfPresent(azure, "ShareName", errors, "FileStorage.Azure.");
+        }
+    }
+
+    private static void ValidateEmail(JsonElement root, List<string> errors)
+    {
+        var provider = GetString(root, "Provider");
+        if (provider is not null && !AllowedEmailProviders.Contains(provider))
+        {
+            errors.Add("Email.Provider must be GovUkNotify when present.");
+        }
+
+        if (root.TryGetProperty("GovUkNotify", out var notify)
+            && notify.ValueKind == JsonValueKind.Object)
+        {
+            RequireStringIfPresent(notify, "ApiKey", errors, "Email.GovUkNotify.");
+        }
+
+        RequireStringIfPresent(root, "ServiceSupportEmailAddress", errors);
+    }
 
     private static void ValidateFileValidation(JsonElement root, List<string> errors)
     {

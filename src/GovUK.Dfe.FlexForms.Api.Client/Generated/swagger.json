@@ -3934,7 +3934,7 @@
         "tags": [
           "TenantAdmin"
         ],
-        "summary": "Triggers an immediate refresh of the in-memory tenant configuration cache.\nRequires an interactive Admin user JWT.",
+        "summary": "Triggers an immediate refresh of the in-memory tenant configuration cache.\nRequires an interactive Admin user JWT. SuperAdmin receives the full tenant\ncatalogue in the response; Tenant Admin only receives their own tenant summary.",
         "operationId": "TenantAdmin_RefreshTenantConfiguration",
         "responses": {
           "200": {
@@ -6077,6 +6077,20 @@
           }
         }
       }
+    },
+    "/auth/hub-signout": {
+      "post": {
+        "tags": [
+          "HubAuth"
+        ],
+        "summary": "Clears the SignalR hubauth cookie. Safe to call without authentication.",
+        "operationId": "HubAuth_SignOutHubCookie",
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        }
+      }
     }
   },
   "components": {
@@ -8160,6 +8174,10 @@
           },
           "templateName": {
             "type": "string"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "guid"
           },
           "dateCreated": {
             "type": "string",

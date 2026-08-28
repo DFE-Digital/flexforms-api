@@ -101,6 +101,7 @@ public sealed class GetUserCreatedApplicationsLookupQueryHandler(
                 ApplicationId = a.Id!.Value,
                 ApplicationReference = a.ApplicationReference,
                 TemplateName = a.TemplateVersion?.Template?.Name ?? string.Empty,
+                TemplateId = a.TemplateVersion?.Template?.Id?.Value ?? Guid.Empty,
                 DateCreated = a.CreatedOn,
                 Invitees = inviteesByApplication.TryGetValue(a.Id, out var invitees)
                     ? invitees

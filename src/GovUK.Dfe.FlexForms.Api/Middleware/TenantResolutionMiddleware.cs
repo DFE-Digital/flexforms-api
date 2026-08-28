@@ -26,6 +26,11 @@ public class TenantResolutionMiddleware
         path.StartsWith("/v1/tenant-config/tenants/", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/v1/tenant-config/resolve", StringComparison.OrdinalIgnoreCase);
 
+    private static bool IsTenantResolutionBypassPath(string path) =>
+        BypassPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase))
+        || IsPlatformTenantConfigPath(path)
+        || path.Equals("/v1/diagnostics", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Azure App Service Always On / front-door style probes often hit the site root with no tenant header.
     /// </summary>
@@ -54,8 +59,7 @@ public class TenantResolutionMiddleware
         // Bypass for infrastructure endpoints, root probes, and CORS preflight
         if (context.Request.Method == "OPTIONS" ||
             IsRootProbe(context, path) ||
-            BypassPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase)) ||
-            IsPlatformTenantConfigPath(path))
+            IsTenantResolutionBypassPath(path))
         {
             await _next(context);
             return;

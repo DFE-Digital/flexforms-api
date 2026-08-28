@@ -296,6 +296,11 @@
       "ExpectedSecurity": "AllowAnonymous"
     },
     {
+      "Controller": "HubAuthController",
+      "Action": "SignOutHubCookie",
+      "ExpectedSecurity": "AllowAnonymous"
+    },
+    {
       "Controller": "UserFeedbackController",
       "Action": "PostAsync",
       "ExpectedSecurity": "AllowAnonymous"

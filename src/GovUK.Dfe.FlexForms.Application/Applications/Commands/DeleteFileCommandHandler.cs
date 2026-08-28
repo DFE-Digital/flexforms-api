@@ -28,7 +28,8 @@ public class DeleteFileCommandHandler(
     ITenantAwareFileStorageService fileStorageService,
     IPermissionCheckerService permissionCheckerService,
     IHttpContextAccessor httpContextAccessor,
-    IFileFactory fileFactory)
+    IFileFactory fileFactory,
+    ITenantPermissionFilter tenantPermissionFilter)
     : IRequestHandler<DeleteFileCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(DeleteFileCommand request, CancellationToken cancellationToken)
@@ -73,6 +74,11 @@ public class DeleteFileCommandHandler(
             if (!permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, request.ApplicationId.ToString(),
                     AccessType.Delete))
                 return Result<bool>.Forbid("User does not have permission to delete this file");
+
+            if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(request.ApplicationId, cancellationToken))
+            {
+                return Result<bool>.NotFound("Application not found");
+            }
 
             var upload = await new GetFileByIdQueryObject(new FileId(request.FileId))
                 .Apply(fileRepository.Query())

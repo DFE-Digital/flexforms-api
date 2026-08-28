@@ -466,7 +466,8 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
         /// Triggers an immediate refresh of the in-memory tenant configuration cache.
-        /// <br/>Requires an interactive Admin user JWT.
+        /// <br/>Requires an interactive Admin user JWT. SuperAdmin receives the full tenant
+        /// <br/>catalogue in the response; Tenant Admin only receives their own tenant summary.
         /// </summary>
         /// <returns>Tenant configuration refreshed.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
@@ -781,6 +782,13 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task RedeemHubCookieAsync(string ticket = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Clears the SignalR hubauth cookie. Safe to call without authentication.
+        /// </summary>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task SignOutHubCookieAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
     }
 

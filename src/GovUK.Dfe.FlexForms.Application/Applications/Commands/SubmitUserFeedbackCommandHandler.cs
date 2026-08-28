@@ -65,6 +65,13 @@ public sealed class SubmitUserFeedbackCommandHandler(
         var emailTemplateId =
             await emailTemplateResolver.ResolveEmailTemplateAsync(templateId, $"{request.Type}Internal");
 
+        if (string.IsNullOrWhiteSpace(emailTemplateId))
+        {
+            throw new InvalidOperationException(
+                $"Could not resolve GOV.UK Notify template for feedback type '{request.Type}Internal' " +
+                $"and form template '{templateId.Value}'. Check ApplicationTemplates:HostMappings and EmailTemplates.");
+        }
+
         var emailMessage = CreateEmailMessage(request, emailAddress, emailTemplateId);
 
         try
@@ -82,6 +89,13 @@ public sealed class SubmitUserFeedbackCommandHandler(
         CancellationToken cancellationToken)
     {
         var emailTemplateId = await emailTemplateResolver.ResolveEmailTemplateAsync(templateId, $"{request.Type}User");
+
+        if (string.IsNullOrWhiteSpace(emailTemplateId))
+        {
+            throw new InvalidOperationException(
+                $"Could not resolve GOV.UK Notify template for feedback type '{request.Type}User' " +
+                $"and form template '{templateId.Value}'. Check ApplicationTemplates:HostMappings and EmailTemplates.");
+        }
 
         var emailMessage = CreateEmailMessage(request, emailAddress, emailTemplateId);
 

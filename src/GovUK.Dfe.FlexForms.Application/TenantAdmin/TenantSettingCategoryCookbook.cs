@@ -59,6 +59,38 @@ public static class TenantSettingCategoryCookbook
             requiresObject: true),
 
         Entry(
+            "FileStorage",
+            "Required per-tenant file storage. On Container Apps with an Azure Files mount, use Hybrid.",
+            ["Api", "Shared"],
+            example: """{"Provider":"Hybrid","Local":{"BaseDirectory":"/uploads","AllowedExtensions":["jpg","png","pdf"],"MaxFileSizeBytes":10000000},"Azure":{"ConnectionString":"...","ShareName":"uploads"}}""",
+            notes:
+            [
+                "Forced secret category",
+                "SuperAdmin only",
+                "Host GlobalConfiguration:FileStorage may be Local with a dummy path — boot only",
+                "Hybrid (recommended on Container Apps): File Share is mounted at Local.BaseDirectory (e.g. /uploads — absolute path). App writes to that mount via a per-tenant disk client (host GlobalConfiguration BaseDirectory is unused for uploads). SAS uses tenant Azure ConnectionString + ShareName",
+                "Local — disk only (dev). Tenant Local.BaseDirectory required (absolute path preferred in containers)",
+                "Azure — Azure SDK upload/download (no mount). Prefer Hybrid when using a volume mount",
+                "Deleting this category breaks file upload/download/delete for the tenant"
+            ],
+            requiresObject: true),
+
+        Entry(
+            "Email",
+            "Required per-tenant GOV.UK Notify settings (API key, support address). Missing/incomplete config fails that tenant's email ops.",
+            ["Api", "Shared"],
+            example: """{"Provider":"GovUkNotify","ServiceSupportEmailAddress":"support@education.gov.uk","GovUkNotify":{"ApiKey":"...","BaseUrl":"https://api.notifications.service.gov.uk","TimeoutSeconds":30}}""",
+            notes:
+            [
+                "Forced secret category",
+                "SuperAdmin only",
+                "Host GlobalConfiguration:Email is DI boot only (dummy ApiKey OK). Runtime IEmailService is TenantAwareEmailService → tenant GovUkNotify.ApiKey (host Notify client is not constructed)",
+                "Requires Email.Provider and (for GovUkNotify) GovUkNotify.ApiKey; feedback also needs ServiceSupportEmailAddress",
+                "Deleting this category breaks outbound email for the tenant"
+            ],
+            requiresObject: true),
+
+        Entry(
             "InternalServiceAuth",
             "Service-to-service JWT credentials and optional API keys.",
             ["Api", "Web", "Shared"],
@@ -179,7 +211,8 @@ public static class TenantSettingCategoryCookbook
             [
                 "Non-secret",
                 "Saved with Target=Shared so the API runtime can read it",
-                "Also editable via Event mappings Admin page"
+                "Also editable via Event mappings Admin page",
+                "Each mappingId must be unique across all template keys (one row per mapping; runtime resolves GUID vs schema templateId aliases)"
             ],
             requiresObject: true),
 

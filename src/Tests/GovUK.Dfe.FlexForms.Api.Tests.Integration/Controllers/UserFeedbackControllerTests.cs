@@ -22,7 +22,8 @@ public class UserFeedbackControllerTests
             new Claim(ClaimTypes.Email, EaContextSeeder.BobEmail)
         ];
 
-        var request = new BugReport("Some message", "ABC-20001231-001", "some.email@education.gov.uk", Guid.NewGuid());
+        var templateId = new Guid(EaContextSeeder.TemplateId);
+        var request = new BugReport("Some message", "ABC-20001231-001", "some.email@education.gov.uk", templateId);
 
         await userFeedbackClient.PostAsync(request);
     }
@@ -38,7 +39,7 @@ public class UserFeedbackControllerTests
             new Claim(ClaimTypes.Email, EaContextSeeder.BobEmail)
         ];
 
-        var request = new SupportRequest("", "ABC-20001231-001", "not-an-email-address", Guid.NewGuid());
+        var request = new SupportRequest("", "ABC-20001231-001", "not-an-email-address", new Guid(EaContextSeeder.TemplateId));
 
         var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(() =>
             userFeedbackClient.PostAsync(request));
@@ -57,10 +58,11 @@ public class UserFeedbackControllerTests
             new Claim(ClaimTypes.Email, EaContextSeeder.BobEmail)
         ];
 
+        var templateId = new Guid(EaContextSeeder.TemplateId);
         var request1 = new BugReport("Some message 1", "ABC-20001231-001", "some.email@education.gov.uk",
-            Guid.NewGuid());
+            templateId);
         var request2 = new SupportRequest("Some message 2", "ABC-20001231-001", "another.email@education.gov.uk",
-            Guid.NewGuid());
+            templateId);
 
         await userFeedbackClient.PostAsync(request1);
 

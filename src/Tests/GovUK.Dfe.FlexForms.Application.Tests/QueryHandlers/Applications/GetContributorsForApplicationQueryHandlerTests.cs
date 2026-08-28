@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Applications.Queries;
@@ -20,6 +21,14 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.QueryHandlers.Applications;
 
 public class GetContributorsForApplicationQueryHandlerTests
 {
+    private static ITenantPermissionFilter CreateTenantPermissionFilter(bool belongsToTenant = true)
+    {
+        var filter = Substitute.For<ITenantPermissionFilter>();
+        filter.ApplicationBelongsToCurrentTenantAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns(belongsToTenant);
+        return filter;
+    }
+
     [Theory]
     [CustomAutoData(typeof(ApplicationCustomization), typeof(UserCustomization), typeof(PermissionCustomization))]
     public async Task Handle_ShouldReturnContributors_WhenValidRequestWithAppId(
@@ -101,7 +110,8 @@ public class GetContributorsForApplicationQueryHandlerTests
             applicationRepo,
             userRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -183,7 +193,8 @@ public class GetContributorsForApplicationQueryHandlerTests
             applicationRepo,
             userRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(queryWithPermissionDetails, CancellationToken.None);
@@ -219,7 +230,8 @@ public class GetContributorsForApplicationQueryHandlerTests
             applicationRepo,
             userRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -251,7 +263,8 @@ public class GetContributorsForApplicationQueryHandlerTests
             applicationRepo,
             userRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -287,7 +300,8 @@ public class GetContributorsForApplicationQueryHandlerTests
             applicationRepo,
             userRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -330,7 +344,8 @@ public class GetContributorsForApplicationQueryHandlerTests
             applicationRepo,
             userRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -388,7 +403,8 @@ public class GetContributorsForApplicationQueryHandlerTests
             applicationRepo,
             userRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -446,7 +462,8 @@ public class GetContributorsForApplicationQueryHandlerTests
             applicationRepo,
             userRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -505,7 +522,8 @@ public class GetContributorsForApplicationQueryHandlerTests
             applicationRepo,
             userRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -543,7 +561,8 @@ public class GetContributorsForApplicationQueryHandlerTests
             applicationRepo,
             userRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
@@ -601,7 +620,8 @@ public class GetContributorsForApplicationQueryHandlerTests
             applicationRepo,
             userRepo,
             httpContextAccessor,
-            permissionCheckerService);
+            permissionCheckerService,
+            CreateTenantPermissionFilter());
 
         // Act
         var result = await handler.Handle(query, CancellationToken.None);
