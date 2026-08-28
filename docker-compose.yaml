@@ -27,15 +27,17 @@ services:
             - CacheSettings__Redis__ConnectionString=redis:6379
             - DataProtection__UseAzure=false
             - DataProtection__UseStorageSas=false
+            - DataProtection__ApplicationName=GovUK.Dfe.FlexForms.Api
+            - DataProtection__LocalKeysPath=/home/app/.aspnet/DataProtection-Keys
             - Tenants__CodeGeneration__ConnectionStrings__Redis=redis:6379
             - ASPNETCORE_URLS=https://+:8081;http://+:8080
             - ASPNETCORE_ENVIRONMENT=Development
             - ASPNETCORE_Kestrel__Certificates__Default__Password=Pa55w0rd
             - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/ea_cert.pfx
-            #- CI=true 
         volumes:
             - ${APPDATA}/dev-certs/ea_cert.pfx:/https/ea_cert.pfx:ro
             - ${APPDATA}/Microsoft/UserSecrets/f714ca7a-fc08-46ff-b0cc-373d6f04cf4c:/home/app/.microsoft/usersecrets/f714ca7a-fc08-46ff-b0cc-373d6f04cf4c:ro
             - ${APPDATA}/mkcert/rootCA.pem:/usr/local/share/ca-certificates/mkcert-rootCA.crt:ro
+            - ${APPDATA}/DataProtection-Keys:/home/app/.aspnet/DataProtection-Keys:rw
         networks:
             - dfe-flexforms-network

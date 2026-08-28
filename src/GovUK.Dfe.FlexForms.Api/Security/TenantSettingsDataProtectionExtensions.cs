@@ -27,10 +27,18 @@ public static class TenantSettingsDataProtectionExtensions
 
         // Local/Development without Azure opt-in: default key ring only (no SetApplicationName)
         // so existing locally encrypted TenantSettings remain decryptable.
-        var builder = services.AddDataProtection();
-
+        IDataProtectionBuilder builder;
         if (ShouldUseLocalKeyRing(environment, settings))
+        {
+            Console.WriteLine("Using local key ring for Data Protection (no Azure).");
+            Console.WriteLine(settings.LocalKeysPath);
+            builder = services.AddDataProtection().PersistKeysToFileSystem(new DirectoryInfo(settings.LocalKeysPath)).SetApplicationName(settings.ApplicationName);
             return builder;
+        }
+        else       
+        {
+            builder = services.AddDataProtection();
+        }
 
         var applicationName = string.IsNullOrWhiteSpace(settings.ApplicationName)
             ? "GovUK.Dfe.FlexForms.Api"
