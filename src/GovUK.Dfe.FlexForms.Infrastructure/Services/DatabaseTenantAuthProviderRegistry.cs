@@ -217,7 +217,7 @@ public sealed class DatabaseTenantAuthProviderRegistry : ITenantAuthProviderRegi
 
     /// <summary>
     /// Entra v1 tokens use <c>api://{clientId}</c> (or the App ID URI); v2 tokens use the raw client id.
-    /// Named scopes and client-credential <c>/.default</c> appear as a path after the App ID URI.
+    /// Tenant <c>AzureAd:Audience</c> is a single string, so treat those forms as the same resource.
     /// </summary>
     private static bool EntraAudienceEquals(string tokenAudience, string configuredAudience)
     {
@@ -226,51 +226,17 @@ public sealed class DatabaseTenantAuthProviderRegistry : ITenantAuthProviderRegi
             return false;
         }
 
-        var token = NormalizeEntraAudience(tokenAudience);
-        var configured = NormalizeEntraAudience(configuredAudience);
-
-        if (string.Equals(token, configured, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(tokenAudience, configuredAudience, StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        if (string.Equals(token, $"api://{configured}", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(tokenAudience, $"api://{configuredAudience}", StringComparison.OrdinalIgnoreCase))
         {
             return true;
         }
 
-        return string.Equals($"api://{token}", configured, StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static string NormalizeEntraAudience(string value)
-    {
-        var trimmed = value.Trim().TrimEnd('/');
-        var queryOrFragment = trimmed.IndexOfAny(['?', '#']);
-        if (queryOrFragment >= 0)
-        {
-            trimmed = trimmed[..queryOrFragment];
-        }
-
-        const string apiPrefix = "api://";
-        if (trimmed.StartsWith(apiPrefix, StringComparison.OrdinalIgnoreCase))
-        {
-            var rest = trimmed[apiPrefix.Length..];
-            var slash = rest.IndexOf('/');
-            if (slash >= 0)
-            {
-                rest = rest[..slash];
-            }
-
-            return apiPrefix + rest;
-        }
-
-        const string defaultSuffix = "/.default";
-        if (trimmed.EndsWith(defaultSuffix, StringComparison.OrdinalIgnoreCase))
-        {
-            trimmed = trimmed[..^defaultSuffix.Length];
-        }
-
-        return trimmed;
+        return string.Equals($"api://{tokenAudience}", configuredAudience, StringComparison.OrdinalIgnoreCase);
     }
 
     private void Rebuild()
