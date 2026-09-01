@@ -356,28 +356,176 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                     }
 
                     var jwt = securityToken as JwtSecurityToken;
+                    var tokenAudiences = MergeAudiences(audiences, jwt);
                     var azpOrAppId = PickAzpOrAppId(jwt);
                     var tenantAccessor = ResolveTenantContextAccessor(httpContextAccessor);
                     var tenantId = tenantAccessor?.CurrentTenant?.Id;
-                    if (tenantId is null)
+                    var accepted = tenantId is null
+                        ? registry.IsJwtAudienceValidForIssuerAnyTenant(issuer, tokenAudiences)
+                        : registry.IsJwtAudienceValidForTenant(issuer, tokenAudiences, tenantId.Value, azpOrAppId);
+
+                    if (!accepted)
                     {
-                        return registry.IsJwtAudienceValidForIssuerAnyTenant(issuer, audiences);
+                        LogAudienceRejected(
+                            httpContextAccessor, registry, issuer, tokenAudiences, azpOrAppId, tenantId);
                     }
 
-                    return registry.IsJwtAudienceValidForTenant(issuer, audiences, tenantId.Value, azpOrAppId);
+                    return accepted;
                 }
             };
 
             opts.Events = new JwtBearerEvents
             {
+                OnMessageReceived = context =>
+                {
+                    if (IsAnonymousInfrastructurePath(context.Request))
+                    {
+                        context.NoResult();
+                        return Task.CompletedTask;
+                    }
+
+                    // Known Entra issuers (same directory as AzureAd/EntraSso) often appear on
+                    // Graph, Easy Auth, or MSI tokens. Issuer validation would pass and then
+                    // AudienceValidator would return false → IdentityModel logs IDX10231 Error.
+                    // Treat foreign-aud tokens as anonymous instead of a failed authentication.
+                    var raw = ReadIncomingBearer(context.Request);
+                    if (string.IsNullOrEmpty(raw))
+                    {
+                        return Task.CompletedTask;
+                    }
+
+                    JwtSecurityToken jwt;
+                    try
+                    {
+                        jwt = new JwtSecurityTokenHandler().ReadJwtToken(raw);
+                    }
+                    catch (Exception)
+                    {
+                        return Task.CompletedTask;
+                    }
+
+                    var issuer = jwt.Issuer;
+                    if (string.IsNullOrEmpty(issuer) || !registry.HasAnyProviderForIssuer(issuer))
+                    {
+                        return Task.CompletedTask;
+                    }
+
+                    var tokenAudiences = MergeAudiences(null, jwt);
+                    var azpOrAppId = PickAzpOrAppId(jwt);
+                    var tenantId = ResolveTenantContextAccessor(httpContextAccessor)?.CurrentTenant?.Id;
+                    var accepted = tenantId is null
+                        ? registry.IsJwtAudienceValidForIssuerAnyTenant(issuer, tokenAudiences)
+                        : registry.IsJwtAudienceValidForTenant(issuer, tokenAudiences, tenantId.Value, azpOrAppId);
+
+                    if (!accepted)
+                    {
+                        LogAudienceRejected(
+                            httpContextAccessor, registry, issuer, tokenAudiences, azpOrAppId, tenantId);
+                        context.NoResult();
+                    }
+
+                    return Task.CompletedTask;
+                },
                 OnTokenValidated = EnforceTenantConsistencyAsync,
                 OnAuthenticationFailed = context =>
                 {
+                    if (context.Exception is SecurityTokenInvalidAudienceException)
+                    {
+                        return Task.CompletedTask;
+                    }
+
                     var logger = context.HttpContext.RequestServices.GetService<ILogger<Program>>();
                     logger?.LogWarning(context.Exception, "TenantBearer authentication failed");
                     return Task.CompletedTask;
                 }
             };
+        }
+
+        /// <summary>
+        /// Health/root probes often carry an ingress Entra token whose <c>aud</c> is not this API.
+        /// Skip TenantBearer so those do not log IDX10231. Authenticated API routes still validate.
+        /// </summary>
+        private static bool IsAnonymousInfrastructurePath(HttpRequest request)
+        {
+            var path = request.Path.Value ?? "";
+            if (path.StartsWith("/health", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/healthz", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/liveness", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/readiness", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/swagger", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/robots.txt", StringComparison.OrdinalIgnoreCase)
+                || path.StartsWith("/favicon.ico", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return (HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method))
+                   && (string.IsNullOrEmpty(path) || path == "/");
+        }
+
+        private static string? ReadIncomingBearer(HttpRequest request)
+        {
+            var header = request.Headers.Authorization.ToString();
+            const string prefix = "Bearer ";
+            if (!string.IsNullOrEmpty(header) && header.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                return header[prefix.Length..].Trim();
+            }
+
+            var fromQuery = request.Query["access_token"].ToString();
+            return string.IsNullOrEmpty(fromQuery) ? null : fromQuery;
+        }
+
+        private static void LogAudienceRejected(
+            IHttpContextAccessor httpContextAccessor,
+            ITenantAuthProviderRegistry registry,
+            string issuer,
+            IReadOnlyList<string> tokenAudiences,
+            string? azpOrAppId,
+            Guid? tenantId)
+        {
+            var logger = httpContextAccessor.HttpContext?.RequestServices.GetService<ILogger<Program>>();
+            var configured = registry.GetProvidersByIssuer(issuer)
+                .SelectMany(p => p.Audiences ?? Array.Empty<string>())
+                .Distinct(StringComparer.OrdinalIgnoreCase);
+            logger?.LogWarning(
+                "TenantBearer audience rejected. Path={Path} Iss={Issuer} TokenAud={TokenAud} AzpOrAppId={Azp} TenantId={TenantId} ConfiguredAud={ConfiguredAud}",
+                httpContextAccessor.HttpContext?.Request.Path.Value,
+                issuer,
+                string.Join(",", tokenAudiences),
+                azpOrAppId,
+                tenantId,
+                string.Join(",", configured));
+        }
+
+        private static IReadOnlyList<string> MergeAudiences(
+            IEnumerable<string>? validatorAudiences,
+            JwtSecurityToken? jwt)
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (validatorAudiences is not null)
+            {
+                foreach (var aud in validatorAudiences)
+                {
+                    if (!string.IsNullOrEmpty(aud))
+                    {
+                        set.Add(aud);
+                    }
+                }
+            }
+
+            if (jwt?.Audiences is not null)
+            {
+                foreach (var aud in jwt.Audiences)
+                {
+                    if (!string.IsNullOrEmpty(aud))
+                    {
+                        set.Add(aud);
+                    }
+                }
+            }
+
+            return set.Count == 0 ? Array.Empty<string>() : set.ToList();
         }
 
         /// <summary>

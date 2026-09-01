@@ -292,7 +292,22 @@ public class DatabaseTenantAuthProviderRegistryTests
         Assert.True(registry.IsJwtAudienceValidForTenant(issuer, new[] { clientId }, tenantId, clientId));
         Assert.True(registry.IsJwtAudienceValidForTenant(
             issuer,
-            new[] { $"api://{clientId}" },
+            new[] { $"api://{clientId}/.default" },
+            tenantId,
+            clientId));
+        Assert.True(registry.IsJwtAudienceValidForTenant(
+            issuer,
+            new[] { $"api://{clientId}/access_as_user" },
+            tenantId,
+            clientId));
+        Assert.False(registry.IsJwtAudienceValidForTenant(
+            issuer,
+            new[] { "00000003-0000-0000-c000-000000000000" },
+            tenantId,
+            clientId));
+        Assert.False(registry.IsJwtAudienceValidForTenant(
+            issuer,
+            new[] { "https://graph.microsoft.com" },
             tenantId,
             clientId));
     }
