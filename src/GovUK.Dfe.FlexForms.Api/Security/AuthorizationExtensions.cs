@@ -642,24 +642,42 @@ namespace GovUK.Dfe.FlexForms.Api.Security
         }
 
         /// <summary>
-        /// True when the matched endpoint only authorizes via PlatformBearer policies, so the
-        /// default CompositeScheme should forward there instead of validating TenantBearer first.
+        /// True when the request should authenticate with <c>PlatformBearer</c> (host Entra app)
+        /// rather than <c>TenantBearer</c> (per-tenant AzureAd).
+        /// <para>
+        /// <c>TenantConfigController</c> has a class-level <c>[Authorize]</c> (empty policy) plus
+        /// method-level platform policies. Treating the empty policy as "not platform" sent
+        /// <c>/v1/tenant-config/resolve</c> through TenantBearer, which then rejected the Web
+        /// bootstrap token (<c>aud=api://{platform-api}</c>) against the tenant's AzureAd audience.
+        /// </para>
         /// </summary>
-        private static bool EndpointRequiresPlatformBearerOnly(HttpContext context)
+        internal static bool EndpointRequiresPlatformBearerOnly(HttpContext context)
         {
+            if (IsPlatformBootstrapPath(context.Request.Path))
+            {
+                return true;
+            }
+
             var endpoint = context.GetEndpoint();
             if (endpoint is null)
+            {
                 return false;
+            }
 
             var authorizeData = endpoint.Metadata.GetOrderedMetadata<IAuthorizeData>();
             if (authorizeData.Count == 0)
+            {
                 return false;
+            }
 
             var sawPlatformPolicy = false;
             foreach (var data in authorizeData)
             {
+                // Class-level [Authorize] has no policy; ignore it and look at method metadata.
                 if (string.IsNullOrWhiteSpace(data.Policy))
-                    return false;
+                {
+                    continue;
+                }
 
                 if (string.Equals(data.Policy, PlatformConstants.PlatformHostPolicy, StringComparison.Ordinal)
                     || string.Equals(data.Policy, PlatformConstants.PlatformTenantConfigPolicy, StringComparison.Ordinal))
@@ -672,6 +690,14 @@ namespace GovUK.Dfe.FlexForms.Api.Security
             }
 
             return sawPlatformPolicy;
+        }
+
+        internal static bool IsPlatformBootstrapPath(PathString path)
+        {
+            var value = path.Value ?? "";
+            return value.StartsWith("/v1/host-config", StringComparison.OrdinalIgnoreCase)
+                   || value.StartsWith("/v1/tenant-config/resolve", StringComparison.OrdinalIgnoreCase)
+                   || value.StartsWith("/v1/tenant-config/tenants/", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
