@@ -275,6 +275,29 @@ public class DatabaseTenantAuthProviderRegistryTests
     }
 
     [Fact]
+    public void IsJwtAudienceValidForTenant_AcceptsRawClientId_WhenAzureAdAudienceIsAppIdUri()
+    {
+        var azureDir = Guid.NewGuid().ToString();
+        var tenantId = Guid.NewGuid();
+        var clientId = "65c013ab-cc5d-4fd9-8797-e81c5b16eb3e";
+        var issuer = $"https://sts.windows.net/{azureDir}/";
+        var tenant = BuildTenant(tenantId, new Dictionary<string, string?>
+        {
+            ["AzureAd:TenantId"] = azureDir,
+            ["AzureAd:ClientId"] = clientId,
+            ["AzureAd:Audience"] = $"api://{clientId}"
+        });
+        var registry = CreateRegistry(new[] { tenant }, out _, out _);
+
+        Assert.True(registry.IsJwtAudienceValidForTenant(issuer, new[] { clientId }, tenantId, clientId));
+        Assert.True(registry.IsJwtAudienceValidForTenant(
+            issuer,
+            new[] { $"api://{clientId}" },
+            tenantId,
+            clientId));
+    }
+
+    [Fact]
     public void HasAnyProviderForIssuer_ReturnsTrue_ForV2IssuerAlias_WhenAzureAdUsesStsDefault()
     {
         var azureDir = Guid.NewGuid().ToString();
