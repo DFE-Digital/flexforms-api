@@ -2,7 +2,9 @@ using GovUK.Dfe.FlexForms.Api.Telemetry;
 using Microsoft.ApplicationInsights.Channel;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.ApplicationInsights.Extensibility;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
+using NSubstitute;
 using Xunit;
 
 namespace GovUK.Dfe.FlexForms.Api.Tests.Telemetry;
@@ -45,6 +47,33 @@ public class TenantAwareTelemetryChannelTests
         {
             channel.Send(new RequestTelemetry { Name = "tenant" });
         }
+
+        Assert.Empty(host.Items);
+        Assert.Single(tenant.Items);
+        Assert.Equal("11111111-1111-1111-1111-111111111111", tenant.Items[0].Context.InstrumentationKey);
+    }
+
+    [Fact]
+    public void Send_ShouldRouteFromHttpContext_AfterAsyncLocalScopeEnds()
+    {
+        var host = new RecordingChannel();
+        var tenant = new RecordingChannel();
+        var httpContext = new DefaultHttpContext();
+        var tenantCs = "InstrumentationKey=11111111-1111-1111-1111-111111111111;IngestionEndpoint=https://uksouth-1.in.applicationinsights.azure.com/";
+        TenantApplicationInsightsConnection.BindToRequest(httpContext, tenantCs);
+
+        var accessor = Substitute.For<IHttpContextAccessor>();
+        accessor.HttpContext.Returns(httpContext);
+
+        var channel = new TenantAwareTelemetryChannel(
+            cs => cs.Contains("11111111-1111-1111-1111-111111111111", StringComparison.OrdinalIgnoreCase) ? tenant : host,
+            accessor);
+        channel.Initialize(new TelemetryConfiguration
+        {
+            ConnectionString = "InstrumentationKey=host-key"
+        });
+
+        channel.Send(new RequestTelemetry { Name = "after-scope" });
 
         Assert.Empty(host.Items);
         Assert.Single(tenant.Items);

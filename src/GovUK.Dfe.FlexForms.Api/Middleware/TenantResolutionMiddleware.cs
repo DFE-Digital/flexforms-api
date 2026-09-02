@@ -75,6 +75,7 @@ public class TenantResolutionMiddleware
 
             tenantContextAccessor.CurrentTenant = tenantConfig;
             var appInsightsConnectionString = TenantApplicationInsightsConnection.FromConfiguration(tenantConfig.Settings);
+            TenantApplicationInsightsConnection.BindToRequest(context, appInsightsConnectionString);
             using (TenantApplicationInsightsScope.Begin(appInsightsConnectionString))
             using (_logger.BeginScope(new Dictionary<string, object>
                    {
