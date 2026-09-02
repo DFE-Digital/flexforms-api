@@ -16,6 +16,7 @@ public static class TenantSettingsSecretCategories
         "TestAuthentication",
         "Email",
         "FileStorage",
+        "ApplicationInsights",
         "AuthProviders"
     };
 

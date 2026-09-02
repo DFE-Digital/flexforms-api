@@ -134,6 +134,24 @@ public class TenantSettingJsonValidatorTests
     }
 
     [Fact]
+    public void Validate_ShouldRequireApplicationInsightsConnectionString()
+    {
+        var errors = TenantSettingJsonValidator.Validate("ApplicationInsights", "Shared", """{}""");
+        Assert.Contains(errors, e => e.Contains("ConnectionString"));
+    }
+
+    [Fact]
+    public void Validate_ShouldAcceptApplicationInsightsConnectionString()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "ApplicationInsights",
+            "Shared",
+            """{"ConnectionString":"InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://uksouth-1.in.applicationinsights.azure.com/"}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
     public void Validate_ShouldRejectInvalidJson()
     {
         var errors = TenantSettingJsonValidator.Validate("Layout", "Web", "not-json");

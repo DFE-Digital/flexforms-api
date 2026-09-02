@@ -23,6 +23,7 @@ using System.Linq;
 using GovUK.Dfe.FlexForms.Api.Tenancy;
 using GovUK.Dfe.FlexForms.Api.Telemetry;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using Microsoft.ApplicationInsights.Channel;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Caching;
 using GovUK.Dfe.FlexForms.Infrastructure.Caching;
@@ -241,7 +242,9 @@ namespace GovUK.Dfe.FlexForms.Api
                     };
                 });
 
-            // Application Insights uses global configuration (not per-tenant)
+            // Host GlobalConfiguration:ApplicationInsights boots the SDK (same pattern as Email).
+            // Per-request telemetry is routed to TenantConfig ApplicationInsights:ConnectionString.
+            builder.Services.AddSingleton<ITelemetryChannel, TenantAwareTelemetryChannel>();
             var appInsightsCnnStr = builder.Configuration["GlobalConfiguration:ApplicationInsights:ConnectionString"];
             
             if (!string.IsNullOrWhiteSpace(appInsightsCnnStr))

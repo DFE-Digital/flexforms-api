@@ -1,4 +1,7 @@
+using System.Reflection;
 using System.Security.Claims;
+using GovUK.Dfe.FlexForms.Application.Applications.Commands;
+using GovUK.Dfe.FlexForms.Application.Common.Attributes;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations;
 using GovUK.Dfe.FlexForms.Tests.Common.Seeders;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
@@ -59,15 +62,23 @@ public class UserFeedbackControllerTests
         ];
 
         var templateId = new Guid(EaContextSeeder.TemplateId);
-        var request1 = new BugReport("Some message 1", "ABC-20001231-001", "some.email@education.gov.uk",
-            templateId);
-        var request2 = new SupportRequest("Some message 2", "ABC-20001231-001", "another.email@education.gov.uk",
-            templateId);
+        var allowed = typeof(SubmitUserFeedbackCommand).GetCustomAttribute<RateLimitAttribute>()!.Max;
 
-        await userFeedbackClient.PostAsync(request1);
+        for (var i = 0; i < allowed; i++)
+        {
+            await userFeedbackClient.PostAsync(new BugReport(
+                $"Some message {i + 1}",
+                "ABC-20001231-001",
+                "some.email@education.gov.uk",
+                templateId));
+        }
 
         var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(() =>
-            userFeedbackClient.PostAsync(request2));
+            userFeedbackClient.PostAsync(new SupportRequest(
+                "One too many",
+                "ABC-20001231-001",
+                "another.email@education.gov.uk",
+                templateId)));
 
         Assert.Equal(429, ex.StatusCode);
         Assert.Contains("Too many requests", ex.Result?.Message ?? "");

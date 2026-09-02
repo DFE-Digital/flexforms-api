@@ -23,7 +23,7 @@ using GovUK.Dfe.FlexForms.Domain.Tenancy;
 
 namespace GovUK.Dfe.FlexForms.Application.Applications.Commands;
 
-[RateLimit(2, 30)]
+[RateLimit(5, 30)]
 public sealed record AddContributorCommand(
     Guid ApplicationId,
     string Name,

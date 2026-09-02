@@ -14,7 +14,7 @@ using System;
 
 namespace GovUK.Dfe.FlexForms.Application.Applications.Commands;
 
-[RateLimit(1, 30)]
+[RateLimit(2, 30)]
 public sealed record SubmitUserFeedbackCommand(UserFeedbackRequest Request)
     : IRequest<Result<bool>>, IRateLimitedRequest;
 

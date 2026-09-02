@@ -1,8 +1,11 @@
 using System.Collections.ObjectModel;
+using System.Reflection;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.CoreLibs.Testing.Mocks.WebApplicationFactory;
+using GovUK.Dfe.FlexForms.Application.Applications.Commands;
+using GovUK.Dfe.FlexForms.Application.Common.Attributes;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations;
 using GovUK.Dfe.FlexForms.Tests.Common.Seeders;
@@ -1659,11 +1662,21 @@ public class ApplicationsControllerTests
             new AuthenticationHeaderValue("Bearer", "user-token");
 
         var applicationId = Guid.Parse(EaContextSeeder.ApplicationId);
+        var allowed = typeof(SubmitApplicationCommand).GetCustomAttribute<RateLimitAttribute>()!.Max;
 
-        // First submission should work
-        await applicationsClient.SubmitApplicationAsync(applicationId);
+        // Burn the allowed slots. After the first success, further submits of the same
+        // application return 400 but still count toward the rate limit.
+        for (var i = 0; i < allowed; i++)
+        {
+            try
+            {
+                await applicationsClient.SubmitApplicationAsync(applicationId);
+            }
+            catch (ExternalApplicationsException<ExceptionResponse> e) when (e.StatusCode != 429)
+            {
+            }
+        }
 
-        // Act - Try to submit again immediately (should hit rate limit)
         var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
             () => applicationsClient.SubmitApplicationAsync(applicationId));
 
@@ -1689,34 +1702,24 @@ public class ApplicationsControllerTests
         httpClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", "user-token");
 
-        var request1 = new CreateApplicationRequest
-        {
-            TemplateId = Guid.Parse(EaContextSeeder.TemplateId),
-            InitialResponseBody = "First application"
-        };
+        var templateId = Guid.Parse(EaContextSeeder.TemplateId);
+        var allowed = typeof(CreateApplicationCommand).GetCustomAttribute<RateLimitAttribute>()!.Max;
 
-        var request2 = new CreateApplicationRequest
+        for (var i = 0; i < allowed; i++)
         {
-            TemplateId = Guid.Parse(EaContextSeeder.TemplateId),
-            InitialResponseBody = "Second application"
-        };
+            await applicationsClient.CreateApplicationAsync(new CreateApplicationRequest
+            {
+                TemplateId = templateId,
+                InitialResponseBody = $"Application {i + 1}"
+            });
+        }
 
-        // First three creations should work (rate limit is 3 per 30 seconds)
-        await applicationsClient.CreateApplicationAsync(request1);
-        await applicationsClient.CreateApplicationAsync(new CreateApplicationRequest
-        {
-            TemplateId = Guid.Parse(EaContextSeeder.TemplateId),
-            InitialResponseBody = "Second application"
-        });
-        await applicationsClient.CreateApplicationAsync(new CreateApplicationRequest
-        {
-            TemplateId = Guid.Parse(EaContextSeeder.TemplateId),
-            InitialResponseBody = "Third application"
-        });
-
-        // Act - Fourth creation should hit the rate limit
         var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
-            () => applicationsClient.CreateApplicationAsync(request2));
+            () => applicationsClient.CreateApplicationAsync(new CreateApplicationRequest
+            {
+                TemplateId = templateId,
+                InitialResponseBody = "One too many"
+            }));
 
         // Assert
         Assert.Equal(429, ex.StatusCode);

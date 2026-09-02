@@ -15,7 +15,7 @@ using File = GovUK.Dfe.FlexForms.Domain.Entities.File;
 
 namespace GovUK.Dfe.FlexForms.Application.Applications.Commands;
 
-[RateLimit(1, 30)]
+[RateLimit(2, 30)]
 public sealed record SubmitApplicationCommand(Guid ApplicationId) : IRequest<Result<ApplicationDto>>, IRateLimitedRequest;
 
 public sealed class SubmitApplicationCommandHandler(

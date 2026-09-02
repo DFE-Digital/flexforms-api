@@ -13,7 +13,7 @@ using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 
 namespace GovUK.Dfe.FlexForms.Application.Applications.Commands;
 
-[RateLimit(1, 30)]
+[RateLimit(3, 30)]
 public sealed record DeleteApplicationCommand(Guid ApplicationId) : IRequest<Result<ApplicationDto>>, IRateLimitedRequest;
 
 public sealed class DeleteApplicationCommandHandler(

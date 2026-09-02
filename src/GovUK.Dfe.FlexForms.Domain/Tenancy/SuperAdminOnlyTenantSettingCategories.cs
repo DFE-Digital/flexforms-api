@@ -29,6 +29,13 @@ public static class SuperAdminOnlyTenantSettingCategories
     public const string Email = "Email";
 
     /// <summary>
+    /// Per-tenant Application Insights connection string. Host
+    /// GlobalConfiguration:ApplicationInsights boots the SDK; runtime telemetry
+    /// (and the Web JS snippet) use this tenant row, falling back to host if unset.
+    /// </summary>
+    public const string ApplicationInsights = "ApplicationInsights";
+
+    /// <summary>
     /// Categories restricted to SuperAdmin. Extend this set when locking more settings.
     /// </summary>
     public static readonly IReadOnlySet<string> All = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -37,7 +44,8 @@ public static class SuperAdminOnlyTenantSettingCategories
         Template,
         ConnectionStrings,
         FileStorage,
-        Email
+        Email,
+        ApplicationInsights
     };
 
     public static bool IsRestricted(string? category) =>
