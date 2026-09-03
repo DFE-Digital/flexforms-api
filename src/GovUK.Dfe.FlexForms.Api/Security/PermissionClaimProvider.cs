@@ -4,6 +4,8 @@ using GovUK.Dfe.FlexForms.Application.Users.Queries;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using GovUK.Dfe.FlexForms.Infrastructure.Security;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -27,8 +29,20 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                 return Array.Empty<Claim>();
             }
 
+            var httpContext = httpContextAccessor.HttpContext;
+
+            // AzureAd / Entra client-credentials callers are authorised via TenantAuthProvider
+            // (IsServicePrincipal). They are not EA Users and do not belong in InternalServiceAuth.
+            if (IsRegistryServicePrincipal(httpContext, principal))
+            {
+                RequestClaimEnrichmentGate.TryBegin(
+                    httpContext,
+                    RequestClaimEnrichmentGate.AzurePermissionsKey);
+                return Array.Empty<Claim>();
+            }
+
             if (!RequestClaimEnrichmentGate.TryBegin(
-                    httpContextAccessor.HttpContext,
+                    httpContext,
                     RequestClaimEnrichmentGate.AzurePermissionsKey))
             {
                 return Array.Empty<Claim>();
@@ -48,7 +62,10 @@ namespace GovUK.Dfe.FlexForms.Api.Security
 
             if (dbUser is null)
             {
-                logger.LogWarning("PermissionsClaimProvider() > Service User not found.");
+                logger.LogDebug(
+                    "PermissionsClaimProvider() > No EA user mapped to Azure appid {ClientId}. " +
+                    "Entra service callers do not need a Users row.",
+                    clientId);
                 return Array.Empty<Claim>();
             }
 
@@ -80,6 +97,21 @@ namespace GovUK.Dfe.FlexForms.Api.Security
             }
 
             return claims;
+        }
+
+        private static bool IsRegistryServicePrincipal(HttpContext? httpContext, ClaimsPrincipal principal)
+        {
+            if (httpContext?.Items[AuthConstants.MatchedAuthProviderKey] is TenantAuthProvider
+                {
+                    IsServicePrincipal: true
+                })
+            {
+                return true;
+            }
+
+            return principal.HasClaim(c =>
+                c.Type == TenantAuthClaimTypes.IsService
+                && string.Equals(c.Value, "true", StringComparison.OrdinalIgnoreCase));
         }
     }
 }

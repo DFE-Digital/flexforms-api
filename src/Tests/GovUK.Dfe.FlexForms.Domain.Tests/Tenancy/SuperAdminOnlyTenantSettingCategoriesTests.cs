@@ -10,6 +10,7 @@ public class SuperAdminOnlyTenantSettingCategoriesTests
     [InlineData("ConnectionStrings")]
     [InlineData("FileStorage")]
     [InlineData("Email")]
+    [InlineData("ApplicationInsights")]
     [InlineData("applicationtemplates")]
     [InlineData("connectionstrings")]
     [InlineData("filestorage")]

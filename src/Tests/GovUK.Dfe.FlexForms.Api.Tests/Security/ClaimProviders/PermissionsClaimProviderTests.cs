@@ -4,6 +4,8 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Api.Security;
 using GovUK.Dfe.FlexForms.Application.Users.Queries;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using GovUK.Dfe.FlexForms.Infrastructure.Security;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
@@ -216,6 +218,38 @@ public class PermissionsClaimProviderTests
         Assert.Equal(2, result.Count);
         Assert.Contains(result, c => c.Type == "permission" && c.Value == $"Application:{key}:Read");
         Assert.Contains(result, c => c.Type == ClaimTypes.Role && c.Value == "TestRole");
+    }
+
+    [Fact]
+    public async Task GetClaimsAsync_ShouldSkipUserLookup_WhenMatchedProviderIsServicePrincipal()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(JwtRegisteredClaimNames.Iss, "https://sts.windows.net/abc"),
+            new Claim("appid", "cid")
+        ]));
+        var sender = Substitute.For<ISender>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+        var httpContext = new DefaultHttpContext();
+        httpContext.Items[AuthConstants.MatchedAuthProviderKey] = new TenantAuthProvider(
+            TenantId: Guid.NewGuid(),
+            Name: "azure-ad-svc",
+            Kind: TenantAuthProviderKind.EntraOidc,
+            IsServicePrincipal: true);
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var provider = new PermissionsClaimProvider(
+            sender,
+            Substitute.For<ILogger<PermissionsClaimProvider>>(),
+            userRepo,
+            httpContextAccessor);
+
+        var result = await provider.GetClaimsAsync(principal);
+
+        Assert.Empty(result);
+        userRepo.DidNotReceive().Query();
+        await sender.DidNotReceive().Send(Arg.Any<GetAllUserPermissionsQuery>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]

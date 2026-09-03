@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using GovUK.Dfe.FlexForms.Api.Telemetry;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 
 namespace GovUK.Dfe.FlexForms.Api.Middleware;
@@ -73,6 +74,9 @@ public class TenantResolutionMiddleware
             var (tenantConfig, tenantId) = ResolveTenant(context);
 
             tenantContextAccessor.CurrentTenant = tenantConfig;
+            var appInsightsConnectionString = TenantApplicationInsightsConnection.FromConfiguration(tenantConfig.Settings);
+            TenantApplicationInsightsConnection.BindToRequest(context, appInsightsConnectionString);
+            using (TenantApplicationInsightsScope.Begin(appInsightsConnectionString))
             using (_logger.BeginScope(new Dictionary<string, object>
                    {
                        ["TenantId"] = tenantId,

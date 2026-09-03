@@ -42,7 +42,8 @@ public class GetPlatformTenantConfigurationQueryHandlerTests
                 new Dictionary<string, string?>
                 {
                     ["DfESignIn:ClientId"] = "test",
-                    ["ConnectionStrings:Redis"] = "localhost:6379"
+                    ["ConnectionStrings:Redis"] = "localhost:6379",
+                    ["ApplicationInsights:ConnectionString"] = "InstrumentationKey=tenant"
                 }));
 
         var handler = new GetPlatformTenantConfigurationQueryHandler(reader);
@@ -55,6 +56,9 @@ public class GetPlatformTenantConfigurationQueryHandlerTests
         Assert.Contains("DfESignIn:ClientId", result.Value!.Configuration.Keys);
         Assert.DoesNotContain(result.Value.Configuration.Keys, key =>
             key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(
+            "InstrumentationKey=tenant",
+            result.Value.Configuration["ApplicationInsights:ConnectionString"]);
     }
 
     [Fact]

@@ -166,6 +166,28 @@ public class UpsertTenantSettingCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ShouldForbid_WhenTenantAdminUpdatesApplicationInsights()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
+        _permissionChecker.IsInteractivePlatformAdmin().Returns(false);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+
+        var result = await _handler.Handle(
+            new UpsertTenantSettingCommand(
+                tenantId,
+                "ApplicationInsights",
+                "Shared",
+                ToBase64("""{"ConnectionString":"InstrumentationKey=test"}"""),
+                true),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DomainErrorCode.Forbidden, result.ErrorCode);
+        await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
+    }
+
+    [Fact]
     public async Task Handle_ShouldFail_WhenSettingsJsonIsNotBase64()
     {
         var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");

@@ -91,6 +91,19 @@ public static class TenantSettingCategoryCookbook
             requiresObject: true),
 
         Entry(
+            "ApplicationInsights",
+            "Per-tenant Application Insights connection string for API and Web telemetry.",
+            ["Api", "Web", "Shared"],
+            example: """{"ConnectionString":"InstrumentationKey=...;IngestionEndpoint=https://....in.applicationinsights.azure.com/;LiveEndpoint=https://....livediagnostics.monitor.azure.com/"}""",
+            notes:
+            [
+                "Forced secret category",
+                "SuperAdmin only",
+                "Host GlobalConfiguration:ApplicationInsights is SDK boot only (same pattern as Email). Runtime request telemetry uses this tenant ConnectionString; the Web JS snippet does too. If unset, the host connection string is used"
+            ],
+            requiresObject: true),
+
+        Entry(
             "InternalServiceAuth",
             "Service-to-service JWT credentials and optional API keys.",
             ["Api", "Web", "Shared"],

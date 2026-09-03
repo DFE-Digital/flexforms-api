@@ -121,6 +121,7 @@ public static class TenantSettingJsonValidator
             "FileValidation" => true,
             "FileStorage" => true,
             "Email" => true,
+            "ApplicationInsights" => true,
             "SelfRegistration" => true,
             "ApplicationTemplates" => true,
             "Template" => true,
@@ -206,6 +207,10 @@ public static class TenantSettingJsonValidator
                 {
                     errors.Add("At least one connection string value is required.");
                 }
+                break;
+
+            case "ApplicationInsights":
+                RequireString(root, "ConnectionString", errors);
                 break;
 
             case "InternalServiceAuth":

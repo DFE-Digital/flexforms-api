@@ -205,7 +205,7 @@ public sealed class DatabaseTenantAuthProviderRegistry : ITenantAuthProviderRegi
 
             foreach (var configured in provider.Audiences)
             {
-                if (string.Equals(ta, configured, StringComparison.OrdinalIgnoreCase))
+                if (EntraAudienceEquals(ta, configured))
                 {
                     return true;
                 }
@@ -213,6 +213,30 @@ public sealed class DatabaseTenantAuthProviderRegistry : ITenantAuthProviderRegi
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Entra v1 tokens use <c>api://{clientId}</c> (or the App ID URI); v2 tokens use the raw client id.
+    /// Tenant <c>AzureAd:Audience</c> is a single string, so treat those forms as the same resource.
+    /// </summary>
+    private static bool EntraAudienceEquals(string tokenAudience, string configuredAudience)
+    {
+        if (string.IsNullOrEmpty(configuredAudience))
+        {
+            return false;
+        }
+
+        if (string.Equals(tokenAudience, configuredAudience, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(tokenAudience, $"api://{configuredAudience}", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals($"api://{tokenAudience}", configuredAudience, StringComparison.OrdinalIgnoreCase);
     }
 
     private void Rebuild()
@@ -476,7 +500,9 @@ public sealed class DatabaseTenantAuthProviderRegistry : ITenantAuthProviderRegi
                 Issuer: azureAdIssuer,
                 DiscoveryEndpoint: azureAdDiscovery,
                 ClientId: tenant.Settings["AzureAd:ClientId"],
-                Audiences: string.IsNullOrEmpty(azureAdAudience) ? Array.Empty<string>() : new[] { azureAdAudience });
+                Audiences: BuildAzureAdAudiences(
+                    azureAdAudience,
+                    tenant.Settings["AzureAd:ClientId"]));
             yield return azureAdProvider;
 
             // v2 access tokens often use login.microsoftonline.com/{tid}/v2.0 while legacy config defaults to sts.windows.net.
@@ -489,6 +515,31 @@ public sealed class DatabaseTenantAuthProviderRegistry : ITenantAuthProviderRegi
                 }
             }
         }
+    }
+
+    private static IReadOnlyCollection<string> BuildAzureAdAudiences(string? audience, string? clientId)
+    {
+        var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in new[] { audience, clientId })
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            var trimmed = value.Trim();
+            set.Add(trimmed);
+            if (trimmed.StartsWith("api://", StringComparison.OrdinalIgnoreCase))
+            {
+                set.Add(trimmed["api://".Length..]);
+            }
+            else
+            {
+                set.Add("api://" + trimmed);
+            }
+        }
+
+        return set.Count == 0 ? Array.Empty<string>() : set.ToArray();
     }
 
     /// <summary>

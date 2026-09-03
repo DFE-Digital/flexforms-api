@@ -47,6 +47,9 @@ public class GetTenantSettingCategoryCookbookQueryHandlerTests
         Assert.DoesNotContain(
             result.Value.Categories,
             e => e.Category.Equals("ConnectionStrings", StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(
+            result.Value.Categories,
+            e => e.Category.Equals("ApplicationInsights", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -64,5 +67,8 @@ public class GetTenantSettingCategoryCookbookQueryHandlerTests
         Assert.Contains(
             result.Value.Categories,
             e => e.Category.Equals("ConnectionStrings", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            result.Value.Categories,
+            e => e.Category.Equals("ApplicationInsights", StringComparison.OrdinalIgnoreCase));
     }
 }

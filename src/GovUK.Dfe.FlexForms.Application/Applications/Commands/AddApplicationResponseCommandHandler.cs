@@ -10,7 +10,7 @@ using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 
 namespace GovUK.Dfe.FlexForms.Application.Applications.Commands;
 
-[RateLimit(5, 30)]
+[RateLimit(15, 30)]
 public sealed record AddApplicationResponseCommand(
     Guid ApplicationId,
     string ResponseBody) : IRequest<Result<ApplicationResponseDto>>, IRateLimitedRequest;

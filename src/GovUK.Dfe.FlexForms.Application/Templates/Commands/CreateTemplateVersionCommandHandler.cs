@@ -18,7 +18,7 @@ using GovUK.Dfe.FlexForms.Application.Common.Behaviours;
 
 namespace GovUK.Dfe.FlexForms.Application.Templates.Commands;
 
-[RateLimit(1, 30)]
+[RateLimit(5, 30)]
 public record CreateTemplateVersionCommand(
     Guid TemplateId,
     string VersionNumber,
