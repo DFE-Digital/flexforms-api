@@ -512,9 +512,54 @@ Do **not** publish onto the FlexForms Service Bus. Tenant identity is taken from
 | Caller | How to grant access |
 |--------|---------------------|
 | Entra app | Register the app as a FlexForms User (`ExternalProviderId` = `appid`) and grant `FileValidation:Any:Write` (or a template GUID) |
-| API key / mTLS | AuthProviders entry with `IsServicePrincipal: true` and `Roles: ["FileValidation"]` (emits `FileValidation:Any:Write`) |
+| API key | Tenant Settings **`AuthProviders`** (Target **Api** or **Shared**) — hashed key, `IsServicePrincipal: true`, `Roles: ["FileValidation"]` (emits `FileValidation:Any:Write`) |
+| mTLS | Same `AuthProviders` row with `Kind: "Mtls"` instead of `ApiKey` |
 
 Admin / SuperAdmin does **not** imply this grant. `CanWriteApplicationFiles` is not sufficient. Interactive Admin/SuperAdmin callers get **403**. Do not add API-key auth to `GovUK.Dfe.FlexForms.Api.Client` — that package is the first-party Web client. Integrations should use a narrow `HttpClient`.
+
+#### API key setup (`AuthProviders`)
+
+Store the **SHA-256 hex of the raw key** in TenantConfig. Never store the plaintext key. The Azure Function sends the raw key in `X-Api-Key`; the API hashes it with `TenantApiKeyHasher` and looks up `KeyHash`.
+
+1. Generate a raw secret (give this to the function only):
+
+```powershell
+[guid]::NewGuid().ToString("N")
+```
+
+2. Hash it (Windows PowerShell 5.1):
+
+```powershell
+[BitConverter]::ToString([Security.Cryptography.SHA256]::Create().ComputeHash([Text.Encoding]::UTF8.GetBytes("paste-raw-key-here"))).Replace("-","").ToLower()
+```
+
+PowerShell 7 / .NET 5+ also accepts `[Security.Cryptography.SHA256]::HashData(...)`.
+
+3. **Admin → Tenant Admin → Tenant Settings** — add or update category **`AuthProviders`**, Target **`Api`** or **`Shared`**, tick **Secret**, then save:
+
+```json
+{
+  "Providers": [
+    {
+      "Name": "file-validation",
+      "Kind": "ApiKey",
+      "IsServicePrincipal": true,
+      "KeyHash": "<sha256-hex-from-step-2>",
+      "Roles": ["FileValidation"]
+    }
+  ]
+}
+```
+
+`IsServicePrincipal` **must** be `true`. Without it the callback authenticates but the `CanRecordFileValidation` policy returns **403**.
+
+4. Select **Refresh settings** (or wait for the tenant-config refresh) so the auth registry reloads the hash.
+
+5. Configure the function with the **raw** key and `X-Tenant-ID` for this tenant. Do not put the raw key in TenantConfig.
+
+`InternalServiceAuth:ServiceApiKeys` is a different machine-JWT path. Do not put this integration key there.
+
+Admin walkthrough: [Tenant Admin User Manual — File validation](https://github.com/DFE-Digital/flexforms-web/blob/main/docs/Tenant-Admin-User-Manual.md#146-file-validation-tenant-function).
 
 ### Tenant setting (`FileValidation`, Target `Shared`)
 
