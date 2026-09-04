@@ -2,6 +2,10 @@
 
 All notable changes to this service will be documented in this file.
 
+## [2.1.13] - Handle service bus and event publishing errors and let the request succeeds
+### Notes
+- No release notes provided.
+
 ## [2.1.2] - Public Beta
 ### Notes
 - Added default HostConfig for Email adn Storage, this prevents the platform to crash if tenant level settings missing.
