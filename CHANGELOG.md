@@ -2,6 +2,10 @@
 
 All notable changes to this service will be documented in this file.
 
+## [2.1.9] - Merge pull request #12 from DFE-Digital/feature/handle-auth-exceptions
+### Notes
+- Feature/handle auth exceptions
+
 ## [2.1.2] - Public Beta
 ### Notes
 - Added default HostConfig for Email adn Storage, this prevents the platform to crash if tenant level settings missing.
