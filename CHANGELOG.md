@@ -2,6 +2,10 @@
 
 All notable changes to this service will be documented in this file.
 
+## [2.1.12] - Updated documentation with FileValidation details
+### Notes
+- No release notes provided.
+
 ## [2.1.2] - Public Beta
 ### Notes
 - Added default HostConfig for Email adn Storage, this prevents the platform to crash if tenant level settings missing.
