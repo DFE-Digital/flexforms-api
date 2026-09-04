@@ -14,6 +14,7 @@ using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using NSubstitute.ExceptionExtensions;
 using File = GovUK.Dfe.FlexForms.Domain.Entities.File;
 using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 
@@ -133,6 +134,38 @@ public class FileUploadedDomainEventHandlerTests
         Assert.Single(publishedCalls);
         Assert.True(publishedCalls[0].IsAzureFileShare);
         Assert.StartsWith("https://", publishedCalls[0].FileUri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldNotThrow_WhenServiceBusPublishFails()
+    {
+        var tenantConfig = new TenantConfiguration(
+            Guid.NewGuid(), "TestTenant",
+            new ConfigurationBuilder().Build(),
+            Array.Empty<string>());
+        _tenantContextAccessor.CurrentTenant.Returns(tenantConfig);
+
+        _azureOps.GenerateSasTokenAsync(
+                Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("https://account.file.core.windows.net/share/file?sv=sas");
+
+        _eventPublisher.PublishAsync(
+                Arg.Any<ScanRequestedEvent>(),
+                Arg.Any<AzureServiceBusMessageProperties>(),
+                Arg.Any<CancellationToken>())
+            .ThrowsAsync(new UnauthorizedAccessException(
+                "InvalidSignature: The token has an invalid signature."));
+
+        var @event = new FileUploadedDomainEvent(CreateFileWithApplication(), "hash-abc", DateTime.UtcNow);
+
+        var exception = await Record.ExceptionAsync(() =>
+            _handler.Handle(@event, CancellationToken.None));
+
+        Assert.Null(exception);
+        await _eventPublisher.Received(1).PublishAsync(
+            Arg.Any<ScanRequestedEvent>(),
+            Arg.Any<AzureServiceBusMessageProperties>(),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

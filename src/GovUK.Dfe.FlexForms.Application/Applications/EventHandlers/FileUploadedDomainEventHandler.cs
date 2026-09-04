@@ -111,15 +111,27 @@ public sealed class FileUploadedDomainEventHandler(
 
         var messageProperties = propertiesBuilder.Build();
 
-        // Publish to Azure Service Bus via MassTransit — hardcoded platform guarantee.
-        await publishEndpoint.PublishAsync(
-            fileUploadedEvent, 
-            messageProperties, 
-            cancellationToken);
+        // Publish to Azure Service Bus via MassTransit. A bus failure must not roll back
+        // the upload: the file is already stored, and the HTTP response should still succeed.
+        try
+        {
+            await publishEndpoint.PublishAsync(
+                fileUploadedEvent,
+                messageProperties,
+                cancellationToken);
 
-        logger.LogInformation(
-            "Published ScanRequestedEvent to service bus - File: {FileName}",
-            file.OriginalFileName);
+            logger.LogInformation(
+                "Published ScanRequestedEvent to service bus - File: {FileName}",
+                file.OriginalFileName);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Failed to publish ScanRequestedEvent to Service Bus for file {FileName} ({FileId}). The file was saved; virus scan was not requested.",
+                file.OriginalFileName,
+                file.Id?.Value);
+        }
 
         await DispatchConfiguredEventsAsync(notification, sasUri, cancellationToken);
     }
