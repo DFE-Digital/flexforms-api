@@ -151,6 +151,7 @@ public class UserPermissionClaimProviderTests
         var clientId = "third-party-client";
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
         [
+            new Claim(JwtRegisteredClaimNames.Iss, "https://login.microsoftonline.com/abc/v2.0"),
             new Claim("azp", clientId)
         ]));
 
@@ -186,23 +187,19 @@ public class UserPermissionClaimProviderTests
     }
 
     [Fact]
-    public async Task GetClaimsAsync_ShouldEnrich_WhenIssuerIsNullAndEmailPresent()
+    public async Task GetClaimsAsync_ShouldReturnEmpty_WhenIssuerMissing()
     {
+        // API key / mTLS principals carry no issuer and are not backed by a Users row.
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
         [
             new Claim(ClaimTypes.Email, "test@example.com")
         ]));
 
-        _cacheService.GetOrAddAsync<List<string>>(
-            Arg.Any<string>(),
-            Arg.Any<Func<Task<List<string>>>>(),
-            Arg.Any<string>())
-            .Returns(["Application:123:Read"]);
+        var result = await _provider.GetClaimsAsync(principal);
 
-        var result = (await _provider.GetClaimsAsync(principal)).ToList();
-
-        Assert.Single(result);
-        Assert.Equal("Application:123:Read", result[0].Value);
+        Assert.Empty(result);
+        await _cacheService.DidNotReceive().GetOrAddAsync<List<string>>(
+            Arg.Any<string>(), Arg.Any<Func<Task<List<string>>>>(), Arg.Any<string>());
     }
 
     [Fact]

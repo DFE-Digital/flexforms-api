@@ -12,6 +12,7 @@ using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.JsonWebTokens;
 using System.Security.Claims;
 
 namespace GovUK.Dfe.FlexForms.Api.Security;
@@ -37,6 +38,15 @@ public class UserPermissionClaimProvider(
     {
         if (httpContextAccessor.HttpContext?.Items.ContainsKey(
                 RequestClaimEnrichmentGate.AzurePermissionsKey) == true)
+        {
+            return Array.Empty<Claim>();
+        }
+
+        // Token-backed identities only. API key and mTLS principals carry no issuer; their
+        // grants come from the matched TenantAuthProvider, not from a Users row.
+        var issuer = principal.FindFirst(JwtRegisteredClaimNames.Iss)?.Value
+                     ?? principal.FindFirst("iss")?.Value;
+        if (string.IsNullOrEmpty(issuer))
         {
             return Array.Empty<Claim>();
         }
