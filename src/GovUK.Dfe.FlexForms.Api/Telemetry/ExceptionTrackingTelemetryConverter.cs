@@ -64,6 +64,7 @@ public class ExceptionTrackingTelemetryConverter : TraceTelemetryConverter
 
             foreach (var trace in base.Convert(logEvent, formatProvider))
             {
+                MaskTraceMessage(trace);
                 yield return trace;
             }
         }
@@ -71,6 +72,7 @@ public class ExceptionTrackingTelemetryConverter : TraceTelemetryConverter
         {
             foreach (var telemetry in base.Convert(logEvent, formatProvider))
             {
+                MaskTraceMessage(telemetry);
                 if (telemetry is TraceTelemetry traceTelemetry)
                 {
                     ApplyStructuredProperties(traceTelemetry.Properties, logEvent);
@@ -136,6 +138,12 @@ public class ExceptionTrackingTelemetryConverter : TraceTelemetryConverter
             return value[1..^1];
 
         return value;
+    }
+
+    private static void MaskTraceMessage(ITelemetry telemetry)
+    {
+        if (telemetry is TraceTelemetry traceTelemetry)
+            traceTelemetry.Message = PiiMasking.MaskEmailsInText(traceTelemetry.Message);
     }
 
     private static SeverityLevel ConvertSeverityLevel(LogEventLevel level)
