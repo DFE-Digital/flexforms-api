@@ -4,6 +4,7 @@ using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -12,9 +13,9 @@ using System.Security.Claims;
 namespace GovUK.Dfe.FlexForms.Api.Security;
 
 /// <summary>
-/// Azure AD service-principal claim provider: emits Template permission claims from
-/// the unified <see cref="Permission"/> store.
-/// Skips work when <see cref="PermissionsClaimProvider"/> already enriched this request.
+/// Fallback Entra app-only claim provider: emits Template permission claims from
+/// the unified <see cref="Permission"/> store when
+/// <see cref="PermissionsClaimProvider"/> has not already enriched this request.
 /// </summary>
 public class TemplatePermissionsClaimProvider(
     ILogger<TemplatePermissionsClaimProvider> logger,
@@ -25,7 +26,7 @@ public class TemplatePermissionsClaimProvider(
     {
         var issuer = principal.FindFirst(JwtRegisteredClaimNames.Iss)?.Value
                      ?? principal.FindFirst("iss")?.Value;
-        if (string.IsNullOrEmpty(issuer) || !issuer.Contains("windows.net", StringComparison.OrdinalIgnoreCase))
+        if (!EntraClientIdentity.IsEntraIssuer(issuer) || !EntraClientIdentity.IsAppOnlyToken(principal))
             return Array.Empty<Claim>();
 
         // PermissionsClaimProvider already emits template grants for Entra tokens.
@@ -42,10 +43,10 @@ public class TemplatePermissionsClaimProvider(
             return Array.Empty<Claim>();
         }
 
-        var clientId = principal.FindFirst("appid")?.Value;
+        var clientId = EntraClientIdentity.PickClientId(principal);
         if (string.IsNullOrEmpty(clientId))
         {
-            logger.LogWarning("TemplatePermissionsClaimProvider() > Azure token had no appid");
+            logger.LogWarning("TemplatePermissionsClaimProvider() > Azure token had no azp/appid");
             return Array.Empty<Claim>();
         }
 

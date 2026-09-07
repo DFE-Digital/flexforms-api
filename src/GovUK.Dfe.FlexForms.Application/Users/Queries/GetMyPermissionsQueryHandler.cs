@@ -2,6 +2,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -26,10 +27,8 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             if (user is null || !user.Identity?.IsAuthenticated == true)
                 return Result<UserAuthorizationDto>.Forbid("Not authenticated");
 
-            var principalId = user.FindFirstValue(ClaimTypes.Email);
-
-            if (string.IsNullOrEmpty(principalId))
-                principalId = user.FindFirstValue("appid") ?? user.FindFirstValue("azp");
+            var principalId = EntraClientIdentity.PickEmail(user)
+                              ?? EntraClientIdentity.PickClientId(user);
 
             if (string.IsNullOrEmpty(principalId))
                 return Result<UserAuthorizationDto>.Forbid("No user identifier");

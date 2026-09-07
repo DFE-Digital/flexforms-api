@@ -9,6 +9,7 @@ using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -67,63 +68,141 @@ public class UserPermissionClaimProviderTests
             _tenantContextAccessor,
             _membershipService,
             _rolePermissionService,
-            _tenantPermissionFilter);
+            _tenantPermissionFilter,
+            Substitute.For<IHttpContextAccessor>());
     }
 
     [Fact]
-    public async Task GetClaimsAsync_ShouldReturnEmpty_WhenIssuerIsWindowsNet()
+    public async Task GetClaimsAsync_ShouldEnrich_WhenIssuerIsWindowsNetAndEmailPresent()
     {
-        // Arrange
-        var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
-        {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
             new Claim(JwtRegisteredClaimNames.Iss, "https://sts.windows.net/abc"),
             new Claim(ClaimTypes.Email, "test@example.com")
-        }));
+        ]));
 
-        // Act
-        var result = await _provider.GetClaimsAsync(principal);
+        _cacheService.GetOrAddAsync<List<string>>(
+            Arg.Any<string>(),
+            Arg.Any<Func<Task<List<string>>>>(),
+            Arg.Any<string>())
+            .Returns(["Application:123:Read"]);
 
-        // Assert
+        var result = (await _provider.GetClaimsAsync(principal)).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("permission", result[0].Type);
+        Assert.Equal("Application:123:Read", result[0].Value);
+    }
+
+    [Fact]
+    public async Task GetClaimsAsync_ShouldEnrich_WhenIssuerIsLoginMicrosoftOnlineAndEmailPresent()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim("iss", "https://login.microsoftonline.com/tenant/v2.0"),
+            new Claim(ClaimTypes.Email, "test@example.com")
+        ]));
+
+        _cacheService.GetOrAddAsync<List<string>>(
+            Arg.Any<string>(),
+            Arg.Any<Func<Task<List<string>>>>(),
+            Arg.Any<string>())
+            .Returns(["Template:456:Write"]);
+
+        var result = (await _provider.GetClaimsAsync(principal)).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("Template:456:Write", result[0].Value);
+    }
+
+    [Fact]
+    public async Task GetClaimsAsync_ShouldSkip_WhenAzurePermissionsAlreadyLoaded()
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.Items[RequestClaimEnrichmentGate.AzurePermissionsKey] = true;
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var provider = new UserPermissionClaimProvider(
+            _logger,
+            _userRepo,
+            _cacheService,
+            _tenantContextAccessor,
+            _membershipService,
+            _rolePermissionService,
+            _tenantPermissionFilter,
+            httpContextAccessor);
+
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.Email, "test@example.com")
+        ]));
+
+        var result = await provider.GetClaimsAsync(principal);
+
         Assert.Empty(result);
         await _cacheService.DidNotReceive().GetOrAddAsync<List<string>>(
             Arg.Any<string>(), Arg.Any<Func<Task<List<string>>>>(), Arg.Any<string>());
     }
 
     [Fact]
-    public async Task GetClaimsAsync_ShouldReturnEmpty_WhenIssuerContainsWindowsNet()
+    public async Task GetClaimsAsync_ShouldResolveByAzp_WhenEmailMissing()
     {
-        // Arrange
-        var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
-        {
-            new Claim("iss", "https://login.windows.net/tenant"),
-            new Claim(ClaimTypes.Email, "test@example.com")
-        }));
+        var clientId = "third-party-client";
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim("azp", clientId)
+        ]));
 
-        // Act
-        var result = await _provider.GetClaimsAsync(principal);
+        var userId = new UserId(Guid.NewGuid());
+        var roleId = new RoleId(Guid.NewGuid());
+        var user = new User(
+            id: userId,
+            roleId: roleId,
+            name: "Service User",
+            email: "svc@example.com",
+            createdOn: DateTime.UtcNow,
+            createdBy: null,
+            lastModifiedOn: null,
+            lastModifiedBy: null,
+            externalProviderId: clientId);
+        user.GetType().GetProperty("Role")!.SetValue(user, new Role(roleId, "User"));
 
-        // Assert
+        var users = new[] { user }.AsQueryable().BuildMockDbSet();
+        _userRepo.Query().Returns(users);
+        _cacheService.GetOrAddAsync<List<string>>(
+            Arg.Any<string>(),
+            Arg.Any<Func<Task<List<string>>>>(),
+            Arg.Any<string>())
+            .Returns(callInfo => callInfo.Arg<Func<Task<List<string>>>>()());
+
+        var result = (await _provider.GetClaimsAsync(principal)).ToList();
+
+        await _membershipService.Received(1).GetActiveMembershipAsync(
+            Arg.Any<Guid>(),
+            userId,
+            Arg.Any<CancellationToken>());
         Assert.Empty(result);
-        await _cacheService.DidNotReceive().GetOrAddAsync<List<string>>(
-            Arg.Any<string>(), Arg.Any<Func<Task<List<string>>>>(), Arg.Any<string>());
     }
 
     [Fact]
-    public async Task GetClaimsAsync_ShouldReturnEmpty_WhenIssuerIsNull()
+    public async Task GetClaimsAsync_ShouldEnrich_WhenIssuerIsNullAndEmailPresent()
     {
-        // Arrange
-        var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
-        {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
             new Claim(ClaimTypes.Email, "test@example.com")
-        }));
+        ]));
 
-        // Act
-        var result = await _provider.GetClaimsAsync(principal);
+        _cacheService.GetOrAddAsync<List<string>>(
+            Arg.Any<string>(),
+            Arg.Any<Func<Task<List<string>>>>(),
+            Arg.Any<string>())
+            .Returns(["Application:123:Read"]);
 
-        // Assert
-        Assert.Empty(result);
-        await _cacheService.DidNotReceive().GetOrAddAsync<List<string>>(
-            Arg.Any<string>(), Arg.Any<Func<Task<List<string>>>>(), Arg.Any<string>());
+        var result = (await _provider.GetClaimsAsync(principal)).ToList();
+
+        Assert.Single(result);
+        Assert.Equal("Application:123:Read", result[0].Value);
     }
 
     [Fact]
