@@ -26,6 +26,8 @@ public static class PlatformEventMetadataKeys
     public const string FileSize = "fileSize";
     public const string UploaderUserId = "uploaderUserId";
     public const string UploaderEmail = "uploaderEmail";
+    public const string UploaderName = "uploaderName";
+    public const string LeadApplicantName = "leadApplicantName";
     public const string UploadedOn = "uploadedOn";
 
     // Contributor emails (EmailPlaceholderMappings Metadata source)
@@ -65,6 +67,8 @@ public static class PlatformEventMetadataKeys
         new(FileSize, "File size in bytes"),
         new(UploaderUserId, "User id of the uploader"),
         new(UploaderEmail, "Email of the uploader when known"),
+        new(UploaderName, "Name of the uploader when known (a contributor may not be the lead applicant)"),
+        new(LeadApplicantName, "Name of the lead applicant — the user who created the application"),
         new(UploadedOn, "UTC timestamp when the file was uploaded")
     ];
 

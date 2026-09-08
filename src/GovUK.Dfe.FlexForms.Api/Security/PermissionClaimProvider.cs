@@ -5,7 +5,6 @@ using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
-using GovUK.Dfe.FlexForms.Infrastructure.Security;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +12,12 @@ using Microsoft.IdentityModel.JsonWebTokens;
 
 namespace GovUK.Dfe.FlexForms.Api.Security
 {
+    /// <summary>
+    /// Enriches Entra app-only (client-credential) principals with the mapped FlexForms
+    /// user's role and permission claims. Mapping is <c>azp</c>/<c>appid</c> →
+    /// <see cref="User.ExternalProviderId"/>. Interactive Entra users are left for
+    /// <see cref="UserPermissionClaimProvider"/> (email lookup).
+    /// </summary>
     public class PermissionsClaimProvider(
         ISender sender,
         ILogger<PermissionsClaimProvider> logger,
@@ -23,24 +28,17 @@ namespace GovUK.Dfe.FlexForms.Api.Security
         {
             var issuer = principal.FindFirst(JwtRegisteredClaimNames.Iss)?.Value
                          ?? principal.FindFirst("iss")?.Value;
-            if (string.IsNullOrEmpty(issuer) ||
-                !issuer.Contains("windows.net", StringComparison.OrdinalIgnoreCase))
+            if (!EntraClientIdentity.IsEntraIssuer(issuer))
+            {
+                return Array.Empty<Claim>();
+            }
+
+            if (!EntraClientIdentity.IsAppOnlyToken(principal))
             {
                 return Array.Empty<Claim>();
             }
 
             var httpContext = httpContextAccessor.HttpContext;
-
-            // AzureAd / Entra client-credentials callers are authorised via TenantAuthProvider
-            // (IsServicePrincipal). They are not EA Users and do not belong in InternalServiceAuth.
-            if (IsRegistryServicePrincipal(httpContext, principal))
-            {
-                RequestClaimEnrichmentGate.TryBegin(
-                    httpContext,
-                    RequestClaimEnrichmentGate.AzurePermissionsKey);
-                return Array.Empty<Claim>();
-            }
-
             if (!RequestClaimEnrichmentGate.TryBegin(
                     httpContext,
                     RequestClaimEnrichmentGate.AzurePermissionsKey))
@@ -48,11 +46,10 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                 return Array.Empty<Claim>();
             }
 
-            var clientId = principal.FindFirst("appid")?.Value;
-
+            var clientId = EntraClientIdentity.PickClientId(principal);
             if (string.IsNullOrEmpty(clientId))
             {
-                logger.LogWarning("PermissionsClaimProvider() > Azure token had no appid");
+                logger.LogWarning("PermissionsClaimProvider() > Azure token had no azp/appid");
                 return Array.Empty<Claim>();
             }
 
@@ -63,8 +60,8 @@ namespace GovUK.Dfe.FlexForms.Api.Security
             if (dbUser is null)
             {
                 logger.LogDebug(
-                    "PermissionsClaimProvider() > No EA user mapped to Azure appid {ClientId}. " +
-                    "Entra service callers do not need a Users row.",
+                    "PermissionsClaimProvider() > No EA user mapped to Azure client id {ClientId}. " +
+                    "Unmapped Entra service callers rely on TenantAuthProvider roles only.",
                     clientId);
                 return Array.Empty<Claim>();
             }
@@ -84,7 +81,14 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                 return Array.Empty<Claim>();
             }
 
-            var claims = new List<Claim> { new(ClaimTypes.Role, dbUser.Role.Name) };
+            var claims = new List<Claim>();
+            AddIdentityClaims(principal, dbUser, claims);
+
+            var roleName = result.Value?.Roles?.FirstOrDefault() ?? dbUser.Role.Name;
+            if (!string.IsNullOrEmpty(roleName))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, roleName));
+            }
 
             if (result.Value is not null)
             {
@@ -99,19 +103,20 @@ namespace GovUK.Dfe.FlexForms.Api.Security
             return claims;
         }
 
-        private static bool IsRegistryServicePrincipal(HttpContext? httpContext, ClaimsPrincipal principal)
+        private static void AddIdentityClaims(ClaimsPrincipal principal, User dbUser, List<Claim> claims)
         {
-            if (httpContext?.Items[AuthConstants.MatchedAuthProviderKey] is TenantAuthProvider
-                {
-                    IsServicePrincipal: true
-                })
+            if (!string.IsNullOrWhiteSpace(dbUser.Email)
+                && principal.FindFirst(ClaimTypes.Email) is null
+                && principal.FindFirst(TenantAuthClaimTypes.Email) is null)
             {
-                return true;
+                claims.Add(new Claim(ClaimTypes.Email, dbUser.Email));
             }
 
-            return principal.HasClaim(c =>
-                c.Type == TenantAuthClaimTypes.IsService
-                && string.Equals(c.Value, "true", StringComparison.OrdinalIgnoreCase));
+            if (!string.IsNullOrWhiteSpace(dbUser.Name)
+                && principal.FindFirst(ClaimTypes.Name) is null)
+            {
+                claims.Add(new Claim(ClaimTypes.Name, dbUser.Name));
+            }
         }
     }
 }

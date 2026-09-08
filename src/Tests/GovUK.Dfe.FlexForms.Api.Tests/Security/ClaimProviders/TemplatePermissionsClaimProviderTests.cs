@@ -22,13 +22,58 @@ public class TemplatePermissionsClaimProviderTests
         new(logger, userRepo, Substitute.For<IHttpContextAccessor>());
 
     [Fact]
+    public async Task GetClaimsAsync_ShouldReturnClaims_WhenAzpPresentWithoutAppid()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(JwtRegisteredClaimNames.Iss, "https://login.microsoftonline.com/abc/v2.0"),
+            new Claim("azp", "cid"),
+            new Claim("idtyp", "app")
+        ]));
+        var userRepo = Substitute.For<IEaRepository<User>>();
+
+        var userId = new UserId(Guid.NewGuid());
+        var roleId = new RoleId(Guid.NewGuid());
+        var templatePermission = new Permission(
+            new PermissionId(Guid.NewGuid()),
+            userId,
+            applicationId: null,
+            Guid.NewGuid().ToString(),
+            ResourceType.Template,
+            AccessType.Read,
+            DateTime.UtcNow,
+            userId);
+
+        var user = new User(
+            id: userId,
+            roleId: roleId,
+            name: "Test User",
+            email: "test@example.com",
+            createdOn: DateTime.UtcNow,
+            createdBy: null,
+            lastModifiedOn: null,
+            lastModifiedBy: null,
+            externalProviderId: "cid",
+            initialPermissions: [templatePermission]);
+        ReturnsUsers(userRepo, user);
+
+        var logger = Substitute.For<ILogger<TemplatePermissionsClaimProvider>>();
+        var provider = CreateProvider(logger, userRepo);
+
+        var result = (await provider.GetClaimsAsync(principal)).ToList();
+
+        Assert.Single(result);
+        Assert.StartsWith("Template:", result[0].Value);
+    }
+
+    [Fact]
     public async Task GetClaimsAsync_ShouldReturnEmpty_WhenIssuerInvalid()
     {
-        var principal = new ClaimsPrincipal(new ClaimsIdentity(new[]
-        {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
             new Claim(JwtRegisteredClaimNames.Iss, "https://example.com"),
             new Claim("appid", "cid")
-        }));
+        ]));
         var logger = Substitute.For<ILogger<TemplatePermissionsClaimProvider>>();
         var userRepo = Substitute.For<IEaRepository<User>>();
 
@@ -37,6 +82,27 @@ public class TemplatePermissionsClaimProviderTests
         var result = await provider.GetClaimsAsync(principal);
 
         Assert.Empty(result);
+        userRepo.DidNotReceive().Query();
+    }
+
+    [Fact]
+    public async Task GetClaimsAsync_ShouldReturnEmpty_WhenInteractiveTokenHasEmail()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(JwtRegisteredClaimNames.Iss, "https://sts.windows.net/abc"),
+            new Claim("appid", "cid"),
+            new Claim(ClaimTypes.Email, "user@example.com")
+        ]));
+        var logger = Substitute.For<ILogger<TemplatePermissionsClaimProvider>>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+
+        var provider = CreateProvider(logger, userRepo);
+
+        var result = await provider.GetClaimsAsync(principal);
+
+        Assert.Empty(result);
+        userRepo.DidNotReceive().Query();
     }
 
     [Fact]

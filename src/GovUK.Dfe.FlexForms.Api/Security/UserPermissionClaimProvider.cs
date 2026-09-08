@@ -10,6 +10,7 @@ using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
 using System.Security.Claims;
@@ -30,19 +31,29 @@ public class UserPermissionClaimProvider(
     ITenantContextAccessor tenantContextAccessor,
     ITenantMembershipService tenantMembershipService,
     IRolePermissionService rolePermissionService,
-    ITenantPermissionFilter tenantPermissionFilter) : ICustomClaimProvider
+    ITenantPermissionFilter tenantPermissionFilter,
+    IHttpContextAccessor httpContextAccessor) : ICustomClaimProvider
 {
     public async Task<IEnumerable<Claim>> GetClaimsAsync(ClaimsPrincipal principal)
     {
-        var issuer = principal.FindFirst(JwtRegisteredClaimNames.Iss)?.Value
-                     ?? principal.FindFirst("iss")?.Value;
-        if (string.IsNullOrEmpty(issuer) || issuer.Contains("windows.net", StringComparison.OrdinalIgnoreCase))
+        if (httpContextAccessor.HttpContext?.Items.ContainsKey(
+                RequestClaimEnrichmentGate.AzurePermissionsKey) == true)
         {
             return Array.Empty<Claim>();
         }
 
-        var userEmail = principal.FindFirstValue(ClaimTypes.Email);
-        if (string.IsNullOrEmpty(userEmail))
+        // Token-backed identities only. API key and mTLS principals carry no issuer; their
+        // grants come from the matched TenantAuthProvider, not from a Users row.
+        var issuer = principal.FindFirst(JwtRegisteredClaimNames.Iss)?.Value
+                     ?? principal.FindFirst("iss")?.Value;
+        if (string.IsNullOrEmpty(issuer))
+        {
+            return Array.Empty<Claim>();
+        }
+
+        var userEmail = EntraClientIdentity.PickEmail(principal);
+        var clientId = EntraClientIdentity.PickClientId(principal);
+        if (string.IsNullOrEmpty(userEmail) && string.IsNullOrEmpty(clientId))
         {
             logger.LogWarning("UserPermissionClaimProvider > User email not found.");
             return Array.Empty<Claim>();
@@ -55,7 +66,8 @@ public class UserPermissionClaimProvider(
             return Array.Empty<Claim>();
         }
 
-        var baseCacheKey = $"UserClaims_{CacheKeyHelper.GenerateHashedCacheKey(userEmail.ToLowerInvariant())}";
+        var lookupKey = !string.IsNullOrEmpty(userEmail) ? userEmail : clientId!;
+        var baseCacheKey = $"UserClaims_{CacheKeyHelper.GenerateHashedCacheKey(lookupKey.ToLowerInvariant())}";
         var cacheKey = TenantCacheKeyHelper.CreateTenantScopedKey(tenantContextAccessor, baseCacheKey);
         var methodName = nameof(UserPermissionClaimProvider);
 
@@ -63,9 +75,19 @@ public class UserPermissionClaimProvider(
             cacheKey,
             async () =>
             {
-                var dbUser = await new GetUserByEmailQueryObject(userEmail)
-                    .Apply(userRepo.Query().AsNoTracking())
-                    .FirstOrDefaultAsync();
+                User? dbUser;
+                if (!string.IsNullOrEmpty(userEmail))
+                {
+                    dbUser = await new GetUserByEmailQueryObject(userEmail)
+                        .Apply(userRepo.Query().AsNoTracking())
+                        .FirstOrDefaultAsync();
+                }
+                else
+                {
+                    dbUser = await new GetUserByExternalProviderIdQueryObject(clientId!)
+                        .Apply(userRepo.Query().AsNoTracking())
+                        .FirstOrDefaultAsync();
+                }
 
                 if (dbUser?.Id is null)
                     return new List<string>();
@@ -84,8 +106,8 @@ public class UserPermissionClaimProvider(
                 if (membership is null && !isPlatformSuperAdmin)
                 {
                     logger.LogInformation(
-                        "UserPermissionClaimProvider > No active membership for {Email} on tenant {TenantName}; emitting no permission claims.",
-                        userEmail,
+                        "UserPermissionClaimProvider > No active membership for {LookupKey} on tenant {TenantName}; emitting no permission claims.",
+                        lookupKey,
                         currentTenant.Name);
                     return new List<string>();
                 }

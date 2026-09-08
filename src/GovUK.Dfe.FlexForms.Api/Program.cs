@@ -55,7 +55,7 @@ namespace GovUK.Dfe.FlexForms.Api
                     .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
                     .MinimumLevel.Override("Microsoft.AspNetCore.DataProtection", LogEventLevel.Warning)
                     .Enrich.FromLogContext()
-                    .WriteTo.Console();
+                    .WriteTo.Console(new GovUK.Dfe.FlexForms.Api.Telemetry.PiiMaskingTextFormatter());
             });
 
             builder.Services.AddControllers(opts =>
@@ -282,7 +282,7 @@ namespace GovUK.Dfe.FlexForms.Api
                     .MinimumLevel.Override("Microsoft.EntityFrameworkCore.Database.Command", LogEventLevel.Warning)
                     .MinimumLevel.Override("Microsoft.AspNetCore.DataProtection", LogEventLevel.Warning)
                     .Enrich.FromLogContext()
-                    .WriteTo.Console()
+                    .WriteTo.Console(new GovUK.Dfe.FlexForms.Api.Telemetry.PiiMaskingTextFormatter())
                     .WriteTo.ApplicationInsights(
                         telemetryConfig,
                         new GovUK.Dfe.FlexForms.Api.Telemetry.ExceptionTrackingTelemetryConverter())

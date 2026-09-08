@@ -111,15 +111,27 @@ public sealed class FileUploadedDomainEventHandler(
 
         var messageProperties = propertiesBuilder.Build();
 
-        // Publish to Azure Service Bus via MassTransit — hardcoded platform guarantee.
-        await publishEndpoint.PublishAsync(
-            fileUploadedEvent, 
-            messageProperties, 
-            cancellationToken);
+        // Publish to Azure Service Bus via MassTransit. A bus failure must not roll back
+        // the upload: the file is already stored, and the HTTP response should still succeed.
+        try
+        {
+            await publishEndpoint.PublishAsync(
+                fileUploadedEvent,
+                messageProperties,
+                cancellationToken);
 
-        logger.LogInformation(
-            "Published ScanRequestedEvent to service bus - File: {FileName}",
-            file.OriginalFileName);
+            logger.LogInformation(
+                "Published ScanRequestedEvent to service bus - File: {FileName}",
+                file.OriginalFileName);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(
+                ex,
+                "Failed to publish ScanRequestedEvent to Service Bus for file {FileName} ({FileId}). The file was saved; virus scan was not requested.",
+                file.OriginalFileName,
+                file.Id?.Value);
+        }
 
         await DispatchConfiguredEventsAsync(notification, sasUri, cancellationToken);
     }
@@ -156,12 +168,24 @@ public sealed class FileUploadedDomainEventHandler(
 
             var formData = ApplicationFormDataParser.Parse(latestResponse?.ResponseBody);
 
-            var uploaderEmail = await ResolveUploaderEmailAsync(file, cancellationToken);
+            var uploader = await ResolveUserAsync(
+                file.UploadedBy,
+                file.UploadedByUser,
+                cancellationToken);
+
+            // The lead applicant created the application; the uploader may be an invited
+            // contributor, so only re-query when they are different people.
+            var leadApplicant = application!.CreatedBy == file.UploadedBy
+                ? uploader
+                : await ResolveUserAsync(
+                    application.CreatedBy,
+                    application.CreatedByUser,
+                    cancellationToken);
 
             var platformMetadata = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
             {
                 [PlatformEventMetadataKeys.ApplicationId] = file.ApplicationId.Value.ToString(),
-                [PlatformEventMetadataKeys.ApplicationReference] = application!.ApplicationReference,
+                [PlatformEventMetadataKeys.ApplicationReference] = application.ApplicationReference,
                 [PlatformEventMetadataKeys.FileId] = file.Id?.Value.ToString(),
                 [PlatformEventMetadataKeys.FileName] = file.FileName,
                 [PlatformEventMetadataKeys.OriginalFileName] = file.OriginalFileName,
@@ -170,7 +194,9 @@ public sealed class FileUploadedDomainEventHandler(
                 [PlatformEventMetadataKeys.FileHash] = notification.FileHash,
                 [PlatformEventMetadataKeys.FileSize] = file.FileSize,
                 [PlatformEventMetadataKeys.UploaderUserId] = file.UploadedBy.Value.ToString(),
-                [PlatformEventMetadataKeys.UploaderEmail] = uploaderEmail,
+                [PlatformEventMetadataKeys.UploaderEmail] = uploader?.Email,
+                [PlatformEventMetadataKeys.UploaderName] = uploader?.Name,
+                [PlatformEventMetadataKeys.LeadApplicantName] = leadApplicant?.Name,
                 [PlatformEventMetadataKeys.UploadedOn] = file.UploadedOn
             };
 
@@ -214,27 +240,26 @@ public sealed class FileUploadedDomainEventHandler(
         }
     }
 
-    private async Task<string?> ResolveUploaderEmailAsync(
-        Domain.Entities.File file,
+    private async Task<User?> ResolveUserAsync(
+        Domain.ValueObjects.UserId userId,
+        User? loadedUser,
         CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(file.UploadedByUser?.Email))
-            return file.UploadedByUser.Email;
+        if (!string.IsNullOrWhiteSpace(loadedUser?.Email))
+            return loadedUser;
 
         try
         {
-            var user = await new GetUserByIdQueryObject(file.UploadedBy)
+            return await new GetUserByIdQueryObject(userId)
                 .Apply(userRepository.Query().AsNoTracking())
                 .FirstOrDefaultAsync(cancellationToken);
-
-            return user?.Email;
         }
         catch (Exception ex)
         {
             logger.LogWarning(
                 ex,
-                "Could not resolve uploader email for user {UserId}",
-                file.UploadedBy.Value);
+                "Could not resolve user {UserId} for FileUploaded event metadata",
+                userId.Value);
             return null;
         }
     }

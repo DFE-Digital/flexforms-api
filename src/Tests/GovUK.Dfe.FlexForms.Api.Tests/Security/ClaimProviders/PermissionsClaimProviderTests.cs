@@ -215,13 +215,14 @@ public class PermissionsClaimProviderTests
 
         var result = (await provider.GetClaimsAsync(principal)).ToList();
 
-        Assert.Equal(2, result.Count);
         Assert.Contains(result, c => c.Type == "permission" && c.Value == $"Application:{key}:Read");
         Assert.Contains(result, c => c.Type == ClaimTypes.Role && c.Value == "TestRole");
+        Assert.Contains(result, c => c.Type == ClaimTypes.Email && c.Value == "test@example.com");
+        Assert.Contains(result, c => c.Type == ClaimTypes.Name && c.Value == "Test User");
     }
 
     [Fact]
-    public async Task GetClaimsAsync_ShouldSkipUserLookup_WhenMatchedProviderIsServicePrincipal()
+    public async Task GetClaimsAsync_ShouldReturnEmpty_WhenServicePrincipalHasNoMappedUser()
     {
         var principal = new ClaimsPrincipal(new ClaimsIdentity(
         [
@@ -230,6 +231,7 @@ public class PermissionsClaimProviderTests
         ]));
         var sender = Substitute.For<ISender>();
         var userRepo = Substitute.For<IEaRepository<User>>();
+        ReturnsUsers(userRepo);
         var httpContext = new DefaultHttpContext();
         httpContext.Items[AuthConstants.MatchedAuthProviderKey] = new TenantAuthProvider(
             TenantId: Guid.NewGuid(),
@@ -244,6 +246,132 @@ public class PermissionsClaimProviderTests
             Substitute.For<ILogger<PermissionsClaimProvider>>(),
             userRepo,
             httpContextAccessor);
+
+        var result = await provider.GetClaimsAsync(principal);
+
+        Assert.Empty(result);
+        userRepo.Received().Query();
+        await sender.DidNotReceive().Send(Arg.Any<GetAllUserPermissionsQuery>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetClaimsAsync_ShouldReturnClaims_WhenServicePrincipalMappedToUser()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(JwtRegisteredClaimNames.Iss, "https://sts.windows.net/abc"),
+            new Claim("appid", "cid"),
+            new Claim("idtyp", "app")
+        ]));
+        var sender = Substitute.For<ISender>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+        var httpContext = new DefaultHttpContext();
+        httpContext.Items[AuthConstants.MatchedAuthProviderKey] = new TenantAuthProvider(
+            TenantId: Guid.NewGuid(),
+            Name: "azure-ad-svc",
+            Kind: TenantAuthProviderKind.EntraOidc,
+            IsServicePrincipal: true);
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var userId = new UserId(Guid.NewGuid());
+        var roleId = new RoleId(Guid.NewGuid());
+        var user = new User(
+            id: userId,
+            roleId: roleId,
+            name: "Third Party",
+            email: "third-party@example.com",
+            createdOn: DateTime.UtcNow,
+            createdBy: null,
+            lastModifiedOn: null,
+            lastModifiedBy: null,
+            externalProviderId: "cid");
+        user.GetType().GetProperty("Role")!.SetValue(user, new Role(roleId, "User"));
+        ReturnsUsers(userRepo, user);
+
+        sender.Send(Arg.Is<GetAllUserPermissionsQuery>(q => q.UserId == userId), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Result<UserAuthorizationDto>.Success(new UserAuthorizationDto
+            {
+                Permissions =
+                [
+                    new UserPermissionDto
+                    {
+                        ResourceType = ResourceType.Application,
+                        ResourceKey = "any",
+                        AccessType = AccessType.Read
+                    }
+                ],
+                Roles = ["User"]
+            })));
+
+        var provider = new PermissionsClaimProvider(
+            sender,
+            Substitute.For<ILogger<PermissionsClaimProvider>>(),
+            userRepo,
+            httpContextAccessor);
+
+        var result = (await provider.GetClaimsAsync(principal)).ToList();
+
+        Assert.Contains(result, c => c.Type == ClaimTypes.Role && c.Value == "User");
+        Assert.Contains(result, c => c.Type == "permission" && c.Value == "Application:any:Read");
+        Assert.Contains(result, c => c.Type == ClaimTypes.Email && c.Value == "third-party@example.com");
+        Assert.Contains(result, c => c.Type == ClaimTypes.Name && c.Value == "Third Party");
+    }
+
+    [Fact]
+    public async Task GetClaimsAsync_ShouldReturnClaims_WhenV2TokenHasAzpOnly()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(JwtRegisteredClaimNames.Iss, "https://login.microsoftonline.com/abc/v2.0"),
+            new Claim("azp", "cid"),
+            new Claim("idtyp", "app")
+        ]));
+        var sender = Substitute.For<ISender>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+
+        var userId = new UserId(Guid.NewGuid());
+        var roleId = new RoleId(Guid.NewGuid());
+        var user = new User(
+            id: userId,
+            roleId: roleId,
+            name: "Third Party",
+            email: "third-party@example.com",
+            createdOn: DateTime.UtcNow,
+            createdBy: null,
+            lastModifiedOn: null,
+            lastModifiedBy: null,
+            externalProviderId: "cid");
+        user.GetType().GetProperty("Role")!.SetValue(user, new Role(roleId, "User"));
+        ReturnsUsers(userRepo, user);
+
+        sender.Send(Arg.Is<GetAllUserPermissionsQuery>(q => q.UserId == userId), Arg.Any<CancellationToken>())
+            .Returns(Task.FromResult(Result<UserAuthorizationDto>.Success(new UserAuthorizationDto
+            {
+                Permissions = Array.Empty<UserPermissionDto>(),
+                Roles = ["User"]
+            })));
+
+        var provider = CreateProvider(sender, Substitute.For<ILogger<PermissionsClaimProvider>>(), userRepo);
+        var result = (await provider.GetClaimsAsync(principal)).ToList();
+
+        Assert.Contains(result, c => c.Type == ClaimTypes.Role && c.Value == "User");
+        Assert.Contains(result, c => c.Type == ClaimTypes.Email && c.Value == "third-party@example.com");
+        await sender.Received(1).Send(Arg.Any<GetAllUserPermissionsQuery>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task GetClaimsAsync_ShouldReturnEmpty_WhenInteractiveTokenHasEmail()
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(JwtRegisteredClaimNames.Iss, "https://sts.windows.net/abc"),
+            new Claim("appid", "cid"),
+            new Claim(ClaimTypes.Email, "user@example.com")
+        ]));
+        var sender = Substitute.For<ISender>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+        var provider = CreateProvider(sender, Substitute.For<ILogger<PermissionsClaimProvider>>(), userRepo);
 
         var result = await provider.GetClaimsAsync(principal);
 

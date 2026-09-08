@@ -484,14 +484,7 @@ namespace GovUK.Dfe.FlexForms.Api.Security
         }
 
         private static string? PickAzpOrAppIdFromPrincipal(ClaimsPrincipal? principal)
-        {
-            if (principal is null) return null;
-            var azp = principal.FindFirst(JwtRegisteredClaimNames.Azp)?.Value;
-            if (!string.IsNullOrEmpty(azp)) return azp;
-            var appid = principal.FindFirst("appid")?.Value;
-            if (!string.IsNullOrEmpty(appid)) return appid;
-            return principal.FindFirst("http://schemas.microsoft.com/identity/claims/appid")?.Value;
-        }
+            => EntraClientIdentity.PickClientId(principal);
 
         /// <summary>
         /// True when the request should authenticate with <c>PlatformBearer</c> (host Entra app)
