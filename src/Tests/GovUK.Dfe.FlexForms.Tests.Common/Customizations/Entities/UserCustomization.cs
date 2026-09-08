@@ -20,7 +20,6 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities
         public DateTime? OverrideLastModifiedOn { get; set; }
         public UserId? OverrideLastModifiedBy { get; set; }
         public IEnumerable<Permission>? OverridePermissions { get; set; }
-        public IEnumerable<TemplatePermission>? OverrideTemplatePermissions { get; set; }
         public string? OverrideExternalProviderId { get; set; }
 
         public void Customize(IFixture fixture)
@@ -42,7 +41,6 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities
                     var externalProviderId = OverrideExternalProviderId ?? null;
 
                     var perms = OverridePermissions ?? new List<Permission>();
-                    var templatePerms = OverrideTemplatePermissions ?? new List<TemplatePermission>();
 
                     return new User(
                         id,
@@ -54,8 +52,7 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities
                         lastModifiedOn,
                         lastModifiedBy,
                         externalProviderId,
-                        perms,
-                        templatePerms);
+                        perms);
                 }));
         }
     }

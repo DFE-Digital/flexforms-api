@@ -206,62 +206,6 @@ public class StronglyTypedIdsTests
 
     [Theory]
     [CustomAutoData]
-    public void TemplatePermissionId_Should_Be_Equal_When_Same_Value(Guid value)
-    {
-        // Arrange
-        var id1 = new TemplatePermissionId(value);
-        var id2 = new TemplatePermissionId(value);
-
-        // Act & Assert
-        Assert.Equal(id1, id2);
-        Assert.True(id1 == id2);
-        Assert.False(id1 != id2);
-    }
-
-    [Theory]
-    [CustomAutoData]
-    public void TemplatePermissionId_Should_Not_Be_Equal_When_Different_Values(Guid value1, Guid value2)
-    {
-        // Arrange
-        var id1 = new TemplatePermissionId(value1);
-        var id2 = new TemplatePermissionId(value2);
-
-        // Act & Assert
-        Assert.NotEqual(id1, id2);
-        Assert.False(id1 == id2);
-        Assert.True(id1 != id2);
-    }
-
-    [Theory]
-    [CustomAutoData]
-    public void TaskAssignmentLabelId_Should_Be_Equal_When_Same_Value(Guid value)
-    {
-        // Arrange
-        var id1 = new TaskAssignmentLabelId(value);
-        var id2 = new TaskAssignmentLabelId(value);
-
-        // Act & Assert
-        Assert.Equal(id1, id2);
-        Assert.True(id1 == id2);
-        Assert.False(id1 != id2);
-    }
-
-    [Theory]
-    [CustomAutoData]
-    public void TaskAssignmentLabelId_Should_Not_Be_Equal_When_Different_Values(Guid value1, Guid value2)
-    {
-        // Arrange
-        var id1 = new TaskAssignmentLabelId(value1);
-        var id2 = new TaskAssignmentLabelId(value2);
-
-        // Act & Assert
-        Assert.NotEqual(id1, id2);
-        Assert.False(id1 == id2);
-        Assert.True(id1 != id2);
-    }
-
-    [Theory]
-    [CustomAutoData]
     public void All_Ids_Should_Implement_IStronglyTypedId()
     {
         // Arrange & Act
@@ -272,8 +216,6 @@ public class StronglyTypedIdsTests
         var templateVersionId = new TemplateVersionId(Guid.NewGuid());
         var roleId = new RoleId(Guid.NewGuid());
         var permissionId = new PermissionId(Guid.NewGuid());
-        var templatePermissionId = new TemplatePermissionId(Guid.NewGuid());
-        var taskAssignmentLabelId = new TaskAssignmentLabelId(Guid.NewGuid());
 
         // Assert
         Assert.IsAssignableFrom<IStronglyTypedId>(applicationId);
@@ -283,8 +225,6 @@ public class StronglyTypedIdsTests
         Assert.IsAssignableFrom<IStronglyTypedId>(templateVersionId);
         Assert.IsAssignableFrom<IStronglyTypedId>(roleId);
         Assert.IsAssignableFrom<IStronglyTypedId>(permissionId);
-        Assert.IsAssignableFrom<IStronglyTypedId>(templatePermissionId);
-        Assert.IsAssignableFrom<IStronglyTypedId>(taskAssignmentLabelId);
     }
 
     [Theory]
@@ -302,8 +242,6 @@ public class StronglyTypedIdsTests
         var templateVersionId = new TemplateVersionId(guid);
         var roleId = new RoleId(guid);
         var permissionId = new PermissionId(guid);
-        var templatePermissionId = new TemplatePermissionId(guid);
-        var taskAssignmentLabelId = new TaskAssignmentLabelId(guid);
 
         // Assert
         Assert.Equal(guid, applicationId.Value);
@@ -313,7 +251,5 @@ public class StronglyTypedIdsTests
         Assert.Equal(guid, templateVersionId.Value);
         Assert.Equal(guid, roleId.Value);
         Assert.Equal(guid, permissionId.Value);
-        Assert.Equal(guid, templatePermissionId.Value);
-        Assert.Equal(guid, taskAssignmentLabelId.Value);
     }
 } 
