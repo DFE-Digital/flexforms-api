@@ -168,12 +168,24 @@ public sealed class FileUploadedDomainEventHandler(
 
             var formData = ApplicationFormDataParser.Parse(latestResponse?.ResponseBody);
 
-            var uploaderEmail = await ResolveUploaderEmailAsync(file, cancellationToken);
+            var uploader = await ResolveUserAsync(
+                file.UploadedBy,
+                file.UploadedByUser,
+                cancellationToken);
+
+            // The lead applicant created the application; the uploader may be an invited
+            // contributor, so only re-query when they are different people.
+            var leadApplicant = application!.CreatedBy == file.UploadedBy
+                ? uploader
+                : await ResolveUserAsync(
+                    application.CreatedBy,
+                    application.CreatedByUser,
+                    cancellationToken);
 
             var platformMetadata = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
             {
                 [PlatformEventMetadataKeys.ApplicationId] = file.ApplicationId.Value.ToString(),
-                [PlatformEventMetadataKeys.ApplicationReference] = application!.ApplicationReference,
+                [PlatformEventMetadataKeys.ApplicationReference] = application.ApplicationReference,
                 [PlatformEventMetadataKeys.FileId] = file.Id?.Value.ToString(),
                 [PlatformEventMetadataKeys.FileName] = file.FileName,
                 [PlatformEventMetadataKeys.OriginalFileName] = file.OriginalFileName,
@@ -182,7 +194,9 @@ public sealed class FileUploadedDomainEventHandler(
                 [PlatformEventMetadataKeys.FileHash] = notification.FileHash,
                 [PlatformEventMetadataKeys.FileSize] = file.FileSize,
                 [PlatformEventMetadataKeys.UploaderUserId] = file.UploadedBy.Value.ToString(),
-                [PlatformEventMetadataKeys.UploaderEmail] = uploaderEmail,
+                [PlatformEventMetadataKeys.UploaderEmail] = uploader?.Email,
+                [PlatformEventMetadataKeys.UploaderName] = uploader?.Name,
+                [PlatformEventMetadataKeys.LeadApplicantName] = leadApplicant?.Name,
                 [PlatformEventMetadataKeys.UploadedOn] = file.UploadedOn
             };
 
@@ -226,27 +240,26 @@ public sealed class FileUploadedDomainEventHandler(
         }
     }
 
-    private async Task<string?> ResolveUploaderEmailAsync(
-        Domain.Entities.File file,
+    private async Task<User?> ResolveUserAsync(
+        Domain.ValueObjects.UserId userId,
+        User? loadedUser,
         CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrWhiteSpace(file.UploadedByUser?.Email))
-            return file.UploadedByUser.Email;
+        if (!string.IsNullOrWhiteSpace(loadedUser?.Email))
+            return loadedUser;
 
         try
         {
-            var user = await new GetUserByIdQueryObject(file.UploadedBy)
+            return await new GetUserByIdQueryObject(userId)
                 .Apply(userRepository.Query().AsNoTracking())
                 .FirstOrDefaultAsync(cancellationToken);
-
-            return user?.Email;
         }
         catch (Exception ex)
         {
             logger.LogWarning(
                 ex,
-                "Could not resolve uploader email for user {UserId}",
-                file.UploadedBy.Value);
+                "Could not resolve user {UserId} for FileUploaded event metadata",
+                userId.Value);
             return null;
         }
     }

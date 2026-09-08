@@ -1,4 +1,5 @@
 using GovUK.Dfe.FlexForms.Application.Applications.EventHandlers;
+using GovUK.Dfe.FlexForms.Application.Options;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Events;
@@ -13,6 +14,7 @@ using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Models;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using MockQueryable;
 using NSubstitute;
 using NSubstitute.ExceptionExtensions;
 using File = GovUK.Dfe.FlexForms.Domain.Entities.File;
@@ -203,6 +205,81 @@ public class FileUploadedDomainEventHandlerTests
         Assert.False(publishedCalls[0].IsAzureFileShare);
         Assert.StartsWith("file:///", publishedCalls[0].FileUri, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public async Task Handle_ShouldDispatchBothNames_WhenUploaderIsNotTheLeadApplicant()
+    {
+        // Arrange
+        _tenantContextAccessor.CurrentTenant.Returns(new TenantConfiguration(
+            Guid.NewGuid(), "TestTenant",
+            new ConfigurationBuilder().Build(),
+            Array.Empty<string>()));
+
+        _azureOps.GenerateSasTokenAsync(
+                Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("https://blob.azure.com/sas-token");
+
+        var leadApplicantId = new UserId(Guid.NewGuid());
+        var uploaderId = new UserId(Guid.NewGuid());
+        var applicationId = new ApplicationId(Guid.NewGuid());
+        var templateVersionId = new TemplateVersionId(Guid.NewGuid());
+        var templateId = new TemplateId(Guid.NewGuid());
+
+        var application = new Domain.Entities.Application(
+            applicationId,
+            "APP-REF-002",
+            templateVersionId,
+            DateTime.UtcNow,
+            leadApplicantId,
+            GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums.ApplicationStatus.InProgress,
+            null, null);
+
+        var templateVersion = new TemplateVersion(
+            templateVersionId, templateId, "1.0", "{}", DateTime.UtcNow, leadApplicantId);
+        typeof(Domain.Entities.Application).GetProperty("TemplateVersion")!
+            .SetValue(application, templateVersion);
+
+        _applicationRepository.Query().Returns(new[] { application }.AsQueryable().BuildMock());
+        _userRepository.Query().Returns(new[]
+        {
+            CreateUser(leadApplicantId, "Ada Lead", "ada@example.com"),
+            CreateUser(uploaderId, "Bob Contributor", "bob@example.com")
+        }.AsQueryable().BuildMock());
+
+        var file = new File(
+            new FileId(Guid.NewGuid()),
+            applicationId,
+            "TestFile",
+            "Description",
+            "original.pdf",
+            "hashed.pdf",
+            "APP-REF-002",
+            DateTime.UtcNow,
+            uploaderId,
+            1024);
+        typeof(File).GetProperty("Application")!.SetValue(file, application);
+
+        var @event = new FileUploadedDomainEvent(file, "hash-abc", DateTime.UtcNow);
+
+        // Act
+        await _handler.Handle(@event, CancellationToken.None);
+
+        // Assert
+        await _eventTriggerDispatcher.Received(1).DispatchAsync(
+            EventTriggerType.FileUploaded,
+            applicationId.Value,
+            "APP-REF-002",
+            templateId.Value.ToString(),
+            Arg.Any<Dictionary<string, object>>(),
+            Arg.Is<IReadOnlyDictionary<string, object?>>(metadata =>
+                (string?)metadata[PlatformEventMetadataKeys.UploaderName] == "Bob Contributor"
+                && (string?)metadata[PlatformEventMetadataKeys.UploaderEmail] == "bob@example.com"
+                && (string?)metadata[PlatformEventMetadataKeys.LeadApplicantName] == "Ada Lead"),
+            Arg.Any<CancellationToken>());
+    }
+
+    private static User CreateUser(UserId id, string name, string email) =>
+        new(id, new RoleId(Guid.NewGuid()), name, email, DateTime.UtcNow, null, null, null);
 
     private static File CreateFileWithApplication()
     {
