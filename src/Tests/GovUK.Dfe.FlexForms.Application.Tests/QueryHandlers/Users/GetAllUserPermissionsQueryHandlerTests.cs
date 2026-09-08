@@ -78,7 +78,6 @@ public class GetAllUserPermissionsQueryHandlerTests
         // Arrange
         userCustom.OverrideId = userId;
         userCustom.OverridePermissions = Array.Empty<Permission>();
-        userCustom.OverrideTemplatePermissions = Array.Empty<TemplatePermission>();
         var fixture = new Fixture().Customize(userCustom);
         var user = fixture.Create<User>();
 

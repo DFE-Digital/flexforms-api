@@ -21,14 +21,10 @@ public sealed class User : BaseAggregateRoot, IEntity<UserId>
     public string? ExternalProviderId { get; private set; }
 
     private readonly List<Permission> _permissions = new();
-    private readonly List<TemplatePermission> _templatePermissions = new();
     private readonly List<File> _files = new();
 
     public IReadOnlyCollection<Permission> Permissions
         => _permissions.AsReadOnly();
-
-    public IReadOnlyCollection<TemplatePermission> TemplatePermissions
-        => _templatePermissions.AsReadOnly();
 
     public IReadOnlyCollection<File> Files => _files.AsReadOnly();
 
@@ -59,8 +55,7 @@ public sealed class User : BaseAggregateRoot, IEntity<UserId>
         DateTime? lastModifiedOn,
         UserId? lastModifiedBy,
         string? externalProviderId = null,
-        IEnumerable<Permission>? initialPermissions = null,
-        IEnumerable<TemplatePermission>? initialTemplatePermissions = null)
+        IEnumerable<Permission>? initialPermissions = null)
     {
         Id = id ?? throw new ArgumentNullException(nameof(id));
         RoleId = roleId ?? throw new ArgumentNullException(nameof(roleId));
@@ -75,11 +70,6 @@ public sealed class User : BaseAggregateRoot, IEntity<UserId>
         if (initialPermissions != null)
         {
             _permissions.AddRange(initialPermissions);
-        }
-
-        if (initialTemplatePermissions != null)
-        {
-            _templatePermissions.AddRange(initialTemplatePermissions);
         }
     }
 
@@ -125,45 +115,5 @@ public sealed class User : BaseAggregateRoot, IEntity<UserId>
             throw new ArgumentNullException(nameof(permission));
 
         return _permissions.Remove(permission);
-    }
-
-    /// <summary>
-    /// Internal method to create and attach a new TemplatePermission to this User.
-    /// This should only be called by the UserFactory.
-    /// </summary>
-    internal TemplatePermission AddTemplatePermission(
-        string templateId,
-        AccessType accessType,
-        UserId grantedBy,
-        DateTime? grantedOn = null)
-    {
-        if (string.IsNullOrWhiteSpace(templateId))
-            throw new ArgumentException("TemplateId cannot be empty", nameof(templateId));
-
-        var id = new TemplatePermissionId(Guid.NewGuid());
-        var when = grantedOn ?? DateTime.UtcNow;
-
-        var templatePermission = new TemplatePermission(
-            id,
-            this.Id ?? throw new InvalidOperationException("UserId must be set before adding a template permission."),
-            new TemplateId(new Guid(templateId)),
-            accessType,
-            when,
-            grantedBy);
-
-        _templatePermissions.Add(templatePermission);
-        return templatePermission;
-    }
-
-    /// <summary>
-    /// Internal method to remove a TemplatePermission from this User.
-    /// This should only be called by the UserFactory.
-    /// </summary>
-    internal bool RemoveTemplatePermission(TemplatePermission templatePermission)
-    {
-        if (templatePermission == null)
-            throw new ArgumentNullException(nameof(templatePermission));
-
-        return _templatePermissions.Remove(templatePermission);
     }
 }

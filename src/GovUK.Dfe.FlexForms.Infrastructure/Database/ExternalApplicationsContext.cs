@@ -40,8 +40,6 @@ public class ExternalApplicationsContext : DbContext
     public DbSet<Domain.Entities.Application> Applications { get; set; } = null!;
     public DbSet<ApplicationResponse> ApplicationResponses { get; set; } = null!;
     public DbSet<Permission> Permissions { get; set; } = null!;
-    public DbSet<TaskAssignmentLabel> TaskAssignmentLabels { get; set; } = null!;
-    public DbSet<TemplatePermission> TemplatePermissions { get; set; } = null!;
     public DbSet<File> Files { get; set; } = null!;
     public DbSet<CustomApplicationStatus> CustomApplicationStatuses { get; set; } = null!;
     public DbSet<TenantAccessAudit> TenantAccessAudits { get; set; } = null!;
@@ -75,8 +73,6 @@ public class ExternalApplicationsContext : DbContext
         modelBuilder.Entity<Domain.Entities.Application>(b => ConfigureApplication(b, useTemporal));
         modelBuilder.Entity<ApplicationResponse>(ConfigureApplicationResponse);
         modelBuilder.Entity<Permission>(ConfigurePermission);
-        modelBuilder.Entity<TemplatePermission>(b => ConfigureTemplatePermission(b, useTemporal));
-        modelBuilder.Entity<TaskAssignmentLabel>(ConfigureTaskAssignmentLabel);
         modelBuilder.Entity<File>(ConfigureFile);
         modelBuilder.Entity<CustomApplicationStatus>(b => ConfigureCustomApplicationStatus(b, useTemporal));
         modelBuilder.Entity<TenantAccessAudit>(ConfigureTenantAccessAudit);
@@ -399,10 +395,6 @@ public class ExternalApplicationsContext : DbContext
             .HasForeignKey(e => e.LastModifiedBy)
             .OnDelete(DeleteBehavior.Restrict);
         b.HasMany(u => u.Permissions)
-            .WithOne(p => p.User)
-            .HasForeignKey(p => p.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
-        b.HasMany(u => u.TemplatePermissions)
             .WithOne(p => p.User)
             .HasForeignKey(p => p.UserId)
             .OnDelete(DeleteBehavior.Cascade);
@@ -752,114 +744,6 @@ public class ExternalApplicationsContext : DbContext
         // Supports: loading permissions for a user (included collections and filters)
         b.HasIndex(e => new { e.UserId, e.ResourceType, e.ApplicationId })
             .HasDatabaseName("IX_Permissions_UserId_ResourceType_ApplicationId");
-    }
-
-    private static void ConfigureTaskAssignmentLabel(EntityTypeBuilder<TaskAssignmentLabel> b)
-    {
-        b.ToTable("TaskAssignmentLabels", DefaultSchema);
-        b.HasKey(e => e.Id);
-        b.Property(e => e.Id)
-            .HasColumnName("TaskAssignmentLabelsId")
-            .ValueGeneratedOnAdd()
-            .HasConversion(v => v.Value, v => new TaskAssignmentLabelId(v))
-            .IsRequired();
-        b.Property(e => e.Value)
-            .HasColumnName("Value")
-            .HasMaxLength(100)
-            .IsRequired();
-        b.Property(e => e.TaskId)
-            .HasColumnName("TaskId")
-            .HasMaxLength(10)
-            .IsRequired();
-        b.Property(e => e.UserId)
-            .HasColumnName("UserId")
-            .HasConversion(v => v!.Value, v => new UserId(v))
-            .IsRequired(false);
-        b.Property(e => e.CreatedOn)
-            .HasColumnName("CreatedOn")
-            .HasDefaultValueSql("GETDATE()")
-            .IsRequired();
-        b.Property(e => e.CreatedBy)
-            .HasColumnName("CreatedBy")
-            .HasConversion(v => v.Value, v => new UserId(v))
-            .IsRequired();
-
-        b.HasOne(e => e.AssignedUser)
-            .WithMany()
-            .HasForeignKey(e => e.UserId)
-            .OnDelete(DeleteBehavior.Restrict);
-        b.HasOne(e => e.CreatedByUser)
-            .WithMany()
-            .HasForeignKey(e => e.CreatedBy)
-            .OnDelete(DeleteBehavior.Restrict);
-    }
-
-    private static void ConfigureTemplatePermission(EntityTypeBuilder<TemplatePermission> b, bool useTemporal)
-    {
-        if (useTemporal)
-            b.ToTable("TemplatePermissions", DefaultSchema, tb => tb.IsTemporal(ttb =>
-            {
-                ttb.HasPeriodStart("PeriodStart");
-                ttb.HasPeriodEnd("PeriodEnd");
-                ttb.UseHistoryTable("History_TemplatePermissions", DefaultSchema);
-            }));
-        else
-            b.ToTable("TemplatePermissions", DefaultSchema);
-
-        b.HasKey(e => e.Id);
-        b.Property(e => e.Id)
-            .HasColumnName("TemplatePermissionId")
-            .ValueGeneratedNever()
-            .HasConversion(v => v.Value, v => new TemplatePermissionId(v))
-            .IsRequired();
-        b.Property(e => e.UserId)
-            .HasColumnName("UserId")
-            .HasConversion(v => v.Value, v => new UserId(v))
-            .IsRequired();
-        b.Property(e => e.TemplateId)
-            .HasColumnName("TemplateId")
-            .HasConversion(v => v.Value, v => new TemplateId(v))
-            .IsRequired();
-        b.Property(e => e.AccessType)
-            .HasColumnName("AccessType")
-            .HasConversion(
-                v => (byte)v,
-                v => (AccessType)v)
-            .IsRequired();
-        b.Property(e => e.GrantedOn)
-            .HasColumnName("GrantedOn")
-            .HasDefaultValueSql("GETDATE()")
-            .IsRequired();
-        b.Property(e => e.GrantedBy)
-            .HasColumnName("GrantedBy")
-            .HasConversion(v => v.Value, v => new UserId(v))
-            .IsRequired();
-        b.HasOne(e => e.Template)
-            .WithMany()
-            .HasForeignKey(e => e.TemplateId);
-        b.HasOne(e => e.GrantedByUser)
-            .WithMany()
-            .HasForeignKey(e => e.GrantedBy)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        // Supports: template permission lookups by (UserId, TemplateId)
-        b.HasIndex(e => new { e.UserId, e.TemplateId })
-            .HasDatabaseName("IX_TemplatePermissions_UserId_TemplateId");
-
-        if (useTemporal)
-        {
-            b.Property<DateTime>("PeriodStart")
-                .ValueGeneratedOnAddOrUpdate()
-                .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
-            b.Property<DateTime>("PeriodEnd")
-                .ValueGeneratedOnAddOrUpdate()
-                .Metadata.SetAfterSaveBehavior(PropertySaveBehavior.Ignore);
-        }
-        else
-        {
-            b.Property<DateTime?>("PeriodStart").HasColumnName("PeriodStart").IsRequired(false);
-            b.Property<DateTime?>("PeriodEnd").HasColumnName("PeriodEnd").IsRequired(false);
-        }
     }
 
     private static void ConfigureFile(EntityTypeBuilder<File> b)
