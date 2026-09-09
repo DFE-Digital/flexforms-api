@@ -1,5 +1,6 @@
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Applications.EventHandlers;
+using GovUK.Dfe.FlexForms.Application.Options;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Events;
@@ -7,6 +8,7 @@ using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
 using Microsoft.Extensions.Logging;
+using MockQueryable;
 using NSubstitute;
 using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 using GovUK.Dfe.CoreLibs.Email.Interfaces;
@@ -21,6 +23,7 @@ public class ContributorAddedEventHandlerTests
     private readonly IEmailTemplateResolver _emailTemplateResolver;
     private readonly IEmailPersonalisationBuilder _emailPersonalisationBuilder;
     private readonly IApplicationRepository _applicationRepository;
+    private readonly IEaRepository<User> _userRepository;
     private readonly ContributorAddedEventHandler _handler;
 
     public ContributorAddedEventHandlerTests()
@@ -30,6 +33,10 @@ public class ContributorAddedEventHandlerTests
         _emailTemplateResolver = Substitute.For<IEmailTemplateResolver>();
         _emailPersonalisationBuilder = Substitute.For<IEmailPersonalisationBuilder>();
         _applicationRepository = Substitute.For<IApplicationRepository>();
+        _userRepository = Substitute.For<IEaRepository<User>>();
+
+        _applicationRepository.Query().Returns(Array.Empty<Domain.Entities.Application>().AsQueryable().BuildMock());
+        _userRepository.Query().Returns(Array.Empty<User>().AsQueryable().BuildMock());
 
         _emailPersonalisationBuilder.BuildAsync(
                 Arg.Any<string>(),
@@ -47,7 +54,8 @@ public class ContributorAddedEventHandlerTests
             _emailService,
             _emailTemplateResolver,
             _emailPersonalisationBuilder,
-            _applicationRepository);
+            _applicationRepository,
+            _userRepository);
     }
 
 
@@ -82,6 +90,7 @@ public class ContributorAddedEventHandlerTests
                 email.TemplateId == expectedTemplateId &&
                 email.Personalization["contributor_name"].ToString() == contributor.Name &&
                 email.Personalization["application_reference"].ToString() == applicationReference &&
+                email.Personalization.ContainsKey(LeadApplicantLookup.BaselinePlaceholderKey) &&
                 email.Personalization.ContainsKey("added_date") &&
                 email.Personalization.ContainsKey("added_time")),
             Arg.Any<CancellationToken>());
@@ -252,4 +261,61 @@ public class ContributorAddedEventHandlerTests
             Arg.Any<Func<object, Exception?, string>>());
     }
 
+    [Theory]
+    [CustomAutoData(typeof(UserCustomization))]
+    public async Task Handle_Should_Include_Lead_Applicant_Name_In_Baseline_And_Metadata(
+        User contributor,
+        ApplicationId applicationId,
+        string applicationReference,
+        TemplateId templateId,
+        UserId addedBy,
+        DateTime addedOn)
+    {
+        var leadApplicant = CreateUser(new UserId(Guid.NewGuid()), "Ada Lead", "ada@example.com");
+        SetupLeadApplicant(applicationId, leadApplicant);
+
+        var @event = new ContributorAddedEvent(applicationId, applicationReference, templateId, contributor, addedBy, addedOn);
+
+        _emailTemplateResolver.ResolveEmailTemplateAsync(templateId, "ContributorInvited")
+            .Returns("3a0e2130-ceea-48c9-8e3d-906431acc86f");
+        _emailService.SendEmailAsync(Arg.Any<EmailMessage>(), Arg.Any<CancellationToken>())
+            .Returns(new EmailResponse { Id = "test-email-id", Status = EmailStatus.Sent });
+
+        await _handler.Handle(@event, CancellationToken.None);
+
+        await _emailService.Received(1).SendEmailAsync(
+            Arg.Is<EmailMessage>(email =>
+                email.Personalization[LeadApplicantLookup.BaselinePlaceholderKey].ToString() == "Ada Lead" &&
+                email.Personalization["contributor_name"].ToString() == contributor.Name),
+            Arg.Any<CancellationToken>());
+
+        await _emailPersonalisationBuilder.Received(1).BuildAsync(
+            templateId.Value.ToString(),
+            EmailTypes.ContributorInvited,
+            applicationId.Value,
+            applicationReference,
+            Arg.Is<Dictionary<string, object>>(baseline =>
+                baseline[LeadApplicantLookup.BaselinePlaceholderKey].ToString() == "Ada Lead"),
+            Arg.Any<Dictionary<string, object>>(),
+            Arg.Is<IReadOnlyDictionary<string, object?>>(metadata =>
+                (string?)metadata[PlatformEventMetadataKeys.LeadApplicantName] == "Ada Lead"),
+            Arg.Any<CancellationToken>());
+    }
+
+    private void SetupLeadApplicant(ApplicationId applicationId, User leadApplicant)
+    {
+        var application = new Domain.Entities.Application(
+            applicationId,
+            "APP-REF",
+            new TemplateVersionId(Guid.NewGuid()),
+            DateTime.UtcNow,
+            leadApplicant.Id!,
+            GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums.ApplicationStatus.InProgress);
+
+        _applicationRepository.Query().Returns(new[] { application }.AsQueryable().BuildMock());
+        _userRepository.Query().Returns(new[] { leadApplicant }.AsQueryable().BuildMock());
+    }
+
+    private static User CreateUser(UserId id, string name, string email) =>
+        new(id, new RoleId(Guid.NewGuid()), name, email, DateTime.UtcNow, null, null, null);
 }
