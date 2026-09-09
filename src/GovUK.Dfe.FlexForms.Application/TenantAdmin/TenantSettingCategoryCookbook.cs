@@ -216,6 +216,22 @@ public static class TenantSettingCategoryCookbook
             requiresObject: true),
 
         Entry(
+            "ApplicationSubmittedPage",
+            "Per-template confirmation page title and markdown body after submit (delegated to Tenant Admins).",
+            ["Web"],
+            example: """{"_default":{"PanelTitle":"Plan submitted","BodyMarkdown":"We've sent you a confirmation email with your reference number.\\n\\n## What happens next\\n\\nYour plan will be reviewed."},"form-001":{"PanelTitle":"Transfer submitted","BodyMarkdown":"## Contact us\\n\\nEmail [team@example.com](mailto:team@example.com)."}}""",
+            notes:
+            [
+                "Non-secret",
+                "Also editable via Organisation Settings",
+                "Top-level keys are template GUIDs, schema templateId aliases (for example form-001), or _default",
+                "PanelTitle is plain text shown in the green confirmation panel",
+                "BodyMarkdown is Markdig markdown for the whole section below the reference number (headings, lists, links, mailto)",
+                "Leave a template blank to fall back to _default, then to ApplicationTerminology-based platform copy"
+            ],
+            requiresObject: true),
+
+        Entry(
             "EventMappings",
             "Per-template field mappings for typed and schema events (delegated to Tenant Admins).",
             ["Shared"],
