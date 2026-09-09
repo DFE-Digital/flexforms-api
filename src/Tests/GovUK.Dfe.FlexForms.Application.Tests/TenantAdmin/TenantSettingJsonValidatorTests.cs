@@ -236,6 +236,39 @@ public class TenantSettingJsonValidatorTests
     }
 
     [Fact]
+    public void Validate_ApplicationSubmittedPage_AcceptsTemplateKeyedCopy()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "ApplicationSubmittedPage",
+            "Web",
+            """{"_default":{"PanelTitle":"Plan submitted","BodyMarkdown":"## Next\\n\\nThanks."},"form-001":{"PanelTitle":"","BodyMarkdown":""}}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void Validate_ApplicationSubmittedPage_RejectsNonObjectTemplateEntry()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "ApplicationSubmittedPage",
+            "Web",
+            """{"form-001":"not-an-object"}""");
+
+        Assert.Contains(errors, e => e.Contains("must be an object", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_ApplicationSubmittedPage_RejectsNonStringBody()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "ApplicationSubmittedPage",
+            "Web",
+            """{"form-001":{"BodyMarkdown":42}}""");
+
+        Assert.Contains(errors, e => e.Contains("BodyMarkdown", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Validate_ApplicationTemplates_RejectsInvalidHostMappingGuid()
     {
         var errors = TenantSettingJsonValidator.Validate(
