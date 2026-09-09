@@ -612,8 +612,8 @@ Application emails are sent via **GOV.UK Notify**. The API resolves a Notify tem
 | Email type | Baseline personalisation keys |
 |------------|-------------------------------|
 | `ApplicationSubmitted` | `user_full_name`, `application_reference`, `submitted_date`, `submitted_time` |
-| `ContributorInvited` | `contributor_name`, `application_reference`, `added_date`, `added_time` |
-| `ContributorAccessGranted` | `contributor_name`, `application_reference`, `granted_date`, `granted_time`, `access_types` |
+| `ContributorInvited` | `contributor_name`, `lead_applicant_name`, `application_reference`, `added_date`, `added_time` |
+| `ContributorAccessGranted` | `contributor_name`, `lead_applicant_name`, `application_reference`, `granted_date`, `granted_time`, `access_types` |
 
 (`ContributorAccessGranted` still resolves its Notify template via the `ContributorInvited` `EmailTemplates` entry; personalisation mappings use the distinct email-type key.)
 

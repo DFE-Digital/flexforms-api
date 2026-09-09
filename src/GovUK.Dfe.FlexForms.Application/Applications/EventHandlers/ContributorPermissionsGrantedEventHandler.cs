@@ -1,6 +1,7 @@
 using GovUK.Dfe.FlexForms.Application.Common.EventHandlers;
 using GovUK.Dfe.FlexForms.Application.Options;
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Events;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using Microsoft.Extensions.Logging;
@@ -14,7 +15,8 @@ public sealed class ContributorPermissionsGrantedEventHandler(
     IEmailService emailService,
     IEmailTemplateResolver emailTemplateResolver,
     IEmailPersonalisationBuilder emailPersonalisationBuilder,
-    IApplicationRepository applicationRepository) : BaseEventHandler<ContributorPermissionsGrantedEvent>(logger)
+    IApplicationRepository applicationRepository,
+    IEaRepository<User> userRepository) : BaseEventHandler<ContributorPermissionsGrantedEvent>(logger)
 {
     protected override async Task HandleEvent(ContributorPermissionsGrantedEvent notification, CancellationToken cancellationToken)
     {
@@ -53,9 +55,17 @@ public sealed class ContributorPermissionsGrantedEventHandler(
 
             var accessTypes = string.Join(", ", notification.GrantedAccessTypes.Select(a => a.ToString()));
 
+            var leadApplicantName = await LeadApplicantLookup.GetNameAsync(
+                applicationRepository,
+                userRepository,
+                notification.ApplicationId,
+                logger,
+                cancellationToken);
+
             var baseline = new Dictionary<string, object>
             {
                 ["contributor_name"] = notification.Contributor.Name,
+                [LeadApplicantLookup.BaselinePlaceholderKey] = leadApplicantName,
                 ["application_reference"] = notification.ApplicationReference,
                 ["granted_date"] = notification.GrantedOn.ToString("dd/MM/yyyy"),
                 ["granted_time"] = notification.GrantedOn.ToString("HH:mm"),
@@ -68,6 +78,7 @@ public sealed class ContributorPermissionsGrantedEventHandler(
                 [PlatformEventMetadataKeys.ApplicationReference] = notification.ApplicationReference,
                 [PlatformEventMetadataKeys.ContributorName] = notification.Contributor.Name,
                 [PlatformEventMetadataKeys.ContributorEmail] = notification.Contributor.Email,
+                [PlatformEventMetadataKeys.LeadApplicantName] = leadApplicantName,
                 [PlatformEventMetadataKeys.GrantedOn] = notification.GrantedOn,
                 [PlatformEventMetadataKeys.AccessTypes] = accessTypes
             };
