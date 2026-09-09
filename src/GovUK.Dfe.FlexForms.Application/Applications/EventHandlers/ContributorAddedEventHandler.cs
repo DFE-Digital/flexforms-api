@@ -1,6 +1,7 @@
 using GovUK.Dfe.FlexForms.Application.Common.EventHandlers;
 using GovUK.Dfe.FlexForms.Application.Options;
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Events;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.CoreLibs.Email.Interfaces;
@@ -14,7 +15,8 @@ public sealed class ContributorAddedEventHandler(
     IEmailService emailService,
     IEmailTemplateResolver emailTemplateResolver,
     IEmailPersonalisationBuilder emailPersonalisationBuilder,
-    IApplicationRepository applicationRepository) : BaseEventHandler<ContributorAddedEvent>(logger)
+    IApplicationRepository applicationRepository,
+    IEaRepository<User> userRepository) : BaseEventHandler<ContributorAddedEvent>(logger)
 {
     protected override async Task HandleEvent(ContributorAddedEvent notification, CancellationToken cancellationToken)
     {
@@ -46,9 +48,17 @@ public sealed class ContributorAddedEventHandler(
                 cancellationToken);
             var formData = ApplicationFormDataParser.Parse(latestResponse?.ResponseBody);
 
+            var leadApplicantName = await LeadApplicantLookup.GetNameAsync(
+                applicationRepository,
+                userRepository,
+                notification.ApplicationId,
+                logger,
+                cancellationToken);
+
             var baseline = new Dictionary<string, object>
             {
                 ["contributor_name"] = notification.Contributor.Name,
+                [LeadApplicantLookup.BaselinePlaceholderKey] = leadApplicantName,
                 ["application_reference"] = notification.ApplicationReference,
                 ["added_date"] = notification.AddedOn.ToString("dd/MM/yyyy"),
                 ["added_time"] = notification.AddedOn.ToString("HH:mm")
@@ -60,6 +70,7 @@ public sealed class ContributorAddedEventHandler(
                 [PlatformEventMetadataKeys.ApplicationReference] = notification.ApplicationReference,
                 [PlatformEventMetadataKeys.ContributorName] = notification.Contributor.Name,
                 [PlatformEventMetadataKeys.ContributorEmail] = notification.Contributor.Email,
+                [PlatformEventMetadataKeys.LeadApplicantName] = leadApplicantName,
                 [PlatformEventMetadataKeys.AddedOn] = notification.AddedOn
             };
 
