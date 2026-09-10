@@ -23,12 +23,16 @@ public sealed record GetTenantUsersQuery(
     int PageNumber = 1,
     int PageSize = 10,
     Guid? UserId = null,
-    string? Email = null)
+    string? Email = null,
+    string? SearchTerm = null,
+    string? Role = null)
     : IRequest<Result<PagedResult<TenantUserDto>>>
 {
     public const int DefaultPageSize = 10;
 
     public const int MaxPageSize = 100;
+
+    public const int MaxSearchTermLength = 256;
 }
 
 /// <summary>
@@ -60,7 +64,9 @@ public sealed class GetTenantUsersQueryHandler(
         var membershipQuery = new GetActiveTenantMembershipsForDirectoryQueryObject(
                 currentTenant.Id,
                 request.UserId is null ? null : new UserId(request.UserId.Value),
-                request.Email)
+                request.Email,
+                request.SearchTerm,
+                request.Role)
             .Apply(membershipRepository.Query());
 
         var totalCount = await membershipQuery.CountAsync(cancellationToken);

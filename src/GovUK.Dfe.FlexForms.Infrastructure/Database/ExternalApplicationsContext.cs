@@ -277,6 +277,10 @@ public class ExternalApplicationsContext : DbContext
             .HasDatabaseName("IX_TenantMemberships_TenantId_UserId");
         b.HasIndex(e => e.UserId)
             .HasDatabaseName("IX_TenantMemberships_UserId");
+        // Serves the User Manager directory listing, which always scopes to an active tenant
+        // membership and optionally narrows to a single role.
+        b.HasIndex(e => new { e.TenantId, e.IsActive, e.RoleId })
+            .HasDatabaseName("IX_TenantMemberships_TenantId_IsActive_RoleId");
 
         if (useTemporal)
         {
@@ -383,6 +387,9 @@ public class ExternalApplicationsContext : DbContext
             .IsUnicode(false);
         b.HasIndex(u => u.ExternalProviderId).IsUnique();
         b.HasIndex(e => e.Email).IsUnique();
+        // The tenant user directory orders by name, so keep a sorted copy available.
+        b.HasIndex(e => e.Name)
+            .HasDatabaseName("IX_Users_Name");
         b.HasOne(e => e.Role)
             .WithMany()
             .HasForeignKey(e => e.RoleId);

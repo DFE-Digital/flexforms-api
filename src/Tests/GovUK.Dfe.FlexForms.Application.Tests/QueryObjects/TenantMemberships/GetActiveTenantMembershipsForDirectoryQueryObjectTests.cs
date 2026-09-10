@@ -79,6 +79,76 @@ public class GetActiveTenantMembershipsForDirectoryQueryObjectTests
         Assert.Equal("keep@example.test", membership.User!.Email);
     }
 
+    [Theory]
+    [InlineData("cat", "Catriona Brown")]
+    [InlineData("BROWN", "Catriona Brown")]
+    [InlineData("dev@", "Devi Rao")]
+    public void Apply_ShouldFilterBySearchTerm_AcrossNameAndEmail(string searchTerm, string expectedName)
+    {
+        var tenantId = Guid.NewGuid();
+        var role = Role.CreateForTenant(tenantId, RoleNames.User, true);
+        var catriona = CreateUser("Catriona Brown", "c.brown@example.test", role.Id!);
+        var devi = CreateUser("Devi Rao", "dev@example.test", role.Id!);
+
+        var result = new GetActiveTenantMembershipsForDirectoryQueryObject(tenantId, searchTerm: searchTerm)
+            .Apply(new[]
+            {
+                CreateMembership(tenantId, catriona, role, active: true),
+                CreateMembership(tenantId, devi, role, active: true)
+            }.AsQueryable().BuildMock())
+            .ToList();
+
+        var membership = Assert.Single(result);
+        Assert.Equal(expectedName, membership.User!.Name);
+    }
+
+    [Fact]
+    public void Apply_ShouldFilterByRoleName_IgnoringCase()
+    {
+        var tenantId = Guid.NewGuid();
+        var adminRole = Role.CreateForTenant(tenantId, RoleNames.Admin, true);
+        var userRole = Role.CreateForTenant(tenantId, RoleNames.User, true);
+        var admin = CreateUser("Admin Person", "admin@example.test", adminRole.Id!);
+        var member = CreateUser("Member Person", "member@example.test", userRole.Id!);
+
+        var result = new GetActiveTenantMembershipsForDirectoryQueryObject(tenantId, role: "aDmIn")
+            .Apply(new[]
+            {
+                CreateMembership(tenantId, admin, adminRole, active: true),
+                CreateMembership(tenantId, member, userRole, active: true)
+            }.AsQueryable().BuildMock())
+            .ToList();
+
+        var membership = Assert.Single(result);
+        Assert.Equal("admin@example.test", membership.User!.Email);
+    }
+
+    [Fact]
+    public void Apply_ShouldCombineSearchTermAndRoleFilters()
+    {
+        var tenantId = Guid.NewGuid();
+        var adminRole = Role.CreateForTenant(tenantId, RoleNames.Admin, true);
+        var userRole = Role.CreateForTenant(tenantId, RoleNames.User, true);
+        var matchingAdmin = CreateUser("Brown, Catriona", "catriona@example.test", adminRole.Id!);
+        var sameNameDifferentRole = CreateUser("Brown, Barry", "barry@example.test", userRole.Id!);
+        var sameRoleDifferentName = CreateUser("Singh, Priya", "priya@example.test", adminRole.Id!);
+
+        var result = new GetActiveTenantMembershipsForDirectoryQueryObject(
+                tenantId,
+                searchTerm: "brown",
+                role: RoleNames.Admin)
+            .Apply(new[]
+            {
+                CreateMembership(tenantId, matchingAdmin, adminRole, active: true),
+                CreateMembership(tenantId, sameNameDifferentRole, userRole, active: true),
+                CreateMembership(tenantId, sameRoleDifferentName, adminRole, active: true)
+            }.AsQueryable().BuildMock())
+            .ToList();
+
+        var membership = Assert.Single(result);
+        Assert.Equal("catriona@example.test", membership.User!.Email);
+    }
+
     private static User CreateUser(string name, string email, RoleId roleId)
     {
         return new User(
