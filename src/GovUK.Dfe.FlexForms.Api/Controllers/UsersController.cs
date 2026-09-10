@@ -137,6 +137,8 @@ public class UsersController(ISender sender) : ControllerBase
         [FromQuery] int? pageSize,
         [FromQuery] Guid? userId,
         [FromQuery] string? email,
+        [FromQuery] string? searchTerm,
+        [FromQuery] string? role,
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
@@ -144,7 +146,9 @@ public class UsersController(ISender sender) : ControllerBase
                 pageNumber ?? 1,
                 pageSize ?? GetTenantUsersQuery.DefaultPageSize,
                 userId,
-                email),
+                email,
+                searchTerm,
+                role),
             cancellationToken);
 
         if (!result.IsSuccess)

@@ -17,5 +17,13 @@ internal sealed class GetTenantUsersQueryValidator : AbstractValidator<GetTenant
             RuleFor(x => x.Email!)
                 .EmailAddress();
         });
+
+        RuleFor(x => x.SearchTerm!)
+            .MaximumLength(GetTenantUsersQuery.MaxSearchTermLength)
+            .When(x => !string.IsNullOrWhiteSpace(x.SearchTerm));
+
+        RuleFor(x => x.Role!)
+            .MaximumLength(50)
+            .When(x => !string.IsNullOrWhiteSpace(x.Role));
     }
 }

@@ -114,6 +114,7 @@ public static class TenantSettingJsonValidator
             "NotificationBanner" => true,
             "Dashboard" => true,
             "ApplicationPreview" => true,
+            "ApplicationSubmittedPage" => true,
             "EventMappings" => true,
             "EmailPlaceholderMappings" => true,
             "SchemaEvents" => true,
@@ -257,6 +258,10 @@ public static class TenantSettingJsonValidator
                     errors.Add("HideSubmitSection must be true or false.");
                 break;
 
+            case "ApplicationSubmittedPage":
+                ValidateApplicationSubmittedPage(root, errors);
+                break;
+
             case "EventMappings":
                 ValidateTemplateKeyedFieldMappings("EventMappings", root, errors);
                 break;
@@ -374,6 +379,32 @@ public static class TenantSettingJsonValidator
 
         value = default;
         return false;
+    }
+
+    private const int ApplicationSubmittedBodyMaxChars = 20000;
+
+    private static void ValidateApplicationSubmittedPage(JsonElement root, List<string> errors)
+    {
+        foreach (var templateProperty in root.EnumerateObject())
+        {
+            if (templateProperty.Value.ValueKind != JsonValueKind.Object)
+            {
+                errors.Add($"ApplicationSubmittedPage['{templateProperty.Name}'] must be an object.");
+                continue;
+            }
+
+            var copy = templateProperty.Value;
+            RequireOptionalString(copy, "PanelTitle", errors);
+            RequireOptionalString(copy, "BodyMarkdown", errors);
+
+            if (TryGetPropertyIgnoreCase(copy, "BodyMarkdown", out var body)
+                && body.ValueKind == JsonValueKind.String
+                && body.GetString() is { Length: > ApplicationSubmittedBodyMaxChars })
+            {
+                errors.Add(
+                    $"ApplicationSubmittedPage['{templateProperty.Name}'].BodyMarkdown must be at most {ApplicationSubmittedBodyMaxChars} characters.");
+            }
+        }
     }
 
     private static void ValidateSchemaEvents(JsonElement root, List<string> errors)
