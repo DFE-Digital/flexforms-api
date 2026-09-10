@@ -12,7 +12,9 @@ namespace GovUK.Dfe.FlexForms.Application.TenantMemberships.QueryObjects;
 public sealed class GetActiveTenantMembershipsForDirectoryQueryObject(
     Guid tenantId,
     UserId? userId = null,
-    string? email = null)
+    string? email = null,
+    string? searchTerm = null,
+    string? role = null)
     : IQueryObject<TenantMembership>
 {
     public IQueryable<TenantMembership> Apply(IQueryable<TenantMembership> query)
@@ -31,6 +33,12 @@ public sealed class GetActiveTenantMembershipsForDirectoryQueryObject(
             var normalized = email.Trim().ToLower();
             query = query.Where(m => m.User != null && m.User.Email.ToLower() == normalized);
         }
+
+        if (!string.IsNullOrWhiteSpace(searchTerm))
+            query = new GetTenantMembershipsBySearchTermQueryObject(searchTerm).Apply(query);
+
+        if (!string.IsNullOrWhiteSpace(role))
+            query = new GetTenantMembershipsByRoleNameQueryObject(role).Apply(query);
 
         return query
             .OrderBy(m => m.User!.Name)

@@ -10788,7 +10788,7 @@ namespace GovUK.Dfe.FlexForms.Api.Client
         /// </summary>
         /// <returns>Tenant users.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
-        public virtual async System.Threading.Tasks.Task<PagedResultOfTenantUserDto> GetTenantUsersAsync(int? pageNumber = null, int? pageSize = null, System.Guid? userId = null, string email = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
+        public virtual async System.Threading.Tasks.Task<PagedResultOfTenantUserDto> GetTenantUsersAsync(int? pageNumber = null, int? pageSize = null, System.Guid? userId = null, string email = null, string searchTerm = null, string role = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
         {
             var client_ = _httpClient;
             var disposeClient_ = false;
@@ -10819,6 +10819,14 @@ namespace GovUK.Dfe.FlexForms.Api.Client
                     if (email != null)
                     {
                         urlBuilder_.Append(System.Uri.EscapeDataString("email")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(email, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    if (searchTerm != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("searchTerm")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(searchTerm, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
+                    }
+                    if (role != null)
+                    {
+                        urlBuilder_.Append(System.Uri.EscapeDataString("role")).Append('=').Append(System.Uri.EscapeDataString(ConvertToString(role, System.Globalization.CultureInfo.InvariantCulture))).Append('&');
                     }
                     urlBuilder_.Length--;
 

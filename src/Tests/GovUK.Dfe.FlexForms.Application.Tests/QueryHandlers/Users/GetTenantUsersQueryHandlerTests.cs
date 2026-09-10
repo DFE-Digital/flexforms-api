@@ -163,6 +163,62 @@ public class GetTenantUsersQueryHandlerTests
         Assert.Equal(1, result.Value.TotalCount);
     }
 
+    [Fact]
+    public async Task Handle_ShouldFilterBySearchTerm_AndPageTheFilteredSetOnly()
+    {
+        var role = Role.CreateForTenant(TenantId, RoleNames.User, true);
+        var matches = Enumerable.Range(1, 3)
+            .Select(i => CreateUser($"Brown {i}", $"brown{i}@example.test", role.Id!))
+            .ToList();
+        var nonMatches = Enumerable.Range(1, 9)
+            .Select(i => CreateUser($"Singh {i}", $"singh{i}@example.test", role.Id!))
+            .ToList();
+
+        var membershipRepository = Substitute.For<IEaRepository<TenantMembership>>();
+        membershipRepository.Query().Returns(matches.Concat(nonMatches)
+            .Select(u => CreateMembership(TenantId, u, role))
+            .AsQueryable()
+            .BuildMock());
+
+        var handler = CreateHandler(membershipRepository: membershipRepository);
+
+        var result = await handler.Handle(
+            new GetTenantUsersQuery(PageNumber: 1, PageSize: 10, SearchTerm: "brown"),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(3, result.Value!.TotalCount);
+        Assert.Equal(1, result.Value.TotalPages);
+        Assert.All(result.Value.Items, item => Assert.StartsWith("Brown", item.Name));
+    }
+
+    [Fact]
+    public async Task Handle_ShouldFilterByRole()
+    {
+        var adminRole = Role.CreateForTenant(TenantId, RoleNames.Admin, true);
+        var userRole = Role.CreateForTenant(TenantId, RoleNames.User, true);
+        var admin = CreateUser("Ada", "ada@example.test", adminRole.Id!);
+        var member = CreateUser("Bob", "bob@example.test", userRole.Id!);
+
+        var membershipRepository = Substitute.For<IEaRepository<TenantMembership>>();
+        membershipRepository.Query().Returns(new[]
+        {
+            CreateMembership(TenantId, admin, adminRole),
+            CreateMembership(TenantId, member, userRole)
+        }.AsQueryable().BuildMock());
+
+        var handler = CreateHandler(membershipRepository: membershipRepository);
+
+        var result = await handler.Handle(
+            new GetTenantUsersQuery(PageNumber: 1, PageSize: 10, Role: RoleNames.Admin),
+            CancellationToken.None);
+
+        var item = Assert.Single(result.Value!.Items);
+        Assert.Equal(admin.Id!.Value, item.UserId);
+        Assert.Equal(RoleNames.Admin, item.Role);
+        Assert.Equal(1, result.Value.TotalCount);
+    }
+
     private static GetTenantUsersQueryHandler CreateHandler(
         IPermissionCheckerService? permissionChecker = null,
         ITenantContextAccessor? tenantContext = null,

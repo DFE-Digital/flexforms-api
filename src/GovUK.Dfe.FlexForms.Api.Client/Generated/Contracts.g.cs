@@ -721,7 +721,7 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// </summary>
         /// <returns>Tenant users.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
-        System.Threading.Tasks.Task<PagedResultOfTenantUserDto> GetTenantUsersAsync(int? pageNumber = null, int? pageSize = null, System.Guid? userId = null, string email = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+        System.Threading.Tasks.Task<PagedResultOfTenantUserDto> GetTenantUsersAsync(int? pageNumber = null, int? pageSize = null, System.Guid? userId = null, string email = null, string searchTerm = null, string role = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
