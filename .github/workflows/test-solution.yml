@@ -76,6 +76,7 @@ jobs:
       - name: Run Tests
         env:
           CI: true
+          ASPNETCORE_DATAPROTECTION_PROVIDER: NONE
         run: dotnet test GovUK.Dfe.FlexForms.Api.sln --no-build --verbosity normal --collect:"XPlat Code Coverage"
 
       - name: Generate Code Coverage Report
