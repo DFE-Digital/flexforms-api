@@ -5,6 +5,9 @@ networks:
         name: dfe-flexforms-network
         driver: bridge
         external: true
+    dfe-shared-network:
+        name: dfe-shared-network
+        external: true
 
 services:
     ea_api:
@@ -33,11 +36,12 @@ services:
             - ASPNETCORE_URLS=https://+:8081;http://+:8080
             - ASPNETCORE_ENVIRONMENT=Development
             - ASPNETCORE_Kestrel__Certificates__Default__Password=Pa55w0rd
-            - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/ea_cert.pfx
+            - ASPNETCORE_Kestrel__Certificates__Default__Path=/https/docker_dev_cert.pfx
         volumes:
-            - ${APPDATA}/dev-certs/ea_cert.pfx:/https/ea_cert.pfx:ro
+            - ${APPDATA}/dev-certs/docker_dev_cert.pfx:/https/docker_dev_cert.pfx:ro
             - ${APPDATA}/Microsoft/UserSecrets/f714ca7a-fc08-46ff-b0cc-373d6f04cf4c:/home/app/.microsoft/usersecrets/f714ca7a-fc08-46ff-b0cc-373d6f04cf4c:ro
             - ${APPDATA}/mkcert/rootCA.pem:/usr/local/share/ca-certificates/mkcert-rootCA.crt:ro
             - ${APPDATA}/DataProtection-Keys:/home/app/.aspnet/DataProtection-Keys:rw
         networks:
             - dfe-flexforms-network
+            - dfe-shared-network
