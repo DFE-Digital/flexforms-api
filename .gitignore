@@ -184,5 +184,6 @@ backend.vars
 uploads/
 
 Directory.Build.targets.user
+/src/LocalPackages
 .cursor
 /encryption-keys
