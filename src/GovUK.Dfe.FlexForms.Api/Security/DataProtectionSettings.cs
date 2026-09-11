@@ -42,4 +42,14 @@ public sealed class DataProtectionSettings
     /// Always accessed with managed identity / DefaultAzureCredential.
     /// </summary>
     public string? KeyVaultKeyId { get; set; }
+
+    /// <summary>
+    /// Directory for the local file-system key ring (for example
+    /// <c>/home/app/.aspnet/DataProtection-Keys</c> in the API container).
+    /// Bind-mount the host key directory to this path (read-only is fine).
+    /// When the path is not writable, XML keys are copied to a temp directory
+    /// and automatic key generation is disabled so the container only decrypts.
+    /// Leave empty to use the ASP.NET default key location.
+    /// </summary>
+    public string LocalKeysPath { get; set; } = "/home/app/.aspnet/DataProtection-Keys";
 }
