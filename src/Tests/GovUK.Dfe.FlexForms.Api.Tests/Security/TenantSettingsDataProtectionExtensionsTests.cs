@@ -152,11 +152,73 @@ public class TenantSettingsDataProtectionExtensionsTests
         Assert.Contains("SAS", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public void AddTenantSettingsDataProtection_LocalKeysPathWithEnvironmentVariable_ExpandsIt()
+    {
+        var keysPath = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        Environment.SetEnvironmentVariable(KeysPathVariable, keysPath);
+
+        try
+        {
+            var services = new ServiceCollection();
+            var configuration = BuildConfiguration(
+                useAzure: false,
+                useStorageSas: false,
+                blobUri: "",
+                keyVaultKeyId: "",
+                localKeysPath: $"${{{KeysPathVariable}}}");
+
+            services.AddTenantSettingsDataProtection(configuration, new TestHostEnvironment("Local"));
+
+            using var provider = services.BuildServiceProvider();
+            provider.GetRequiredService<IDataProtectionProvider>()
+                .CreateProtector("TenantSettings.v1")
+                .Protect("hello");
+
+            Assert.NotEmpty(Directory.GetFiles(keysPath, "key-*.xml"));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(KeysPathVariable, null);
+            if (Directory.Exists(keysPath))
+                Directory.Delete(keysPath, recursive: true);
+        }
+    }
+
+    [Fact]
+    public void AddTenantSettingsDataProtection_LocalKeysPathForAnotherPlatform_FallsBackToDefaultLocation()
+    {
+        // "/home/app/..." resolves to "C:\home\app\..." on Windows, which would quietly create a
+        // brand new key ring instead of reading the developer's existing one.
+        var foreignPath = OperatingSystem.IsWindows()
+            ? "/home/app/.aspnet/DataProtection-Keys"
+            : @"C:\Users\app\AppData\Local\ASP.NET\DataProtection-Keys";
+
+        var services = new ServiceCollection();
+        var configuration = BuildConfiguration(
+            useAzure: false,
+            useStorageSas: false,
+            blobUri: "",
+            keyVaultKeyId: "",
+            localKeysPath: foreignPath);
+
+        services.AddTenantSettingsDataProtection(configuration, new TestHostEnvironment("Local"));
+
+        using var provider = services.BuildServiceProvider();
+        var protector = provider.GetRequiredService<IDataProtectionProvider>().CreateProtector("TenantSettings.v1");
+
+        Assert.Equal("hello", protector.Unprotect(protector.Protect("hello")));
+        Assert.False(Directory.Exists(Path.GetFullPath(foreignPath)));
+    }
+
+    private const string KeysPathVariable = "FLEXFORMS_TEST_DATA_PROTECTION_KEYS";
+
     private static IConfiguration BuildConfiguration(
         bool useAzure,
         bool useStorageSas,
         string blobUri,
-        string keyVaultKeyId) =>
+        string keyVaultKeyId,
+        string localKeysPath = "") =>
         new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -164,7 +226,8 @@ public class TenantSettingsDataProtectionExtensionsTests
                 ["DataProtection:UseStorageSas"] = useStorageSas.ToString(),
                 ["DataProtection:ApplicationName"] = "GovUK.Dfe.FlexForms.Api.Tests",
                 ["DataProtection:BlobUri"] = blobUri,
-                ["DataProtection:KeyVaultKeyId"] = keyVaultKeyId
+                ["DataProtection:KeyVaultKeyId"] = keyVaultKeyId,
+                ["DataProtection:LocalKeysPath"] = localKeysPath
             })
             .Build();
 
