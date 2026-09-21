@@ -26,8 +26,12 @@ public sealed class DataProtectionSettings
     /// <summary>
     /// Stable application name for the Data Protection key ring.
     /// Do not change after secret TenantSettings have been encrypted.
+    /// Required when <see cref="UseAzure"/> is set, where it defaults to
+    /// <c>GovUK.Dfe.FlexForms.Api</c>. With a local key ring it is optional: leave it empty to keep
+    /// the Data Protection default, and set it only where a key ring is shared between machines
+    /// that would otherwise derive different names (the API container and its host).
     /// </summary>
-    public string ApplicationName { get; set; } = "GovUK.Dfe.FlexForms.Api";
+    public string ApplicationName { get; set; } = string.Empty;
 
     /// <summary>
     /// Full blob URI for the shared key-ring XML.
@@ -45,11 +49,14 @@ public sealed class DataProtectionSettings
 
     /// <summary>
     /// Directory for the local file-system key ring (for example
-    /// <c>/home/app/.aspnet/DataProtection-Keys</c> in the API container).
-    /// Bind-mount the host key directory to this path (read-only is fine).
-    /// When the path is not writable, XML keys are copied to a temp directory
-    /// and automatic key generation is disabled so the container only decrypts.
-    /// Leave empty to use the ASP.NET default key location.
+    /// <c>/home/app/.aspnet/DataProtection-Keys</c> in the API container, where the host key
+    /// directory is bind-mounted). <c>%LOCALAPPDATA%</c>, <c>$HOME</c> and <c>${HOME}</c> style
+    /// variables are expanded.
+    /// Leave empty — the default — to use the ASP.NET default key location, which is
+    /// <c>%LOCALAPPDATA%\ASP.NET\DataProtection-Keys</c> on Windows and
+    /// <c>$HOME/.aspnet/DataProtection-Keys</c> elsewhere. A path that cannot be used on the
+    /// current machine (a container path when running directly on Windows, a variable that is not
+    /// set, or a relative path) also falls back to that default.
     /// </summary>
-    public string LocalKeysPath { get; set; } = "/home/app/.aspnet/DataProtection-Keys";
+    public string LocalKeysPath { get; set; } = string.Empty;
 }
