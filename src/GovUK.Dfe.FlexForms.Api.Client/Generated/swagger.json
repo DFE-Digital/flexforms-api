@@ -4163,7 +4163,7 @@
         "tags": [
           "TenantAdmin"
         ],
-        "summary": "Returns decrypted TenantConfig settings rows for the caller's own tenant.\nRestricted to interactive SuperAdmin users.",
+        "summary": "Returns TenantConfig settings rows for the caller's own tenant.\nSecret-bearing leaves are redacted except for interactive SuperAdmin in Dev/Test.\nProduction always redacts. Restricted to interactive Admin and SuperAdmin users.",
         "operationId": "TenantAdmin_GetTenantSettings",
         "parameters": [
           {
@@ -4199,7 +4199,7 @@
             }
           },
           "403": {
-            "description": "Forbidden - interactive SuperAdmin of own tenant required.",
+            "description": "Forbidden - interactive Admin of own tenant required.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4374,6 +4374,101 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/DeleteTenantSettingResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/settings/reveal": {
+      "post": {
+        "tags": [
+          "TenantAdmin"
+        ],
+        "summary": "Break-glass: returns the plaintext of a single redacted secret leaf.\nInteractive SuperAdmin only. Rate limited. Recorded in the tenant setting audit log.\nNot used by the Tenant Settings UI — call this endpoint directly.",
+        "operationId": "TenantAdmin_RevealTenantSettingSecret",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "body",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevealTenantSettingSecretRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "Secret value.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RevealTenantSettingSecretResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - interactive SuperAdmin of own tenant required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Setting or path not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Too many reveal requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
                 }
               }
             }
@@ -7221,6 +7316,29 @@
           "updatedAtUtc": {
             "type": "string",
             "format": "date-time"
+          },
+          "redactedValues": {
+            "type": "array",
+            "nullable": true,
+            "items": {
+              "$ref": "#/components/schemas/TenantSettingRedactedValueDto"
+            }
+          }
+        }
+      },
+      "TenantSettingRedactedValueDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "valueLength": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fingerprint": {
+            "type": "string"
           }
         }
       },
@@ -7261,6 +7379,56 @@
           },
           "isSecret": {
             "type": "boolean"
+          }
+        }
+      },
+      "RevealTenantSettingSecretResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          },
+          "valueLength": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "revealedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "revealedBy": {
+            "type": "string"
+          }
+        }
+      },
+      "RevealTenantSettingSecretRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "type": "string"
+          },
+          "target": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           }
         }
       },
@@ -7503,6 +7671,10 @@
           },
           "wasSecret": {
             "type": "boolean"
+          },
+          "details": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

@@ -22,5 +22,10 @@ public class TenantSettingAuditEntity
 
     public bool WasSecret { get; set; }
 
+    /// <summary>
+    /// Optional non-secret context (for example a reveal path and reason). Never stores secret values.
+    /// </summary>
+    public string? Details { get; set; }
+
     public TenantEntity? Tenant { get; set; }
 }

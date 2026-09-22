@@ -20,6 +20,10 @@ Each tenant has:
 
 Secret categories (`ConnectionStrings`, `Authorization`, `DfESignIn`, `EntraSso`, `TestAuthentication`, etc.) are **always encrypted** at rest via Data Protection, regardless of the UI checkbox.
 
+Admin list and validate responses **do not return the whole secret JSON as a blank blob**. Only secret leaves (property names such as `SecretKey`, `ClientSecret`, `ApiKey`, `Password`, `KeyHash`, …, and every value under `ConnectionStrings`) are replaced with `__REDACTED__`. Non-secret fields remain editable.
+
+On upsert, `__REDACTED__` is restored from the currently stored value for that JSON path; a newly typed plaintext leaf overwrites the secret. SuperAdmins see plaintext in Dev/Test only; in Production use `POST .../settings/reveal` (audited). See the [Tenant Admin User Manual §14.4](https://github.com/DFE-Digital/flexforms-web/blob/main/docs/Tenant-Admin-User-Manual.md#144-how-secrets-are-shown-and-saved).
+
 ## Resolution
 
 Clients must send `X-Tenant-ID` (GUID) on API requests. The middleware resolves the tenant from:
@@ -37,8 +41,9 @@ Interactive SuperAdmins (own tenant only) can use:
 
 | Endpoint | Purpose |
 | --- | --- |
-| `GET /v1/admin/tenants/{id}/settings` | List decrypted settings |
-| `POST /v1/admin/tenants/{id}/settings` | Upsert a category (validated JSON, forced secrets, audit log) |
+| `GET /v1/admin/tenants/{id}/settings` | List settings (secret leaves redacted except SuperAdmin in Dev/Test) |
+| `POST /v1/admin/tenants/{id}/settings` | Upsert a category (validated JSON, forced secrets, sentinel restore, audit log) |
+| `POST /v1/admin/tenants/{id}/settings/reveal` | SuperAdmin break-glass: one secret leaf by path + reason (audited, rate-limited) |
 | `POST /v1/admin/tenants/refresh` | Force catalogue reload |
 | `GET /v1/admin/tenants/{id}/effective-config` | Preview effective auth scheme, hostnames, cache metadata |
 | `GET /v1/admin/tenants/{id}/export` | Promotion bundle (secrets redacted) |

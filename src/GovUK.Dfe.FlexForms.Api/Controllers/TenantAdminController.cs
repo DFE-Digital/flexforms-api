@@ -131,14 +131,15 @@ public class TenantAdminController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-    /// Returns decrypted TenantConfig settings rows for the caller's own tenant.
-    /// Restricted to interactive SuperAdmin users.
+    /// Returns TenantConfig settings rows for the caller's own tenant.
+    /// Secret-bearing leaves are redacted except for interactive SuperAdmin in Dev/Test.
+    /// Production always redacts. Restricted to interactive Admin and SuperAdmin users.
     /// </summary>
     [HttpGet("{tenantId:guid}/settings")]
     [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
     [SwaggerResponse(200, "Tenant settings.", typeof(GetTenantSettingsResponse))]
     [SwaggerResponse(401, "Unauthorized.", typeof(ExceptionResponse))]
-    [SwaggerResponse(403, "Forbidden - interactive SuperAdmin of own tenant required.", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Forbidden - interactive Admin of own tenant required.", typeof(ExceptionResponse))]
     [SwaggerResponse(404, "Tenant not found.", typeof(ExceptionResponse))]
     [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
     public async Task<IActionResult> GetTenantSettings(
@@ -146,6 +147,39 @@ public class TenantAdminController(ISender sender) : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(new GetTenantSettingsQuery(tenantId), cancellationToken);
+
+        if (!result.IsSuccess)
+            return MapFailure(result);
+
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Break-glass: returns the plaintext of a single redacted secret leaf.
+    /// Interactive SuperAdmin only. Rate limited. Recorded in the tenant setting audit log.
+    /// Not used by the Tenant Settings UI — call this endpoint directly.
+    /// </summary>
+    [HttpPost("{tenantId:guid}/settings/reveal")]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    [SwaggerResponse(200, "Secret value.", typeof(RevealTenantSettingSecretResponse))]
+    [SwaggerResponse(400, "Validation error.", typeof(ExceptionResponse))]
+    [SwaggerResponse(401, "Unauthorized.", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Forbidden - interactive SuperAdmin of own tenant required.", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "Setting or path not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(429, "Too many reveal requests.", typeof(ExceptionResponse))]
+    public async Task<IActionResult> RevealTenantSettingSecret(
+        Guid tenantId,
+        [FromBody] RevealTenantSettingSecretRequest body,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(
+            new RevealTenantSettingSecretCommand(
+                tenantId,
+                body.Category,
+                body.Target,
+                body.Path,
+                body.Reason),
+            cancellationToken);
 
         if (!result.IsSuccess)
             return MapFailure(result);

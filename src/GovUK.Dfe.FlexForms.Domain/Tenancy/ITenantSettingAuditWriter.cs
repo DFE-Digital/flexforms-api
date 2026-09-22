@@ -9,5 +9,6 @@ public interface ITenantSettingAuditWriter
         string action,
         string actorEmail,
         bool wasSecret,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? details = null);
 }

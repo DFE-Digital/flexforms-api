@@ -57,13 +57,7 @@ public sealed class GetSafeTenantSettingsQueryHandler(
 
         var safe = list.Settings
             .Where(s => TenantSafeSettingCategories.IsSafe(s.Category) && !s.IsSecret)
-            .Select(s => new TenantSettingDto(
-                s.SettingId,
-                s.Category,
-                s.Target,
-                s.SettingsJson,
-                s.IsSecret,
-                s.UpdatedAtUtc))
+            .Select(s => TenantSettingSecretJson.ToAdminDto(s))
             .ToList();
 
         return Result<GetTenantSettingsResponse>.Success(

@@ -2,10 +2,12 @@ using System.Text;
 using System.Text.Json;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.FlexForms.Application.Security;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Validation;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using MediatR;
+using Microsoft.Extensions.Hosting;
 
 namespace GovUK.Dfe.FlexForms.Application.TenantAdmin.Commands;
 
@@ -20,7 +22,8 @@ public sealed class ValidateTenantSettingCommandHandler(
     ITenantContextAccessor tenantContextAccessor,
     IPermissionCheckerService permissionChecker,
     ITenantSettingsQuery settingsQuery,
-    ITemplateHostMappingOwnershipValidator templateMappingOwnershipValidator)
+    ITemplateHostMappingOwnershipValidator templateMappingOwnershipValidator,
+    IHostEnvironment hostEnvironment)
     : IRequestHandler<ValidateTenantSettingCommand, Result<ValidateTenantSettingResponse>>
 {
     public async Task<Result<ValidateTenantSettingResponse>> Handle(
@@ -60,8 +63,31 @@ public sealed class ValidateTenantSettingCommandHandler(
 
         var category = request.Category?.Trim() ?? string.Empty;
         var target = request.Target?.Trim() ?? string.Empty;
-        var errors = TenantSettingJsonValidator.Validate(
-            category, target, decoded, TenantSettingValidationMode.Strict).ToList();
+
+        var list = await settingsQuery.ListSettingsAsync(request.TenantId, cancellationToken);
+        var existing = list?.Settings.FirstOrDefault(s =>
+            string.Equals(s.Category, category, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(s.Target, target, StringComparison.OrdinalIgnoreCase));
+
+        var errors = new List<string>();
+        if (existing is { IsSecret: true })
+        {
+            var restored = TenantSettingSecretJson.Restore(decoded, existing.SettingsJson);
+            if (restored.Errors.Count > 0)
+            {
+                errors.AddRange(restored.Errors);
+            }
+            else
+            {
+                decoded = restored.Json;
+            }
+        }
+
+        if (errors.Count == 0)
+        {
+            errors.AddRange(TenantSettingJsonValidator.Validate(
+                category, target, decoded, TenantSettingValidationMode.Strict));
+        }
 
         if (errors.Count == 0)
         {
@@ -73,13 +99,22 @@ public sealed class ValidateTenantSettingCommandHandler(
             errors.AddRange(ownershipErrors);
         }
 
-        var list = await settingsQuery.ListSettingsAsync(request.TenantId, cancellationToken);
-        var existing = list?.Settings.FirstOrDefault(s =>
-            string.Equals(s.Category, category, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(s.Target, target, StringComparison.OrdinalIgnoreCase));
+        var includePlaintext = TenantSettingSecretPlaintextGate.AllowsSuperAdminPlaintext(
+            hostEnvironment,
+            permissionChecker.IsInteractivePlatformAdmin());
 
-        var currentJson = existing?.SettingsJson;
-        var diffSummary = BuildDiffSummary(currentJson, decoded, existing is not null);
+        var currentJson = existing is null
+            ? null
+            : existing.IsSecret && !includePlaintext
+                ? TenantSettingSecretJson.Redact(existing.SettingsJson, existing.Category).Json
+                : existing.SettingsJson;
+        var proposedJson = (existing is { IsSecret: true } || request.IsSecret) && !includePlaintext
+            ? TenantSettingSecretJson.Redact(decoded, category).Json
+            : decoded;
+        var diffSummary = BuildDiffSummary(
+            existing?.SettingsJson,
+            decoded,
+            existing is not null);
 
         return Result<ValidateTenantSettingResponse>.Success(
             new ValidateTenantSettingResponse(
@@ -87,7 +122,7 @@ public sealed class ValidateTenantSettingCommandHandler(
                 errors,
                 diffSummary,
                 currentJson,
-                decoded,
+                proposedJson,
                 existing is not null));
     }
 

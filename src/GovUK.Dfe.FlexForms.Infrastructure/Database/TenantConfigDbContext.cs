@@ -191,7 +191,7 @@ public class TenantConfigDbContext(DbContextOptions<TenantConfigDbContext> optio
 
             entity.Property(e => e.Action)
                 .IsRequired()
-                .HasMaxLength(20);
+                .HasMaxLength(32);
 
             entity.Property(e => e.ActorEmail)
                 .IsRequired()
@@ -199,6 +199,9 @@ public class TenantConfigDbContext(DbContextOptions<TenantConfigDbContext> optio
 
             entity.Property(e => e.ChangedAtUtc).IsRequired();
             entity.Property(e => e.WasSecret).IsRequired();
+
+            entity.Property(e => e.Details)
+                .HasMaxLength(500);
 
             entity.HasIndex(e => new { e.TenantId, e.ChangedAtUtc });
 

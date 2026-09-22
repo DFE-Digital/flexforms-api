@@ -357,6 +357,11 @@
     },
     {
       "Controller": "TenantAdminController",
+      "Action": "RevealTenantSettingSecret",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "TenantAdminController",
       "Action": "GetEffectiveConfiguration",
       "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
     },
