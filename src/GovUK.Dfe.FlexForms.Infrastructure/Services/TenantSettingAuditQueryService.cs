@@ -33,7 +33,8 @@ public sealed class TenantSettingAuditQueryService(TenantConfigDbContext dbConte
                 a.Action,
                 a.ActorEmail,
                 a.ChangedAtUtc,
-                a.WasSecret))
+                a.WasSecret,
+                a.Details))
             .ToListAsync(cancellationToken);
 
         return new GetTenantSettingAuditLogDto(tenantId, rows);

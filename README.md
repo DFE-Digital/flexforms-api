@@ -150,7 +150,19 @@ Common categories: `ConnectionStrings`, `AzureAd`, `DfESignIn`, `EntraSso`, `Aut
 
 **SuperAdmin-only (cannot be edited by Tenant Admins):** `ConnectionStrings`, `ApplicationTemplates`, `Template`, `FileStorage`, `Email`.
 
-Secrets (`IsSecret = 1`) are encrypted with ASP.NET Data Protection. Forced-secret categories include `Email`, `FileStorage`, auth settings, and connection strings.
+Secret categories (`IsSecret = 1`, and forced-secret categories such as `ConnectionStrings`, auth providers, and `Email`) are encrypted with ASP.NET Data Protection at rest.
+
+**Admin list / validate APIs never return secret leaf values as plaintext** to Tenant Admins. Secret-looking JSON properties (and all `ConnectionStrings` values) are replaced with `__REDACTED__`; non-secret properties stay readable. Upsert restores any `__REDACTED__` leaf from the currently stored value so Admins can save non-secret edits without wiping secrets. Typing a new plaintext value in place of a sentinel rotates that leaf.
+
+| Caller | Environment | Secret leaves in list/validate |
+|--------|-------------|-------------------------------|
+| Tenant Admin | Any | `__REDACTED__` |
+| SuperAdmin | Dev / Test / Local / Development / Testing | Plaintext |
+| SuperAdmin | Production / Staging / unknown | `__REDACTED__` |
+
+Break-glass (Production SuperAdmin): `POST /v1/admin/tenants/{id}/settings/reveal` with `category`, `target`, `path`, and `reason`. Audited as `SecretRevealed` (path + reason only). Rate-limited.
+
+Operator detail: [flexforms-web Tenant Admin User Manual §14.4](https://github.com/DFE-Digital/flexforms-web/blob/main/docs/Tenant-Admin-User-Manual.md#144-how-secrets-are-shown-and-saved).
 
 ### Configuration provider
 
@@ -656,7 +668,7 @@ Safe TenantConfig category (tenant Admins may edit). Operator guide: [flexforms-
 |---------|-----------|
 | Tenant isolation | Middleware + `tenant_id` claim match + membership checks |
 | Config consume | Principal → `TenantPrincipals` (no client-chosen tenant) |
-| Secret settings | Encrypted at rest; SuperAdmin-only read/write decrypted values |
+| Secret settings | Encrypted at rest (Data Protection). List/validate redact secret leaves as `__REDACTED__` (SuperAdmin plaintext only in Dev/Test). Upsert restores sentinels from store. Reveal API audited + rate-limited |
 | Admin APIs | Interactive user JWT required where noted (not pure machine tokens) |
 | CORS | Only `TenantFrontendOrigins` |
 | Platform ops | `PlatformBearer` + Entra app roles (`Platform.Host.Read`, `Platform.TenantConfig.Read`) |

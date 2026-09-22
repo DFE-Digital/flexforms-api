@@ -1,7 +1,8 @@
 namespace GovUK.Dfe.FlexForms.Domain.Tenancy;
 
 /// <summary>
-/// Reads raw TenantConfig setting rows (with secrets decrypted) for admin editing.
+/// Reads raw TenantConfig setting rows (with secrets decrypted in-process).
+/// Do not return decrypted secret JSON from HTTP handlers — redact first.
 /// </summary>
 public interface ITenantSettingsQuery
 {

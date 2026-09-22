@@ -1,8 +1,10 @@
 using FluentValidation;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.FlexForms.Application.Security;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using MediatR;
+using Microsoft.Extensions.Hosting;
 
 namespace GovUK.Dfe.FlexForms.Application.TenantAdmin.Queries;
 
@@ -20,13 +22,14 @@ internal class GetTenantSettingsQueryValidator : AbstractValidator<GetTenantSett
 }
 
 /// <summary>
-/// Lists decrypted TenantConfig settings for the current tenant.
-/// Restricted to interactive tenant Admin and SuperAdmin users.
+/// Lists TenantConfig settings for the current tenant.
+/// Secret leaves are redacted except for interactive SuperAdmin in Dev/Test environments.
 /// </summary>
 public sealed class GetTenantSettingsQueryHandler(
     ITenantSettingsQuery settingsQuery,
     ITenantContextAccessor tenantContextAccessor,
-    IPermissionCheckerService permissionChecker)
+    IPermissionCheckerService permissionChecker,
+    IHostEnvironment hostEnvironment)
     : IRequestHandler<GetTenantSettingsQuery, Result<GetTenantSettingsResponse>>
 {
     public async Task<Result<GetTenantSettingsResponse>> Handle(
@@ -57,16 +60,14 @@ public sealed class GetTenantSettingsQueryHandler(
         if (list is null)
             return Result<GetTenantSettingsResponse>.NotFound($"Tenant '{request.TenantId}' was not found.");
 
+        var includePlaintext = TenantSettingSecretPlaintextGate.AllowsSuperAdminPlaintext(
+            hostEnvironment,
+            permissionChecker.IsInteractivePlatformAdmin());
+
         var response = new GetTenantSettingsResponse(
             list.TenantId,
             list.TenantName,
-            list.Settings.Select(s => new TenantSettingDto(
-                s.SettingId,
-                s.Category,
-                s.Target,
-                s.SettingsJson,
-                s.IsSecret,
-                s.UpdatedAtUtc)).ToList());
+            list.Settings.Select(s => TenantSettingSecretJson.ToAdminDto(s, includePlaintext)).ToList());
 
         return Result<GetTenantSettingsResponse>.Success(response);
     }

@@ -509,8 +509,9 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// Returns decrypted TenantConfig settings rows for the caller's own tenant.
-        /// <br/>Restricted to interactive SuperAdmin users.
+        /// Returns TenantConfig settings rows for the caller's own tenant.
+        /// <br/>Secret-bearing leaves are redacted except for interactive SuperAdmin in Dev/Test.
+        /// <br/>Production always redacts. Restricted to interactive Admin and SuperAdmin users.
         /// </summary>
         /// <returns>Tenant settings.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
@@ -534,6 +535,16 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>Setting deleted.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<DeleteTenantSettingResponse> DeleteTenantSettingAsync(System.Guid tenantId, string category = null, string target = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Break-glass: returns the plaintext of a single redacted secret leaf.
+        /// <br/>Interactive SuperAdmin only. Rate limited. Recorded in the tenant setting audit log.
+        /// <br/>Not used by the Tenant Settings UI — call this endpoint directly.
+        /// </summary>
+        /// <returns>Secret value.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<RevealTenantSettingSecretResponse> RevealTenantSettingSecretAsync(System.Guid tenantId, RevealTenantSettingSecretRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>

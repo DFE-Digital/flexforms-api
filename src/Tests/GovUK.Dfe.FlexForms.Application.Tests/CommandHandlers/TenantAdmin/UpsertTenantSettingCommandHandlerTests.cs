@@ -15,6 +15,7 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.TenantAdmin;
 public class UpsertTenantSettingCommandHandlerTests
 {
     private readonly ITenantSettingsWriter _writer = Substitute.For<ITenantSettingsWriter>();
+    private readonly ITenantSettingsQuery _settingsQuery = Substitute.For<ITenantSettingsQuery>();
     private readonly ITenantContextAccessor _tenantContext = Substitute.For<ITenantContextAccessor>();
     private readonly IPermissionCheckerService _permissionChecker = Substitute.For<IPermissionCheckerService>();
     private readonly ITenantConfigurationProvider _configProvider = Substitute.For<ITenantConfigurationProvider>();
@@ -33,6 +34,7 @@ public class UpsertTenantSettingCommandHandlerTests
             .Returns(Array.Empty<string>());
         _handler = new UpsertTenantSettingCommandHandler(
             _writer,
+            _settingsQuery,
             _tenantContext,
             _permissionChecker,
             _configProvider,
@@ -267,6 +269,80 @@ public class UpsertTenantSettingCommandHandlerTests
         Assert.False(result.IsSuccess);
         Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
         Assert.Contains("Production", result.Error);
+        await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldRestoreRedactedSentinel_WhenUpdatingSecretSetting()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+
+        var stored = """{"SecretKey":"keep-me","Issuer":"i","Audience":"a"}""";
+        _settingsQuery.ListSettingsAsync(tenantId, Arg.Any<CancellationToken>())
+            .Returns(new TenantSettingsList(
+                tenantId,
+                "Transfers",
+                [
+                    new TenantSettingRow(
+                        Guid.NewGuid(),
+                        "Authorization",
+                        "Api",
+                        stored,
+                        true,
+                        DateTime.UtcNow)
+                ]));
+
+        var proposed = """{"SecretKey":"__REDACTED__","Issuer":"i","Audience":"a"}""";
+        _writer.UpsertSettingAsync(
+                tenantId, "Authorization", "Api", Arg.Any<string>(), true, Arg.Any<CancellationToken>())
+            .Returns(new UpsertTenantSettingResult(Guid.NewGuid(), false, "Authorization", "Api"));
+
+        var result = await _handler.Handle(
+            new UpsertTenantSettingCommand(tenantId, "Authorization", "Api", ToBase64(proposed), true),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        await _writer.Received(1).UpsertSettingAsync(
+            tenantId,
+            "Authorization",
+            "Api",
+            Arg.Is<string>(json => json.Contains("keep-me") && !json.Contains("__REDACTED__")),
+            true,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldRejectSentinel_WhenPathIsNotOnStoredSetting()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+
+        _settingsQuery.ListSettingsAsync(tenantId, Arg.Any<CancellationToken>())
+            .Returns(new TenantSettingsList(
+                tenantId,
+                "Transfers",
+                [
+                    new TenantSettingRow(
+                        Guid.NewGuid(),
+                        "Authorization",
+                        "Api",
+                        """{"SecretKey":"keep-me","Issuer":"i","Audience":"a"}""",
+                        true,
+                        DateTime.UtcNow)
+                ]));
+
+        var proposed = """{"SecretKey":"keep-me","Issuer":"i","Audience":"a","NewSecret":"__REDACTED__"}""";
+
+        var result = await _handler.Handle(
+            new UpsertTenantSettingCommand(tenantId, "Authorization", "Api", ToBase64(proposed), true),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
+        Assert.Contains("NewSecret", result.Error);
         await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
     }
 

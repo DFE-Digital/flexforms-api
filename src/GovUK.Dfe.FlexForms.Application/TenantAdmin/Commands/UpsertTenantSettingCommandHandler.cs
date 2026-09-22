@@ -28,6 +28,7 @@ public sealed record UpsertTenantSettingCommand(
 /// </summary>
 public sealed class UpsertTenantSettingCommandHandler(
     ITenantSettingsWriter settingsWriter,
+    ITenantSettingsQuery settingsQuery,
     ITenantContextAccessor tenantContextAccessor,
     IPermissionCheckerService permissionChecker,
     ITenantConfigurationProvider tenantConfigProvider,
@@ -84,6 +85,23 @@ public sealed class UpsertTenantSettingCommandHandler(
         {
             return Result<UpsertTenantSettingResponse>.Failure(
                 "Settings JSON is required.");
+        }
+
+        var list = await settingsQuery.ListSettingsAsync(request.TenantId, cancellationToken);
+        var existing = list?.Settings.FirstOrDefault(s =>
+            string.Equals(s.Category, request.Category, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(s.Target, request.Target, StringComparison.OrdinalIgnoreCase));
+
+        if (existing is { IsSecret: true })
+        {
+            var restored = TenantSettingSecretJson.Restore(decodedSettingsJson, existing.SettingsJson);
+            if (restored.Errors.Count > 0)
+            {
+                return Result<UpsertTenantSettingResponse>.Validation(
+                    string.Join(" ", restored.Errors));
+            }
+
+            decodedSettingsJson = restored.Json;
         }
 
         var validationErrors = TenantSettingJsonValidator.Validate(

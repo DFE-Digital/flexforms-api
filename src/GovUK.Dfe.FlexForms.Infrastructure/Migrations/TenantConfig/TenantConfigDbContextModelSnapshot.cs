@@ -148,8 +148,8 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations.TenantConfig
 
                     b.Property<string>("Action")
                         .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<string>("ActorEmail")
                         .IsRequired()
@@ -163,6 +163,10 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations.TenantConfig
 
                     b.Property<DateTime>("ChangedAtUtc")
                         .HasColumnType("datetime2");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("Target")
                         .IsRequired()

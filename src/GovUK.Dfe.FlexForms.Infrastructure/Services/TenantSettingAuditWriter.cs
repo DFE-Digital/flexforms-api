@@ -16,7 +16,8 @@ public sealed class TenantSettingAuditWriter(
         string action,
         string actorEmail,
         bool wasSecret,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? details = null)
     {
         var entry = new TenantSettingAuditEntity
         {
@@ -27,7 +28,8 @@ public sealed class TenantSettingAuditWriter(
             Action = action,
             ActorEmail = actorEmail,
             ChangedAtUtc = DateTime.UtcNow,
-            WasSecret = wasSecret
+            WasSecret = wasSecret,
+            Details = details
         };
 
         dbContext.TenantSettingAudits.Add(entry);

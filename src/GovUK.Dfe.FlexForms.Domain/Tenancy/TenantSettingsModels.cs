@@ -1,8 +1,8 @@
 namespace GovUK.Dfe.FlexForms.Domain.Tenancy;
 
 /// <summary>
-/// A single TenantConfig settings row for admin editing (secrets decrypted).
-/// Kept in Domain until mirrored DTOs ship in CoreLibs.Contracts.
+/// A single TenantConfig settings row for admin APIs (secrets decrypted in-process).
+/// Callers must redact via <see cref="TenantSettingSecretJson"/> before returning to a client.
 /// </summary>
 public sealed record TenantSettingRow(
     Guid SettingId,

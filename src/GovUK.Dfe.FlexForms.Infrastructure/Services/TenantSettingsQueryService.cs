@@ -6,7 +6,8 @@ using Microsoft.Extensions.Logging;
 namespace GovUK.Dfe.FlexForms.Infrastructure.Services;
 
 /// <summary>
-/// Reads TenantConfig setting rows and decrypts secret categories for SuperAdmin editing.
+/// Reads TenantConfig setting rows and decrypts secret categories in-process.
+/// HTTP handlers must redact before returning rows to a client.
 /// </summary>
 public class TenantSettingsQueryService(
     TenantConfigDbContext dbContext,
