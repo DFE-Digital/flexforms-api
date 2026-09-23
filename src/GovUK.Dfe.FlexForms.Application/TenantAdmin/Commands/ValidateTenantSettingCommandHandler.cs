@@ -69,6 +69,15 @@ public sealed class ValidateTenantSettingCommandHandler(
             string.Equals(s.Category, category, StringComparison.OrdinalIgnoreCase)
             && string.Equals(s.Target, target, StringComparison.OrdinalIgnoreCase));
 
+        if (existing is { IsSecret: true }
+            && !request.IsSecret
+            && !TenantSettingsSecretCategories.ShouldEncrypt(category)
+            && !permissionChecker.IsInteractivePlatformAdmin())
+        {
+            return Result<ValidateTenantSettingResponse>.Forbid(
+                "Only SuperAdmin can remove the Secret flag from a setting that is already marked secret.");
+        }
+
         var errors = new List<string>();
         if (existing is { IsSecret: true })
         {

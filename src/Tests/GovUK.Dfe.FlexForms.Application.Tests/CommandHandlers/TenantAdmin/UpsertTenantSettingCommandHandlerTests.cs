@@ -346,6 +346,123 @@ public class UpsertTenantSettingCommandHandlerTests
         await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
     }
 
+    [Fact]
+    public async Task Handle_ShouldForbid_WhenTenantAdminClearsSecretFlag()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
+        _permissionChecker.IsInteractivePlatformAdmin().Returns(false);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+
+        _settingsQuery.ListSettingsAsync(tenantId, Arg.Any<CancellationToken>())
+            .Returns(new TenantSettingsList(
+                tenantId,
+                "Transfers",
+                [
+                    new TenantSettingRow(
+                        Guid.NewGuid(),
+                        "CustomSecrets",
+                        "Shared",
+                        """{"ApiKey":"stored"}""",
+                        true,
+                        DateTime.UtcNow)
+                ]));
+
+        var result = await _handler.Handle(
+            new UpsertTenantSettingCommand(
+                tenantId,
+                "CustomSecrets",
+                "Shared",
+                ToBase64("""{"ApiKey":"__REDACTED__"}"""),
+                false),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DomainErrorCode.Forbidden, result.ErrorCode);
+        Assert.Contains("SuperAdmin", result.Error);
+        await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldAllow_WhenSuperAdminClearsSecretFlag()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
+        _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+
+        _settingsQuery.ListSettingsAsync(tenantId, Arg.Any<CancellationToken>())
+            .Returns(new TenantSettingsList(
+                tenantId,
+                "Transfers",
+                [
+                    new TenantSettingRow(
+                        Guid.NewGuid(),
+                        "CustomSecrets",
+                        "Shared",
+                        """{"ApiKey":"stored"}""",
+                        true,
+                        DateTime.UtcNow)
+                ]));
+
+        _writer.UpsertSettingAsync(
+                tenantId, "CustomSecrets", "Shared", Arg.Any<string>(), false, Arg.Any<CancellationToken>())
+            .Returns(new UpsertTenantSettingResult(Guid.NewGuid(), false, "CustomSecrets", "Shared"));
+
+        var result = await _handler.Handle(
+            new UpsertTenantSettingCommand(
+                tenantId,
+                "CustomSecrets",
+                "Shared",
+                ToBase64("""{"ApiKey":"plaintext-now"}"""),
+                false),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        await _writer.Received(1).UpsertSettingAsync(
+            tenantId,
+            "CustomSecrets",
+            "Shared",
+            Arg.Is<string>(json => json.Contains("plaintext-now")),
+            false,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldAllow_WhenTenantAdminMarksCategorySecret()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
+        _permissionChecker.IsInteractivePlatformAdmin().Returns(false);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+
+        _settingsQuery.ListSettingsAsync(tenantId, Arg.Any<CancellationToken>())
+            .Returns(new TenantSettingsList(
+                tenantId,
+                "Transfers",
+                [
+                    new TenantSettingRow(
+                        Guid.NewGuid(),
+                        "Layout",
+                        "Web",
+                        """{"Theme":"govuk"}""",
+                        false,
+                        DateTime.UtcNow)
+                ]));
+
+        _writer.UpsertSettingAsync(
+                tenantId, "Layout", "Web", """{"Theme":"govuk"}""", true, Arg.Any<CancellationToken>())
+            .Returns(new UpsertTenantSettingResult(Guid.NewGuid(), false, "Layout", "Web"));
+
+        var result = await _handler.Handle(
+            new UpsertTenantSettingCommand(tenantId, "Layout", "Web", ToBase64("""{"Theme":"govuk"}"""), true),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        await _writer.Received(1).UpsertSettingAsync(
+            tenantId, "Layout", "Web", """{"Theme":"govuk"}""", true, Arg.Any<CancellationToken>());
+    }
+
     private static string ToBase64(string json) =>
         Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
 

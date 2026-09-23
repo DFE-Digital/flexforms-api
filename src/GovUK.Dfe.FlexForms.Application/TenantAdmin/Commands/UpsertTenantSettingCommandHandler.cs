@@ -92,6 +92,12 @@ public sealed class UpsertTenantSettingCommandHandler(
             string.Equals(s.Category, request.Category, StringComparison.OrdinalIgnoreCase)
             && string.Equals(s.Target, request.Target, StringComparison.OrdinalIgnoreCase));
 
+        if (IsUnauthorizedSecretFlagRemoval(existing, request.IsSecret, request.Category))
+        {
+            return Result<UpsertTenantSettingResponse>.Forbid(
+                "Only SuperAdmin can remove the Secret flag from a setting that is already marked secret.");
+        }
+
         if (existing is { IsSecret: true })
         {
             var restored = TenantSettingSecretJson.Restore(decodedSettingsJson, existing.SettingsJson);
@@ -179,6 +185,28 @@ public sealed class UpsertTenantSettingCommandHandler(
                ?? user?.FindFirst("email")?.Value
                ?? user?.Identity?.Name
                ?? "unknown";
+    }
+
+    /// <summary>
+    /// Tenant Admins may mark a category secret (or create one as secret) but cannot clear
+    /// IsSecret once set. Categories that always encrypt are unaffected — the flag stays forced on.
+    /// </summary>
+    private bool IsUnauthorizedSecretFlagRemoval(
+        TenantSettingRow? existing,
+        bool requestedIsSecret,
+        string category)
+    {
+        if (existing is not { IsSecret: true } || requestedIsSecret)
+        {
+            return false;
+        }
+
+        if (TenantSettingsSecretCategories.ShouldEncrypt(category))
+        {
+            return false;
+        }
+
+        return !permissionChecker.IsInteractivePlatformAdmin();
     }
 
     private static bool WouldEnableTestAuthentication(string category, string settingsJson)
