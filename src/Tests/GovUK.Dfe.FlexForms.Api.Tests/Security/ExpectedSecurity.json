@@ -106,6 +106,16 @@
       "ExpectedSecurity": "Authorize: Policy=ServiceCallers"
     },
     {
+      "Controller": "TokensController",
+      "Action": "SendTestAuthPassword",
+      "ExpectedSecurity": "Authorize: Policy=ServiceCallers"
+    },
+    {
+      "Controller": "TokensController",
+      "Action": "VerifyTestAuthPassword",
+      "ExpectedSecurity": "Authorize: Policy=ServiceCallers"
+    },
+    {
       "Controller": "ApplicationsController",
       "Action": "GetMyApplicationsAsync",
       "ExpectedSecurity": "Authorize: Policy=CanReadAnyApplication"

@@ -1,3 +1,5 @@
+using GovUK.Dfe.FlexForms.Application.TenantAdmin;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using Microsoft.Extensions.Hosting;
 
 namespace GovUK.Dfe.FlexForms.Application.Security;
@@ -34,4 +36,13 @@ public static class TestAuthenticationEnvironmentGate
     /// </summary>
     public static bool IsProduction(IHostEnvironment? environment)
         => !IsAllowed(environment);
+
+    /// <summary>
+    /// Returns <c>true</c> when the environment allows Test Authentication and the tenant has
+    /// <c>TestAuthentication:Enabled</c> set to <c>true</c>.
+    /// </summary>
+    public static bool IsEnabledForTenant(IHostEnvironment? environment, TenantConfiguration? tenant)
+        => tenant is not null
+           && IsAllowed(environment)
+           && TenantInteractiveAuthSchemeResolver.GetTestAuthenticationEnabled(tenant.Settings);
 }

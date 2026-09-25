@@ -158,4 +158,120 @@ public class TokensControllerTests
 
         Assert.Equal(500, ex.StatusCode);
     }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task SendTestAuthPassword_ShouldReturnForbidden_WhenTestAuthenticationDisabledForTenant(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        ITokensClient tokensClient,
+        HttpClient httpClient)
+    {
+        AuthenticateAsServiceCaller(factory, httpClient);
+
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => tokensClient.SendTestAuthPasswordAsync(new SendTestAuthPasswordRequest("bob@example.com")));
+
+        Assert.Equal(403, ex.StatusCode);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task SendTestAuthPassword_ShouldReturnBadRequest_WhenEmailInvalid(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        ITokensClient tokensClient,
+        HttpClient httpClient)
+    {
+        AuthenticateAsServiceCaller(factory, httpClient);
+
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => tokensClient.SendTestAuthPasswordAsync(new SendTestAuthPasswordRequest("not-an-email")));
+
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task SendTestAuthPassword_ShouldReturnForbidden_WhenCallerIsNotAService(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        ITokensClient tokensClient,
+        HttpClient httpClient)
+    {
+        factory.TestClaims = new List<Claim>
+        {
+            new Claim("appid", "app"),
+            new Claim("iss", "windows.net")
+        };
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "azure-token");
+
+        var ex = await Assert.ThrowsAnyAsync<ExternalApplicationsException>(
+            () => tokensClient.SendTestAuthPasswordAsync(new SendTestAuthPasswordRequest("bob@example.com")));
+
+        Assert.Equal(403, ex.StatusCode);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task VerifyTestAuthPassword_ShouldReturnForbidden_WhenTestAuthenticationDisabledForTenant(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        ITokensClient tokensClient,
+        HttpClient httpClient)
+    {
+        AuthenticateAsServiceCaller(factory, httpClient);
+
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => tokensClient.VerifyTestAuthPasswordAsync(
+                new VerifyTestAuthPasswordRequest("bob@example.com", "123456")));
+
+        Assert.Equal(403, ex.StatusCode);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task VerifyTestAuthPassword_ShouldReturnBadRequest_WhenPasswordNotSixDigits(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        ITokensClient tokensClient,
+        HttpClient httpClient)
+    {
+        AuthenticateAsServiceCaller(factory, httpClient);
+
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => tokensClient.VerifyTestAuthPasswordAsync(
+                new VerifyTestAuthPasswordRequest("bob@example.com", "12ab")));
+
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void VerifyTestAuthPasswordResponse_ShouldRoundTrip_FromApiCamelCaseToClientDefaultSerializer(bool isValid)
+    {
+        var apiJson = System.Text.Json.JsonSerializer.Serialize(
+            new VerifyTestAuthPasswordResponse(isValid),
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+
+        var clientResponse = System.Text.Json.JsonSerializer.Deserialize<VerifyTestAuthPasswordResponse>(
+            apiJson,
+            new System.Text.Json.JsonSerializerOptions());
+
+        Assert.Equal(isValid, clientResponse!.IsValid);
+    }
+
+    private static void AuthenticateAsServiceCaller(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        HttpClient httpClient)
+    {
+        factory.TestClaims = new List<Claim>
+        {
+            new Claim("iss", "windows.net"),
+            new Claim("appid", "app"),
+            new Claim(ClaimTypes.Role, "API.Read"),
+            new Claim(ClaimTypes.Role, "API.Write"),
+            new Claim(GovUK.Dfe.FlexForms.Domain.Tenancy.TenantAuthClaimTypes.IsService, "true")
+        };
+
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "azure-token");
+    }
 }
