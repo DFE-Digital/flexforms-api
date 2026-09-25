@@ -9,4 +9,5 @@ public static class EmailTypes
     public const string ApplicationSubmitted = "ApplicationSubmitted";
     public const string ContributorInvited = "ContributorInvited";
     public const string ContributorAccessGranted = "ContributorAccessGranted";
+    public const string TestAuthPassword = "TestAuthPasswordEmail";
 }

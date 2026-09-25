@@ -629,6 +629,26 @@ Application emails are sent via **GOV.UK Notify**. The API resolves a Notify tem
 
 (`ContributorAccessGranted` still resolves its Notify template via the `ContributorInvited` `EmailTemplates` entry; personalisation mappings use the distinct email-type key.)
 
+### Test Authentication one-time password
+
+When a tenant has `TestAuthentication:Enabled`, the Web Test Login page asks the user for a one-time password after they enter their email. The Web calls `POST v1/tokens/test-auth-password` (ServiceCallers) and the API emails a random 6 digit password using the `TestAuthPasswordEmail` email type. The password is stored (SHA-256 hashed, tenant-scoped) in Redis for **one hour**. `POST v1/tokens/test-auth-password/verify` consumes it on success and discards it after 5 wrong attempts. A new password is not issued within 30 seconds of the previous one.
+
+The template is tenant-wide rather than per form, so it is resolved from any `EmailTemplates` product key (the key matching the tenant name wins):
+
+```json
+{
+  "EmailTemplates": {
+    "Transfers": {
+      "TestAuthPasswordEmail": "a94eca1d-0a88-4144-b895-ecc66aee6e56"
+    }
+  }
+}
+```
+
+| Email type | Personalisation keys |
+|------------|----------------------|
+| `TestAuthPasswordEmail` | `environment` (API host environment name), `temp_password`, `service_name` (`Layout:ServiceName` if visible to the API via a `Shared`/`Api` Layout setting, otherwise the tenant name) |
+
 ### Optional overlays (`EmailPlaceholderMappings`, Target `Shared`)
 
 Same field-mapping DSL as `EventMappings` (`DirectField`, `ComplexFieldProperty`, `Collection`, `Metadata`, …). Shape: `{templateId}:{emailType}` → `fieldMappings` where **keys are Notify personalisation names**.

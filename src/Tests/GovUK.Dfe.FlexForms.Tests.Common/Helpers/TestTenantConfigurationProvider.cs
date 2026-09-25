@@ -26,6 +26,7 @@ public sealed class TestTenantConfigurationProvider : ITenantConfigurationProvid
                 { "EmailTemplates:Transfers:SupportRequestUser", "11111111-1111-1111-1111-111111111104" },
                 { "EmailTemplates:Transfers:FeedbackOrSuggestionInternal", "11111111-1111-1111-1111-111111111105" },
                 { "EmailTemplates:Transfers:ApplicationSubmitted", "11111111-1111-1111-1111-111111111106" },
+                { "EmailTemplates:Transfers:TestAuthPasswordEmail", "a94eca1d-0a88-4144-b895-ecc66aee6e56" },
                 { "FileStorage:Provider", "Local" },
                 { "FileStorage:Local:BaseDirectory", "/uploads" },
                 { "FileStorage:Local:AllowedExtensions:0", "jpg" },

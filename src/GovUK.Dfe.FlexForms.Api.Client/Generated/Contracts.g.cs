@@ -676,6 +676,23 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<ExchangeTokenDto> ExchangeAsync(ExchangeTokenRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Generates a 6 digit Test Authentication one-time password and emails it to the user.
+        /// <br/>The password is valid for one hour.
+        /// </summary>
+        /// <returns>One-time password emailed to the user.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task SendTestAuthPasswordAsync(SendTestAuthPasswordRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Verifies a Test Authentication one-time password. A valid password is consumed.
+        /// </summary>
+        /// <returns>Verification outcome.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<VerifyTestAuthPasswordResponse> VerifyTestAuthPasswordAsync(VerifyTestAuthPasswordRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]

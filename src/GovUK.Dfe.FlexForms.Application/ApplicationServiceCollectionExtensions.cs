@@ -16,6 +16,7 @@ using GovUK.Dfe.FlexForms.Application.Common.Pipeline;
 using GovUK.Dfe.FlexForms.Application.Consumers;
 using GovUK.Dfe.FlexForms.Application.Messaging;
 using GovUK.Dfe.FlexForms.Application.Notifications;
+using GovUK.Dfe.FlexForms.Application.Security;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Validation;
 using GovUK.Dfe.FlexForms.Domain.Factories;
@@ -96,6 +97,9 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<IFileValidationModeResolver, FileValidationModeResolver>();
 
             services.AddTransient<IEmailTemplateResolver, EmailTemplateResolver>();
+
+            services.TryAddSingleton(TimeProvider.System);
+            services.AddScoped<ITestAuthPasswordService, TestAuthPasswordService>();
 
             // Outbound mapped event publishing. Scoped so every lookup uses the request's tenant settings.
             services.AddScoped<IFieldMappingValueExtractor, FieldMappingValueExtractor>();

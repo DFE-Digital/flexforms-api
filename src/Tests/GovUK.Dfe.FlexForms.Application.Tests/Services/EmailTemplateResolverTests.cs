@@ -313,4 +313,88 @@ public class EmailTemplateResolverTests
 
         Assert.Equal("different-tenant-template-id", result);
     }
+
+    [Fact]
+    public async Task ResolveTenantEmailTemplateAsync_ShouldReturnTemplate_FromSoleProductKey()
+    {
+        var resolver = CreateResolver("Transfers", new Dictionary<string, string?>
+        {
+            ["EmailTemplates:Transfer:TestAuthPasswordEmail"] = "a94eca1d-0a88-4144-b895-ecc66aee6e56",
+        });
+
+        var result = await resolver.ResolveTenantEmailTemplateAsync("TestAuthPasswordEmail");
+
+        Assert.Equal("a94eca1d-0a88-4144-b895-ecc66aee6e56", result);
+    }
+
+    [Fact]
+    public async Task ResolveTenantEmailTemplateAsync_ShouldPreferProductKeyMatchingTenantName()
+    {
+        var resolver = CreateResolver("SigChange", new Dictionary<string, string?>
+        {
+            ["EmailTemplates:Transfer:TestAuthPasswordEmail"] = "transfer-template",
+            ["EmailTemplates:sigchange:TestAuthPasswordEmail"] = "sigchange-template",
+        });
+
+        var result = await resolver.ResolveTenantEmailTemplateAsync("TestAuthPasswordEmail");
+
+        Assert.Equal("sigchange-template", result);
+    }
+
+    [Fact]
+    public async Task ResolveTenantEmailTemplateAsync_ShouldFallBackToAnyProductKeyDefiningEmailType()
+    {
+        var resolver = CreateResolver("SigChange", new Dictionary<string, string?>
+        {
+            ["EmailTemplates:SigChange:ApplicationSubmitted"] = "sigchange-submitted",
+            ["EmailTemplates:Transfer:testauthpasswordemail"] = "transfer-template",
+        });
+
+        var result = await resolver.ResolveTenantEmailTemplateAsync("TestAuthPasswordEmail");
+
+        Assert.Equal("transfer-template", result);
+    }
+
+    [Fact]
+    public async Task ResolveTenantEmailTemplateAsync_ShouldReturnNull_WhenEmailTypeNotConfigured()
+    {
+        var result = await _resolver.ResolveTenantEmailTemplateAsync("TestAuthPasswordEmail");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ResolveTenantEmailTemplateAsync_ShouldReturnNull_WhenNoEmailTemplatesConfigured()
+    {
+        var resolver = CreateResolver("TestTenant", new Dictionary<string, string?>());
+
+        var result = await resolver.ResolveTenantEmailTemplateAsync("TestAuthPasswordEmail");
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task ResolveTenantEmailTemplateAsync_ShouldThrow_WhenNoTenantContext()
+    {
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        accessor.CurrentTenant.Returns((TenantConfiguration?)null);
+        var resolver = new EmailTemplateResolver(accessor, _logger);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => resolver.ResolveTenantEmailTemplateAsync("TestAuthPasswordEmail"));
+    }
+
+    private EmailTemplateResolver CreateResolver(string tenantName, Dictionary<string, string?> settings)
+    {
+        var tenant = new TenantConfiguration(
+            Guid.NewGuid(),
+            tenantName,
+            new ConfigurationBuilder().AddInMemoryCollection(settings).Build(),
+            Array.Empty<string>());
+
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        accessor.CurrentTenant.Returns(tenant);
+
+        return new EmailTemplateResolver(accessor, _logger);
+    }
 }

@@ -53,6 +53,40 @@ public class EmailTemplateResolver(
         return Task.FromResult<string?>(emailTemplateId);
     }
 
+    public Task<string?> ResolveTenantEmailTemplateAsync(string emailType)
+    {
+        var tenant = tenantContextAccessor.CurrentTenant
+            ?? throw new InvalidOperationException("No tenant context available for email template resolution.");
+
+        var (_, emailTemplatesConfig) = GetTenantConfigs(tenant);
+
+        var tenantNameKey = emailTemplatesConfig.FindApplicationTypeKey(tenant.Name);
+        var candidateKeys = tenantNameKey is null
+            ? emailTemplatesConfig.Keys
+            : emailTemplatesConfig.Keys.Where(k => k != tenantNameKey).Prepend(tenantNameKey);
+
+        foreach (var applicationType in candidateKeys)
+        {
+            var emailTemplateId = emailTemplatesConfig.GetTemplateId(applicationType, emailType);
+            if (!string.IsNullOrEmpty(emailTemplateId))
+            {
+                logger.LogDebug(
+                    "Resolved tenant-wide email template {TemplateId} from application type {ApplicationType} for email type {EmailType}",
+                    emailTemplateId,
+                    applicationType,
+                    emailType);
+                return Task.FromResult<string?>(emailTemplateId);
+            }
+        }
+
+        logger.LogWarning(
+            "Could not find a tenant-wide email template for email type {EmailType} in tenant {TenantName}. " +
+            "Add it under any EmailTemplates product key in the tenant configuration.",
+            emailType,
+            tenant.Name);
+        return Task.FromResult<string?>(null);
+    }
+
     public Task<string?> GetApplicationTypeAsync(TemplateId templateId)
     {
         var tenant = tenantContextAccessor.CurrentTenant
