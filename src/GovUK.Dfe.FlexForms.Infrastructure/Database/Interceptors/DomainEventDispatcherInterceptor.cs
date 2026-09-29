@@ -1,7 +1,9 @@
 using GovUK.Dfe.FlexForms.Domain.Common;
+using MassTransit.EntityFrameworkCoreIntegration;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace GovUK.Dfe.FlexForms.Infrastructure.Database.Interceptors;
 
@@ -11,7 +13,12 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Database.Interceptors;
 /// DbContext (e.g. file-validation notifications looking up the uploader) and
 /// silently dropped the GOV.UK banner.
 /// </summary>
-public class DomainEventDispatcherInterceptor(IMediator mediator) : SaveChangesInterceptor
+/// <remarks>
+/// With the MassTransit bus outbox enabled, integration events published by those handlers are
+/// only added to the change tracker. They are flushed here with a follow-up save, otherwise they
+/// would never reach the outbox tables.
+/// </remarks>
+public class DomainEventDispatcherInterceptor(IMediator mediator, ILogger? logger = null) : SaveChangesInterceptor
 {
     private List<IDomainEvent>? _pending;
 
@@ -30,6 +37,7 @@ public class DomainEventDispatcherInterceptor(IMediator mediator) : SaveChangesI
         CancellationToken cancellationToken = default)
     {
         await PublishPendingAsync(cancellationToken);
+        await FlushOutboxAsync(eventData.Context, cancellationToken);
         return result;
     }
 
@@ -72,5 +80,28 @@ public class DomainEventDispatcherInterceptor(IMediator mediator) : SaveChangesI
 
         foreach (var @event in events)
             await mediator.Publish(@event, cancellationToken);
+    }
+
+    private async Task FlushOutboxAsync(DbContext? context, CancellationToken cancellationToken)
+    {
+        if (context is null)
+            return;
+
+        var hasPendingOutboxMessages = context.ChangeTracker
+            .Entries<OutboxMessage>()
+            .Any(e => e.State == EntityState.Added);
+
+        if (!hasPendingOutboxMessages)
+            return;
+
+        // The business change is already committed; a failed flush must not fail the request.
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger?.LogError(ex, "Failed to persist integration events to the transactional outbox after commit.");
+        }
     }
 }

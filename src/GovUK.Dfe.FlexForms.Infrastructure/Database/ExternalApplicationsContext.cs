@@ -3,12 +3,14 @@ using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Infrastructure.Database.Interceptors;
+using MassTransit;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 using File = GovUK.Dfe.FlexForms.Domain.Entities.File;
 
@@ -55,7 +57,8 @@ public class ExternalApplicationsContext : DbContext
         var mediator = _serviceProvider?.GetService<IMediator>();
         if (mediator != null)
         {
-            optionsBuilder.AddInterceptors(new DomainEventDispatcherInterceptor(mediator));
+            var logger = _serviceProvider?.GetService<ILogger<DomainEventDispatcherInterceptor>>();
+            optionsBuilder.AddInterceptors(new DomainEventDispatcherInterceptor(mediator, logger));
         }
     }
 
@@ -76,6 +79,12 @@ public class ExternalApplicationsContext : DbContext
         modelBuilder.Entity<File>(ConfigureFile);
         modelBuilder.Entity<CustomApplicationStatus>(b => ConfigureCustomApplicationStatus(b, useTemporal));
         modelBuilder.Entity<TenantAccessAudit>(ConfigureTenantAccessAudit);
+
+        // MassTransit transactional outbox. Rows live in each tenant's EA database so they commit
+        // atomically with the business change that produced them.
+        modelBuilder.AddInboxStateEntity(b => b.ToTable("InboxState", DefaultSchema));
+        modelBuilder.AddOutboxMessageEntity(b => b.ToTable("OutboxMessage", DefaultSchema));
+        modelBuilder.AddOutboxStateEntity(b => b.ToTable("OutboxState", DefaultSchema));
 
         base.OnModelCreating(modelBuilder);
     }

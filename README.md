@@ -397,6 +397,47 @@ flowchart LR
 - File storage host registration uses `GlobalConfiguration:FileStorage`; runtime paths remain tenant-aware (`TenantAwareFileStorageService`).
 - Virus scan (`ScanRequestedEvent`) is platform-owned. Tenant Excel/schema checks use the HTTP callback below — not Service Bus.
 
+### Transactional outbox (per-event)
+
+The API includes the MassTransit EF Core **transactional outbox**. When an event uses it, the message is first saved in the tenant's EA database (`ea.OutboxMessage`), then sent to Service Bus by a background delivery loop that retries until it succeeds. A Service Bus outage no longer loses those messages. The trade-off is **at-least-once** delivery: a message can occasionally arrive twice (with the same `MessageId`).
+
+Because some existing subscribers cannot handle duplicates, the outbox is enabled **per event** through an allowlist. **The default list is empty**, so every current event still publishes directly, exactly as before.
+
+```jsonc
+"MassTransit": {
+  "Outbox": {
+    "Enabled": true,          // master switch; false = no outbox at all (restart required)
+    "Mode": "Allowlist",      // Allowlist = only Events below; All = every event
+    "Events": [],             // e.g. [ "ApplicationResponseSaved", "ScanRequestedEvent" ]
+    "Delivery": {
+      "QueryDelay": "00:00:05",            // poll interval when not woken by a new message
+      "QueryMessageLimit": 100,            // outboxes processed per sweep
+      "MessageDeliveryLimit": 100,         // messages per outbox per pass
+      "MessageDeliveryTimeout": "00:00:10" // per-send timeout to Service Bus
+    }
+  }
+}
+```
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `MassTransit:Outbox:Enabled` | `true` | Registers the outbox and its delivery loops. `false` publishes everything directly. |
+| `MassTransit:Outbox:Mode` | `Allowlist` | `Allowlist`: only listed events use the outbox. `All`: every event published outside a consumer does. |
+| `MassTransit:Outbox:Events` | `[]` | Event identifiers (case-insensitive): typed event class name (for example `ScanRequestedEvent`, `TransferApplicationSubmittedEvent`), or a schema event's `EventType` or `TopicName`. |
+| `MassTransit:Outbox:Delivery:*` | see above | Delivery loop tuning; defaults suit normal traffic. `QueryTimeout` (`00:00:30`) is also supported. |
+
+How it fits the platform:
+
+- **Tenant-aware**: rows are stored in the raising tenant's EA database, and `TenantOutboxDeliveryService` runs one delivery loop per distinct tenant EA database with that tenant's context. MassTransit's built-in delivery service is disabled because it would only drain the first tenant's database.
+- **Same topics, bodies and headers** (`TenantId`, `TenantName`, custom properties) as direct publishing.
+- **Consumers are unaffected**: publishes inside a consumer still use the consume context.
+- **Post-commit handlers**: `DomainEventDispatcherInterceptor` does a follow-up save so events published by domain event handlers (which run after commit) reach the outbox. New events needing strict atomicity (Prism) must be published **before** `SaveChangesAsync`.
+- The effective routing is logged at startup: `Transactional outbox routing: Mode ..., Events [...]`.
+
+**Before listing an event**, confirm every subscriber of its topic tolerates duplicates, or enable Service Bus duplicate detection on the topic (only possible when the topic is created).
+
+Full guide (configuration reference, rollout runbook, monitoring SQL, troubleshooting): [`docs/transactional-outbox.md`](docs/transactional-outbox.md). Tenant admin guidance: [Tenant Admin User Manual §12.19](https://github.com/DFE-Digital/flexforms-web/blob/main/docs/Tenant-Admin-User-Manual.md#1219-delivery-guarantees-transactional-outbox).
+
 ---
 
 ## Application layer patterns
@@ -425,6 +466,7 @@ flowchart LR
 | `TenantConfigSource` | `Database` (default) or `AppSettings` |
 | `Platform:AzureAd` | Platform Bearer for host/tenant-config |
 | `MassTransit` / Service Bus | Messaging (or `SkipMassTransit` for codegen) |
+| `MassTransit:Outbox` | Transactional outbox switch, per-event allowlist and delivery tuning. See [Transactional outbox](#transactional-outbox-per-event) |
 | `DataProtection` | Secret settings encryption |
 | `GlobalConfiguration:ApplicationInsights:ConnectionString` | Serilog → App Insights sink |
 | `GlobalConfiguration:FileStorage:Provider` | **Required** for host FileStorage DI outside Local/Development |
@@ -470,6 +512,8 @@ dotnet ef migrations add <Name> --project src/GovUK.Dfe.FlexForms.Infrastructure
 # TenantConfig schema
 dotnet ef migrations add <Name> --project src/GovUK.Dfe.FlexForms.Infrastructure --context TenantConfigDbContext --output-dir Migrations/TenantConfig
 ```
+
+> **EA migrations must reach every tenant EA database.** `script/migrate-databases.sh` only migrates the database in `ConnectionStrings__DefaultConnection`. Tenants with an isolated EA database must be migrated separately. This matters for `AddMassTransitTransactionalOutbox`: without its `ea.OutboxState` / `ea.OutboxMessage` / `ea.InboxState` tables, that tenant's allowlisted events are lost and its outbox delivery loop logs errors.
 
 ### Scripts
 
