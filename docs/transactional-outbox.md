@@ -344,3 +344,4 @@ Messages from the same request are delivered in order. Messages from different r
 | Outbox tables (model) | `ExternalApplicationsContext.OnModelCreating` |
 | Migration | `src/GovUK.Dfe.FlexForms.Infrastructure/Migrations/*_AddMassTransitTransactionalOutbox.cs` |
 | Wiring | `Program.cs` → `AddApplicationDependencyGroup(..., configureBusRegistration: ...)` |
+| Acceptance tests (Prism events, real SQL Server via Testcontainers, so Docker is required) | `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Messaging/Outbox/PrismOutboxAcceptanceTests.cs` |
