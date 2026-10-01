@@ -39,6 +39,7 @@ public sealed class CreateTemplateCommandHandler(
     ITemplateFactory templateFactory,
     IUserFactory userFactory,
     IUserCacheInvalidator userCacheInvalidator,
+    IProjectionEventPublisher projectionEventPublisher,
     IUnitOfWork unitOfWork)
     : IRequestHandler<CreateTemplateCommand, Result<TemplateDto>>
 {
@@ -129,6 +130,10 @@ public sealed class CreateTemplateCommandHandler(
                     decodedSchema,
                     dbUser.Id!);
                 latestVersion = version.VersionNumber;
+
+                await projectionEventPublisher.PublishTemplateVersionAsync(
+                    new TemplateVersionPublication(template.Id!, version.Id!, version.VersionNumber, version.CreatedOn),
+                    cancellationToken);
             }
 
             await templateRepository.AddAsync(template, cancellationToken);

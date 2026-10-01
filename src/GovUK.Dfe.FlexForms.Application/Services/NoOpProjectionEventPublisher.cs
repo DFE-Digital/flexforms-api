@@ -8,4 +8,6 @@ namespace GovUK.Dfe.FlexForms.Application.Services;
 public sealed class NoOpProjectionEventPublisher : IProjectionEventPublisher
 {
     public Task PublishAsync(ProjectionRequest request, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task PublishTemplateVersionAsync(TemplateVersionPublication publication, CancellationToken cancellationToken) => Task.CompletedTask;
 }

@@ -26,6 +26,7 @@ public class CreateTemplateCommandHandlerTests
     private readonly ITemplateFactory _templateFactory = Substitute.For<ITemplateFactory>();
     private readonly IUserFactory _userFactory = Substitute.For<IUserFactory>();
     private readonly IUserCacheInvalidator _cacheInvalidator = Substitute.For<IUserCacheInvalidator>();
+    private readonly IProjectionEventPublisher _projectionPublisher = Substitute.For<IProjectionEventPublisher>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
     private readonly CreateTemplateCommandHandler _handler;
 
@@ -40,7 +41,65 @@ public class CreateTemplateCommandHandlerTests
             _templateFactory,
             _userFactory,
             _cacheInvalidator,
+            _projectionPublisher,
             _unitOfWork);
+    }
+
+    private (UserId UserId, Guid TenantId) ArrangeAdmin()
+    {
+        _permissionChecker.CanManageTemplates().Returns(true);
+        var tenantId = Guid.NewGuid();
+        _tenantContextAccessor.CurrentTenant.Returns(new TenantConfiguration(tenantId, "Transfers", new ConfigurationBuilder().Build(), []));
+
+        var userId = new UserId(Guid.NewGuid());
+        const string email = "admin@education.gov.uk";
+        var user = new User(userId, new RoleId(Guid.NewGuid()), "Admin", email, DateTime.UtcNow, null, null, null);
+
+        var httpContext = Substitute.For<HttpContext>();
+        httpContext.User.Returns(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Email, email)], authenticationType: "Bearer")));
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var users = new List<User> { user }.AsQueryable().BuildMockDbSet();
+        _userRepo.Query().Returns(users);
+        var templates = new List<Template>().AsQueryable().BuildMockDbSet();
+        _templateRepo.Query().Returns(templates);
+        return (userId, tenantId);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldPublishTheInitialVersionForPrism_BeforeCommitting()
+    {
+        var (userId, tenantId) = ArrangeAdmin();
+        var template = new Template(new TemplateId(Guid.NewGuid()), "New Template", DateTime.UtcNow, userId, tenantId: tenantId);
+        _templateFactory.CreateTemplate("New Template", userId, tenantId, Arg.Any<DateTime?>()).Returns(template);
+        var version = new TemplateVersion(new TemplateVersionId(Guid.NewGuid()), template.Id!, "1.0", "{}", DateTime.UtcNow, userId);
+        _templateFactory.AddVersionToTemplate(template, "1.0", "{}", userId).Returns(version);
+
+        var result = await _handler.Handle(
+            new CreateTemplateCommand("New Template", "1.0", Convert.ToBase64String("{}"u8.ToArray())),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Received.InOrder(() =>
+        {
+            _projectionPublisher.PublishTemplateVersionAsync(
+                new TemplateVersionPublication(template.Id!, version.Id!, "1.0", version.CreatedOn),
+                Arg.Any<CancellationToken>());
+            _unitOfWork.CommitAsync(Arg.Any<CancellationToken>());
+        });
+    }
+
+    [Fact]
+    public async Task Handle_ShouldNotPublish_WhenTemplateHasNoInitialVersion()
+    {
+        var (userId, tenantId) = ArrangeAdmin();
+        var template = new Template(new TemplateId(Guid.NewGuid()), "New Template", DateTime.UtcNow, userId, tenantId: tenantId);
+        _templateFactory.CreateTemplate("New Template", userId, tenantId, Arg.Any<DateTime?>()).Returns(template);
+
+        var result = await _handler.Handle(new CreateTemplateCommand("New Template"), CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        await _projectionPublisher.DidNotReceiveWithAnyArgs().PublishTemplateVersionAsync(default!, default);
     }
 
     [Fact]

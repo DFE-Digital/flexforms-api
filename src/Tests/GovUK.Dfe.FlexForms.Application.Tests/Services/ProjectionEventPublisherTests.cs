@@ -132,6 +132,54 @@ public class ProjectionEventPublisherTests
     }
 
     [Fact]
+    public async Task Template_version_publishes_contract_with_deterministic_id_and_tenant_headers()
+    {
+        var templateEndpoint = Substitute.For<IPublishEndpoint>();
+        _selector.GetPublishEndpoint(typeof(TemplateVersionPublishedEvent)).Returns(templateEndpoint);
+        TemplateVersionPublishedEvent? published = null;
+        IPipe<PublishContext<TemplateVersionPublishedEvent>>? pipe = null;
+        templateEndpoint
+            .Publish(
+                Arg.Do<TemplateVersionPublishedEvent>(m => published = m),
+                Arg.Do<IPipe<PublishContext<TemplateVersionPublishedEvent>>>(p => pipe = p),
+                Arg.Any<CancellationToken>())
+            .Returns(Task.CompletedTask);
+        var publication = new TemplateVersionPublication(
+            new TemplateId(Guid.NewGuid()), new TemplateVersionId(Guid.NewGuid()), "2.1", new DateTime(2026, 10, 1, 12, 0, 0, DateTimeKind.Utc));
+
+        await _publisher.PublishTemplateVersionAsync(publication, CancellationToken.None);
+
+        Assert.Equal(
+            new TemplateVersionPublishedEvent(
+                TemplateVersionPublishedEvent.CurrentContractVersion,
+                TenantId,
+                publication.TemplateId.Value,
+                publication.TemplateVersionId.Value,
+                "2.1",
+                publication.CreatedAt),
+            published);
+
+        var context = Substitute.For<PublishContext<TemplateVersionPublishedEvent>>();
+        var headers = Substitute.For<SendHeaders>();
+        context.Headers.Returns(headers);
+        await pipe!.Send(context);
+
+        context.Received().MessageId = ApplicationProjectionIdentifiers.TemplateVersionMessageId(TenantId, publication.TemplateVersionId.Value);
+        headers.Received().Set("TenantId", TenantId.ToString());
+        headers.Received().Set("TenantName", "Tenant A");
+    }
+
+    [Fact]
+    public async Task Template_version_throws_without_tenant_context()
+    {
+        _tenantAccessor.CurrentTenant.Returns((TenantConfiguration?)null);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => _publisher.PublishTemplateVersionAsync(
+            new TemplateVersionPublication(new TemplateId(Guid.NewGuid()), new TemplateVersionId(Guid.NewGuid()), "1", DateTime.UtcNow),
+            CancellationToken.None));
+    }
+
+    [Fact]
     public async Task Same_transition_published_twice_gets_the_same_message_id()
     {
         var request = Request(ProjectionTransition.Saved, revision: 3);

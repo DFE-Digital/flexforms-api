@@ -6,6 +6,7 @@ using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Identifiers;
 using GovUK.Dfe.FlexForms.Api.Tenancy;
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
@@ -134,6 +135,40 @@ public sealed class PrismOutboxAcceptanceTests(SqlServerOutboxFixture sql, ITest
         Assert.Equal(deliveries[0].Message, deliveries[1].Message);
     }
 
+    [Fact]
+    public async Task A_new_template_version_whose_transaction_rolls_back_leaves_no_version_and_no_outbox_row()
+    {
+        await using var host = await OutboxHost.CreateAsync(sql, output);
+        var versionsBefore = await host.CountTemplateVersionsAsync();
+
+        host.FailCommits = true;
+        await Assert.ThrowsAsync<InvalidOperationException>(() => host.CreateTemplateVersionAsync("9.9"));
+
+        Assert.Equal(versionsBefore, await host.CountTemplateVersionsAsync());
+        Assert.Equal(0, (await host.ReadAsync()).OutboxMessages);
+    }
+
+    [Fact]
+    public async Task A_new_template_version_committed_while_the_bus_is_down_is_delivered_when_it_recovers()
+    {
+        await using var host = await OutboxHost.CreateAsync(sql, output);
+
+        var versionId = await host.CreateTemplateVersionAsync("2.0");
+
+        var stored = await host.SingleOutboxMessageAsync();
+        var expectedId = ApplicationProjectionIdentifiers.TemplateVersionMessageId(TenantId, versionId);
+        Assert.Equal(expectedId, stored.MessageId);
+
+        await host.StartBusAndDeliveryAsync();
+
+        var delivered = Assert.Single(await host.WaitForTemplateDeliveriesAsync(1));
+        Assert.Equal(expectedId, delivered.MessageId);
+        Assert.Equal(
+            (TenantId, Guid.Parse(EaContextSeeder.TemplateId), versionId, "2.0"),
+            (delivered.Message.TenantId, delivered.Message.TemplateId, delivered.Message.TemplateVersionId, delivered.Message.VersionNumber));
+        await host.WaitForOutboxToDrainAsync();
+    }
+
     private sealed record SourceState(long SourceRevision, ApplicationStatus? Status, int Responses, int OutboxMessages);
 
     /// <summary>
@@ -144,6 +179,7 @@ public sealed class PrismOutboxAcceptanceTests(SqlServerOutboxFixture sql, ITest
     {
         private readonly CommitFailure _commitFailure = new();
         private readonly ConcurrentQueue<ConsumeContext<ApplicationProjectionRequestedEvent>> _received = new();
+        private readonly ConcurrentQueue<ConsumeContext<TemplateVersionPublishedEvent>> _templatesReceived = new();
         private readonly ServiceProvider _provider;
         private readonly TenantConfiguration _tenant;
 
@@ -171,6 +207,7 @@ public sealed class PrismOutboxAcceptanceTests(SqlServerOutboxFixture sql, ITest
                 .AddSingleton<IConfiguration>(configuration)
                 .AddSingleton(tenants)
                 .AddSingleton(_received)
+                .AddSingleton(_templatesReceived)
                 .AddScoped<ITenantContextAccessor, TenantContextAccessor>()
                 .AddDbContext<ExternalApplicationsContext>(o => o.UseSqlServer(connectionString).AddInterceptors(_commitFailure))
                 .AddScoped<IApplicationRepository, ApplicationRepository>()
@@ -180,6 +217,7 @@ public sealed class PrismOutboxAcceptanceTests(SqlServerOutboxFixture sql, ITest
             services.AddMassTransitTestHarness(bus =>
             {
                 bus.AddConsumer<ProjectionProbe>();
+                bus.AddConsumer<TemplateVersionProbe>();
                 bus.AddFlexFormsTransactionalOutbox(configuration);
             });
 
@@ -244,6 +282,33 @@ public sealed class PrismOutboxAcceptanceTests(SqlServerOutboxFixture sql, ITest
             await new UnitOfWork(db).CommitAsync();
         });
 
+        /// <summary>The same calls, in the same order, as <c>CreateTemplateVersionCommandHandler</c>.</summary>
+        public async Task<Guid> CreateTemplateVersionAsync(string versionNumber)
+        {
+            Guid versionId = default;
+            await InTenantScopeAsync(async services =>
+            {
+                var db = services.GetRequiredService<ExternalApplicationsContext>();
+                var templateId = new TemplateId(Guid.Parse(EaContextSeeder.TemplateId));
+                var template = await db.Templates.Include(t => t.TemplateVersions).SingleAsync(t => t.Id == templateId);
+                var version = new TemplateFactory().AddVersionToTemplate(template, versionNumber, "{\"pages\":[]}", Alice);
+                versionId = version.Id!.Value;
+
+                await services.GetRequiredService<IProjectionEventPublisher>().PublishTemplateVersionAsync(
+                    new TemplateVersionPublication(template.Id!, version.Id!, version.VersionNumber, version.CreatedOn),
+                    CancellationToken.None);
+
+                await new UnitOfWork(db).CommitAsync();
+            });
+            return versionId;
+        }
+
+        public async Task<int> CountTemplateVersionsAsync()
+        {
+            await using var scope = _provider.CreateAsyncScope();
+            return await scope.ServiceProvider.GetRequiredService<ExternalApplicationsContext>().TemplateVersions.CountAsync();
+        }
+
         public async Task<SourceState> ReadAsync()
         {
             await using var scope = _provider.CreateAsyncScope();
@@ -296,16 +361,23 @@ public sealed class PrismOutboxAcceptanceTests(SqlServerOutboxFixture sql, ITest
         }
 
         /// <summary>Waits until Prism's side of the bus has received <paramref name="count"/> projection events.</summary>
-        public async Task<IReadOnlyList<ConsumeContext<ApplicationProjectionRequestedEvent>>> WaitForDeliveriesAsync(int count)
+        public Task<IReadOnlyList<ConsumeContext<ApplicationProjectionRequestedEvent>>> WaitForDeliveriesAsync(int count)
+            => WaitForAsync(_received, count);
+
+        public Task<IReadOnlyList<ConsumeContext<TemplateVersionPublishedEvent>>> WaitForTemplateDeliveriesAsync(int count)
+            => WaitForAsync(_templatesReceived, count);
+
+        private static async Task<IReadOnlyList<ConsumeContext<T>>> WaitForAsync<T>(ConcurrentQueue<ConsumeContext<T>> queue, int count)
+            where T : class
         {
             var deadline = DateTime.UtcNow.AddSeconds(30);
             while (true)
             {
-                var received = _received.ToList();
+                var received = queue.ToList();
                 if (received.Count >= count)
                     return received;
 
-                Assert.True(DateTime.UtcNow < deadline, $"Received {received.Count} of {count} projection events within 30 seconds.");
+                Assert.True(DateTime.UtcNow < deadline, $"Received {received.Count} of {count} {typeof(T).Name} messages within 30 seconds.");
                 await Task.Delay(200);
             }
         }
@@ -339,6 +411,16 @@ public sealed class PrismOutboxAcceptanceTests(SqlServerOutboxFixture sql, ITest
         : IConsumer<ApplicationProjectionRequestedEvent>
     {
         public Task Consume(ConsumeContext<ApplicationProjectionRequestedEvent> context)
+        {
+            received.Enqueue(context);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class TemplateVersionProbe(ConcurrentQueue<ConsumeContext<TemplateVersionPublishedEvent>> received)
+        : IConsumer<TemplateVersionPublishedEvent>
+    {
+        public Task Consume(ConsumeContext<TemplateVersionPublishedEvent> context)
         {
             received.Enqueue(context);
             return Task.CompletedTask;

@@ -42,7 +42,9 @@ public sealed class MessageEndpointSelector(
     private static readonly HashSet<string> AlwaysOutboxEvents = new(StringComparer.OrdinalIgnoreCase)
     {
         nameof(ApplicationProjectionRequestedEvent),
-        typeof(ApplicationProjectionRequestedEvent).FullName!
+        typeof(ApplicationProjectionRequestedEvent).FullName!,
+        nameof(TemplateVersionPublishedEvent),
+        typeof(TemplateVersionPublishedEvent).FullName!
     };
 
     private bool UseScopedEndpoints(params string?[] identifiers)

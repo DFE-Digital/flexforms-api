@@ -32,7 +32,8 @@ public sealed class CreateTemplateVersionCommandHandler(
     ITenantTemplateResolver tenantTemplateResolver,
     ITemplateFactory templateFactory,
     IUnitOfWork unitOfWork,
-    ITemplateSchemaCacheInvalidator templateSchemaCacheInvalidator)
+    ITemplateSchemaCacheInvalidator templateSchemaCacheInvalidator,
+    IProjectionEventPublisher projectionEventPublisher)
     : IRequestHandler<CreateTemplateVersionCommand, Result<TemplateSchemaDto>>
 {
     public async Task<Result<TemplateSchemaDto>> Handle(
@@ -103,6 +104,10 @@ public sealed class CreateTemplateVersionCommandHandler(
                 request.VersionNumber,
                 decodedJsonSchema,
                 dbUser.Id!);
+
+            await projectionEventPublisher.PublishTemplateVersionAsync(
+                new TemplateVersionPublication(template.Id!, newVersion.Id!, newVersion.VersionNumber, newVersion.CreatedOn),
+                cancellationToken);
 
             await unitOfWork.CommitAsync(cancellationToken);
 

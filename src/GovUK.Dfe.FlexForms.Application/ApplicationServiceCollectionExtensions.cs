@@ -208,6 +208,7 @@ namespace Microsoft.Extensions.DependencyInjection
                         cfg.Message<ScanRequestedEvent>(m => m.SetEntityName(TopicNames.ScanRequests));
                         cfg.Message<ScanResultEvent>(m => m.SetEntityName(TopicNames.ScanResult));
                         cfg.Message<ApplicationProjectionRequestedEvent>(m => m.SetEntityName(TopicNames.FlexFormsPrism));
+                        cfg.Message<TemplateVersionPublishedEvent>(m => m.SetEntityName(TopicNames.FlexFormsPrism));
                     },
                     configureAzureServiceBus: (context, cfg) =>
                     {
@@ -216,6 +217,8 @@ namespace Microsoft.Extensions.DependencyInjection
                         // Applied when the outbox delivers, so the native session id survives the outbox.
                         cfg.Send<ApplicationProjectionRequestedEvent>(s => s.UseSessionIdFormatter(
                             c => ApplicationProjectionIdentifiers.SessionId(c.Message.TenantId, c.Message.ApplicationId)));
+                        cfg.Send<TemplateVersionPublishedEvent>(s => s.UseSessionIdFormatter(
+                            c => ApplicationProjectionIdentifiers.TemplateSessionId(c.Message.TenantId, c.Message.TemplateId)));
 
                         cfg.SubscriptionEndpoint<ScanResultEvent>($"{subscriptionPrefix}-scan-result", e =>
                         {

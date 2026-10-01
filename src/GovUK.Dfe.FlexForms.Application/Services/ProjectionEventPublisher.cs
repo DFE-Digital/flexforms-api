@@ -9,9 +9,9 @@ using Microsoft.Extensions.Logging;
 namespace GovUK.Dfe.FlexForms.Application.Services;
 
 /// <summary>
-/// Publishes <see cref="ApplicationProjectionRequestedEvent"/> for Prism. Always routed through the
-/// scoped (outbox) endpoint, with a deterministic message id so Service Bus duplicate detection
-/// can drop redeliveries. The session id is applied by the send topology at delivery time.
+/// Publishes <see cref="ApplicationProjectionRequestedEvent"/> and <see cref="TemplateVersionPublishedEvent"/>
+/// for Prism. Always routed through the scoped (outbox) endpoint, with a deterministic message id so Service Bus
+/// duplicate detection can drop redeliveries. The session id is applied by the send topology at delivery time.
 /// </summary>
 public sealed class ProjectionEventPublisher(
     IMessageEndpointSelector endpointSelector,
@@ -25,8 +25,7 @@ public sealed class ProjectionEventPublisher(
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        var tenant = tenantAccessor.CurrentTenant
-            ?? throw new InvalidOperationException("Tenant context is required to publish projection events.");
+        var tenant = RequireTenant();
 
         var reason = request.Transition switch
         {
@@ -63,11 +62,41 @@ public sealed class ProjectionEventPublisher(
             "Publishing Prism projection request {Reason} for application {ApplicationId} revision {SourceRevision} (tenant {TenantId}, message {MessageId})",
             reason, applicationId, request.SourceRevision, tenant.Id, messageId);
 
-        return endpointSelector.GetPublishEndpoint(typeof(ApplicationProjectionRequestedEvent)).Publish(message, ctx =>
+        return PublishAsync(message, messageId, tenant, cancellationToken);
+    }
+
+    public Task PublishTemplateVersionAsync(TemplateVersionPublication publication, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(publication);
+
+        var tenant = RequireTenant();
+
+        var message = new TemplateVersionPublishedEvent(
+            TemplateVersionPublishedEvent.CurrentContractVersion,
+            tenant.Id,
+            publication.TemplateId.Value,
+            publication.TemplateVersionId.Value,
+            publication.VersionNumber,
+            publication.CreatedAt);
+
+        var messageId = ApplicationProjectionIdentifiers.TemplateVersionMessageId(tenant.Id, message.TemplateVersionId);
+
+        logger.LogDebug(
+            "Publishing Prism template version {TemplateVersionId} ({VersionNumber}) of template {TemplateId} (tenant {TenantId}, message {MessageId})",
+            message.TemplateVersionId, message.VersionNumber, message.TemplateId, tenant.Id, messageId);
+
+        return PublishAsync(message, messageId, tenant, cancellationToken);
+    }
+
+    private TenantConfiguration RequireTenant() => tenantAccessor.CurrentTenant
+        ?? throw new InvalidOperationException("Tenant context is required to publish projection events.");
+
+    private Task PublishAsync<T>(T message, Guid messageId, TenantConfiguration tenant, CancellationToken cancellationToken)
+        where T : class
+        => endpointSelector.GetPublishEndpoint(typeof(T)).Publish(message, ctx =>
         {
             ctx.MessageId = messageId;
             ctx.Headers.Set(TenantIdHeader, tenant.Id.ToString());
             ctx.Headers.Set(TenantNameHeader, tenant.Name);
         }, cancellationToken);
-    }
 }
