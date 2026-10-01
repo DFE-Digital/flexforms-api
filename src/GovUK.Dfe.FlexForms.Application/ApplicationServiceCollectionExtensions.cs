@@ -41,7 +41,8 @@ namespace Microsoft.Extensions.DependencyInjection
         public static IServiceCollection AddApplicationDependencyGroup(
             this IServiceCollection services, 
             IConfiguration config,
-            ITenantConfigurationProvider tenantConfigurationProvider)
+            ITenantConfigurationProvider tenantConfigurationProvider,
+            Action<IBusRegistrationConfigurator>? configureBusRegistration = null)
         {
             // Host-shaped config for CoreLibs DI (FileStorage, Email, Notifications, Cache).
             // Prefer GlobalConfiguration; Local/Development may fall back to the first tenant
@@ -191,6 +192,9 @@ namespace Microsoft.Extensions.DependencyInjection
                     configureConsumers: x =>
                     {
                         x.AddConsumer<ScanResultConsumer>();
+
+                        // Host-supplied registrations that need Infrastructure types (e.g. the EF transactional outbox).
+                        configureBusRegistration?.Invoke(x);
                     },
                     configureBus: (context, cfg) =>
                     {
@@ -226,6 +230,8 @@ namespace Microsoft.Extensions.DependencyInjection
 
                 // Register AFTER AddDfEMassTransit so this wins the IEventPublisher lookup
                 // (AddDfEMassTransit registers MassTransitEventPublisher last, which would otherwise override).
+                services.Configure<OutboxOptions>(config.GetSection(OutboxOptions.SectionName));
+                services.AddScoped<IMessageEndpointSelector, MessageEndpointSelector>();
                 services.AddScoped<GovUK.Dfe.CoreLibs.Messaging.MassTransit.Interfaces.IEventPublisher, TenantAwareEventPublisher>();
                 services.AddScoped<IEventTriggerDispatcher, EventTriggerDispatcher>();
             }

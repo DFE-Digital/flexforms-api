@@ -20,7 +20,9 @@ public class TenantAwareEventPublisherTests
         _tenantAccessor = Substitute.For<ITenantContextAccessor>();
         _publishEndpoint = Substitute.For<IPublishEndpoint>();
         _logger = Substitute.For<ILogger<TenantAwareEventPublisher>>();
-        _publisher = new TenantAwareEventPublisher(_publishEndpoint, _tenantAccessor, _logger);
+        var endpointSelector = Substitute.For<IMessageEndpointSelector>();
+        endpointSelector.GetPublishEndpoint(Arg.Any<Type>()).Returns(_publishEndpoint);
+        _publisher = new TenantAwareEventPublisher(endpointSelector, _tenantAccessor, _logger);
     }
 
     private static TenantConfiguration CreateTenant(Guid? id = null, string name = "TestTenant")

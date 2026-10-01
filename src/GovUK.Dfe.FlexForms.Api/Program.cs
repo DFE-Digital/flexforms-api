@@ -212,7 +212,10 @@ namespace GovUK.Dfe.FlexForms.Api
             // Configure SignalR using the shared host configuration (single Azure SignalR Service for all tenants)
             ConfigureSignalR(builder.Services, builder.Configuration, builder.Environment);
 
-            builder.Services.AddApplicationDependencyGroup(builder.Configuration, tenantConfigurationProvider);
+            builder.Services.AddApplicationDependencyGroup(
+                builder.Configuration,
+                tenantConfigurationProvider,
+                configureBusRegistration: bus => bus.AddFlexFormsTransactionalOutbox(builder.Configuration));
             builder.Services.AddInfrastructureDependencyGroup(builder.Configuration, tenantConfigurationProvider);
 
             // SaaS auth: hot-reloadable registry of per-tenant auth providers. Singleton; subscribes

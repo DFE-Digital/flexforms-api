@@ -10,10 +10,11 @@ namespace GovUK.Dfe.FlexForms.Application.Services;
 /// <see cref="IEventPublisher"/> that publishes to the shared platform Service Bus
 /// (one namespace, one bus host) and stamps every outbound message with the current
 /// tenant's id and name as headers. Consumers resolve tenant context from those headers
-/// via <c>TenantContextConsumeFilter</c>.
+/// via <c>TenantContextConsumeFilter</c>. Whether a message goes through the transactional outbox
+/// is decided per message type by <see cref="IMessageEndpointSelector"/>.
 /// </summary>
 public sealed class TenantAwareEventPublisher(
-    IPublishEndpoint publishEndpoint,
+    IMessageEndpointSelector endpointSelector,
     ITenantContextAccessor tenantAccessor,
     ILogger<TenantAwareEventPublisher> logger) : IEventPublisher
 {
@@ -35,7 +36,7 @@ public sealed class TenantAwareEventPublisher(
             "Publishing {MessageType} for tenant {TenantId} ({TenantName})",
             typeof(T).Name, tenant.Id, tenant.Name);
 
-        return publishEndpoint.Publish(@event, ctx =>
+        return endpointSelector.GetPublishEndpoint(typeof(T)).Publish(@event, ctx =>
         {
             ctx.Headers.Set(TenantIdHeader, tenant.Id.ToString());
             ctx.Headers.Set(TenantNameHeader, tenant.Name);

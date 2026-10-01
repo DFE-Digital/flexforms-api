@@ -23,7 +23,7 @@ public sealed class EventTriggerDispatcher(
     ITenantContextAccessor tenantContextAccessor,
     IEventDataMapper eventDataMapper,
     IEventPublisher eventPublisher,
-    ISendEndpointProvider sendEndpointProvider,
+    IMessageEndpointSelector endpointSelector,
     IEventTypeRegistry eventTypeRegistry,
     ISchemaEventDefinitionProvider schemaEventDefinitionProvider,
     ILogger<EventTriggerDispatcher> logger) : IEventTriggerDispatcher
@@ -306,7 +306,9 @@ public sealed class EventTriggerDispatcher(
             }
         };
 
-        var endpoint = await sendEndpointProvider.GetSendEndpoint(new Uri($"topic:{definition.TopicName}"));
+        var endpoint = await endpointSelector
+            .GetSendEndpointProvider(entry.EventType, definition.TopicName)
+            .GetSendEndpoint(new Uri($"topic:{definition.TopicName}"));
 
         await endpoint.Send(envelope, sendContext =>
         {
