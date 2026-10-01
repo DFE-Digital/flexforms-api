@@ -33,6 +33,7 @@ public sealed class CreateApplicationCommandHandler(
     IUserFactory userFactory,
     ISender mediator,
     IUserCacheInvalidator userCacheInvalidator,
+    IProjectionEventPublisher projectionEventPublisher,
     IUnitOfWork unitOfWork) : IRequestHandler<CreateApplicationCommand, Result<ApplicationDto>>
 {
     public async Task<Result<ApplicationDto>> Handle(
@@ -86,7 +87,7 @@ public sealed class CreateApplicationCommandHandler(
             if (!templateSchemaResult.IsSuccess)
                 return Result<ApplicationDto>.Failure(templateSchemaResult.Error!);
 
-            var (application, _) = await applicationCreationService.CreateAsync(
+            var (application, initialResponse) = await applicationCreationService.CreateAsync(
                 new TemplateVersionId(templateSchemaResult.Value!.TemplateVersionId),
                 request.InitialResponseBody,
                 dbUser.Id!,
@@ -105,6 +106,19 @@ public sealed class CreateApplicationCommandHandler(
             GrantCreatorApplicationAccess(trackedUser, application.Id!, trackedUser.Id);
 
             await applicationRepo.AddAsync(application, cancellationToken);
+
+            await projectionEventPublisher.PublishAsync(
+                new ProjectionRequest(
+                    application.Id!,
+                    ProjectionTransition.Saved,
+                    application.SourceRevision,
+                    initialResponse.Id,
+                    SubmittedRevision: null,
+                    templateId,
+                    application.TemplateVersionId,
+                    application.CreatedOn),
+                cancellationToken);
+
             await unitOfWork.CommitAsync(cancellationToken);
 
             await userCacheInvalidator.InvalidateForUserAsync(

@@ -1,3 +1,4 @@
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Utils.Configuration;
 using MassTransit;
@@ -65,6 +66,22 @@ public class MessageEndpointSelectorTests
 
         Assert.Same(_scopedSend, selector.GetSendEndpointProvider("PrismEvent", "prism-topic"));
         Assert.Same(_bus, selector.GetSendEndpointProvider("OtherEvent", "other-topic"));
+    }
+
+    [Fact]
+    public void GetPublishEndpoint_AlwaysUsesOutbox_ForPrismProjectionEvents()
+    {
+        var selector = CreateSelector(new OutboxOptions { Events = [] }, scopedIsOutbox: true);
+
+        Assert.Same(_scopedPublish, selector.GetPublishEndpoint(typeof(ApplicationProjectionRequestedEvent)));
+    }
+
+    [Fact]
+    public void GetPublishEndpoint_AlwaysUsesOutbox_ForPrismProjectionEvents_EvenWhenOutboxDisabled()
+    {
+        var selector = CreateSelector(new OutboxOptions { Enabled = false }, scopedIsOutbox: true);
+
+        Assert.Same(_scopedPublish, selector.GetPublishEndpoint(typeof(ApplicationProjectionRequestedEvent)));
     }
 
     public record TestEvent;

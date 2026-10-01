@@ -1,3 +1,4 @@
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using GovUK.Dfe.FlexForms.Utils.Configuration;
 using MassTransit;
 using MassTransit.DependencyInjection;
@@ -34,7 +35,18 @@ public sealed class MessageEndpointSelector(
     public ISendEndpointProvider GetSendEndpointProvider(string eventType, string? topicName)
         => UseScopedEndpoints(eventType, topicName) ? scopedSendEndpointProvider : bus;
 
+    /// <summary>
+    /// Events whose consumers rely on the outbox's atomicity and are idempotent, so they always use
+    /// the scoped (outbox) endpoints regardless of <see cref="OutboxOptions"/>.
+    /// </summary>
+    private static readonly HashSet<string> AlwaysOutboxEvents = new(StringComparer.OrdinalIgnoreCase)
+    {
+        nameof(ApplicationProjectionRequestedEvent),
+        typeof(ApplicationProjectionRequestedEvent).FullName!
+    };
+
     private bool UseScopedEndpoints(params string?[] identifiers)
-        => options.Value.UsesOutbox(identifiers)
+        => identifiers.Any(id => id is not null && AlwaysOutboxEvents.Contains(id))
+           || options.Value.UsesOutbox(identifiers)
            || scopedBusContextProvider.Context is not OutboxSendContext;
 }

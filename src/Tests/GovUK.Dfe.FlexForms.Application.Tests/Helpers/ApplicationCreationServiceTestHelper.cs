@@ -11,6 +11,17 @@ internal static class ApplicationCreationServiceTestHelper
         Domain.Entities.Application application,
         ApplicationResponse? response = null)
     {
+        if (response is null)
+        {
+            response = new ApplicationResponse(
+                new ResponseId(Guid.NewGuid()),
+                application.Id!,
+                "{}",
+                application.CreatedOn,
+                application.CreatedBy);
+            application.AddResponse(response);
+        }
+
         var service = Substitute.For<IApplicationCreationService>();
         service.CreateAsync(
                 Arg.Any<TemplateVersionId>(),

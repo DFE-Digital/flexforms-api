@@ -27,9 +27,13 @@ public class TenantResolutionMiddleware
         path.StartsWith("/v1/tenant-config/tenants/", StringComparison.OrdinalIgnoreCase)
         || path.StartsWith("/v1/tenant-config/resolve", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>The Prism tenant list spans every tenant; all other internal Prism endpoints need X-Tenant-ID.</summary>
+    internal const string PrismTenantsPath = "/v1/internal/prism/tenants";
+
     private static bool IsTenantResolutionBypassPath(string path) =>
         BypassPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase))
         || IsPlatformTenantConfigPath(path)
+        || path.Equals(PrismTenantsPath, StringComparison.OrdinalIgnoreCase)
         || path.Equals("/v1/diagnostics", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>

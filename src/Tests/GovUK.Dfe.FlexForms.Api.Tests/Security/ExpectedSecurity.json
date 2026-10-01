@@ -439,6 +439,31 @@
       "Controller": "TenantConfigController",
       "Action": "ResolveTenantByHostname",
       "ExpectedSecurity": "Authorize: Policy=PlatformTenantConfig"
+    },
+    {
+      "Controller": "InternalPrismController",
+      "Action": "GetPrismTenantsAsync",
+      "ExpectedSecurity": "Authorize: Policy=PlatformPrismRead"
+    },
+    {
+      "Controller": "InternalPrismController",
+      "Action": "GetPrismApplicationStateAsync",
+      "ExpectedSecurity": "Authorize: Policy=PlatformPrismRead"
+    },
+    {
+      "Controller": "InternalPrismController",
+      "Action": "GetPrismResponseAsync",
+      "ExpectedSecurity": "Authorize: Policy=PlatformPrismRead"
+    },
+    {
+      "Controller": "InternalPrismController",
+      "Action": "GetPrismTemplateVersionAsync",
+      "ExpectedSecurity": "Authorize: Policy=PlatformPrismRead"
+    },
+    {
+      "Controller": "InternalPrismController",
+      "Action": "ListPrismApplicationsAsync",
+      "ExpectedSecurity": "Authorize: Policy=PlatformPrismRead"
     }
   ]
 }

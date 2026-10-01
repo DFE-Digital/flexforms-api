@@ -5,6 +5,7 @@ using GovUK.Dfe.FlexForms.Application.Applications.Commands;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Tests.Helpers;
 using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
@@ -47,7 +48,7 @@ public class AddApplicationResponseCommandHandlerTests
         responseAppender.Create(appDomainId, responseBody, user.Id!, Arg.Any<DateTime?>())
             .Returns(new ApplicationResponseAppendResult(now, newResponse, domainEvent));
 
-        applicationRepository.AppendResponseVersionAsync(appDomainId, newResponse, now, user.Id!, Arg.Any<CancellationToken>())
+        applicationRepository.AppendResponseVersionAsync(appDomainId, newResponse, now, user.Id!, Arg.Any<CancellationToken>(), Arg.Any<Func<ResponseVersionAppended, CancellationToken, Task>?>())
             .Returns(("APP-001", newResponse));
 
         var mediator = Substitute.For<IMediator>();
@@ -58,6 +59,7 @@ public class AddApplicationResponseCommandHandlerTests
             responseAppender,
             Substitute.For<IUserCacheInvalidator>(),
             CreateTenantPermissionFilter(),
+            Substitute.For<IProjectionEventPublisher>(),
             mediator);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -92,7 +94,7 @@ public class AddApplicationResponseCommandHandlerTests
         responseAppender.Create(appDomainId, responseBody, user.Id!, Arg.Any<DateTime?>())
             .Returns(new ApplicationResponseAppendResult(now, newResponse, domainEvent));
 
-        applicationRepository.AppendResponseVersionAsync(appDomainId, newResponse, now, user.Id!, Arg.Any<CancellationToken>())
+        applicationRepository.AppendResponseVersionAsync(appDomainId, newResponse, now, user.Id!, Arg.Any<CancellationToken>(), Arg.Any<Func<ResponseVersionAppended, CancellationToken, Task>?>())
             .Returns(("APP-001", newResponse));
 
         var mediator = Substitute.For<IMediator>();
@@ -103,6 +105,7 @@ public class AddApplicationResponseCommandHandlerTests
             responseAppender,
             Substitute.For<IUserCacheInvalidator>(),
             CreateTenantPermissionFilter(),
+            Substitute.For<IProjectionEventPublisher>(),
             mediator);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -129,6 +132,7 @@ public class AddApplicationResponseCommandHandlerTests
             responseAppender,
             Substitute.For<IUserCacheInvalidator>(),
             CreateTenantPermissionFilter(),
+            Substitute.For<IProjectionEventPublisher>(),
             mediator);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -153,6 +157,7 @@ public class AddApplicationResponseCommandHandlerTests
             responseAppender,
             Substitute.For<IUserCacheInvalidator>(),
             CreateTenantPermissionFilter(),
+            Substitute.For<IProjectionEventPublisher>(),
             mediator);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -189,6 +194,7 @@ public class AddApplicationResponseCommandHandlerTests
             responseAppender,
             Substitute.For<IUserCacheInvalidator>(),
             CreateTenantPermissionFilter(),
+            Substitute.For<IProjectionEventPublisher>(),
             mediator);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -250,6 +256,7 @@ public class AddApplicationResponseCommandHandlerTests
             responseAppender,
             Substitute.For<IUserCacheInvalidator>(),
             CreateTenantPermissionFilter(),
+            Substitute.For<IProjectionEventPublisher>(),
             mediator);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -278,6 +285,7 @@ public class AddApplicationResponseCommandHandlerTests
             responseAppender,
             Substitute.For<IUserCacheInvalidator>(),
             CreateTenantPermissionFilter(),
+            Substitute.For<IProjectionEventPublisher>(),
             mediator);
 
         var result = await handler.Handle(command, CancellationToken.None);

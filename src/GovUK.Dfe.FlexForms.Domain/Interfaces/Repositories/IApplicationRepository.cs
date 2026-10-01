@@ -27,6 +27,9 @@ public interface IApplicationRepository : IEaRepository<Application>
     /// <summary>
     /// Appends a new response version to an application and updates last-modified tracking,
     /// without loading the full aggregate graph (e.g. historic responses).
+    /// Atomically increments <see cref="Application.SourceRevision"/> and stamps the response with it.
+    /// <paramref name="beforeCommit"/> runs inside the same transaction, before anything is saved,
+    /// so work it enlists (e.g. outbox messages) commits or rolls back with the response.
     /// Returns null if the application does not exist.
     /// </summary>
     Task<(string ApplicationReference, ApplicationResponse Response)?> AppendResponseVersionAsync(
@@ -34,5 +37,14 @@ public interface IApplicationRepository : IEaRepository<Application>
         ApplicationResponse response,
         DateTime lastModifiedOn,
         UserId lastModifiedBy,
-        CancellationToken cancellationToken);
+        CancellationToken cancellationToken,
+        Func<ResponseVersionAppended, CancellationToken, Task>? beforeCommit = null);
 }
+
+/// <summary>A response version appended by <see cref="IApplicationRepository.AppendResponseVersionAsync"/>, before commit.</summary>
+public sealed record ResponseVersionAppended(
+    ApplicationId ApplicationId,
+    ResponseId ResponseId,
+    long SourceRevision,
+    TemplateVersionId TemplateVersionId,
+    TemplateId? TemplateId);

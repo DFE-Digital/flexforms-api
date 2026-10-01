@@ -1,6 +1,7 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Common.Attributes;
+using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using MediatR;
@@ -22,6 +23,7 @@ public sealed class AddApplicationResponseCommandHandler(
     IApplicationResponseAppender responseAppender,
     IUserCacheInvalidator userCacheInvalidator,
     ITenantPermissionFilter tenantPermissionFilter,
+    IProjectionEventPublisher projectionEventPublisher,
     IMediator mediator) : IRequestHandler<AddApplicationResponseCommand, Result<ApplicationResponseDto>>
 {
     public async Task<Result<ApplicationResponseDto>> Handle(
@@ -63,7 +65,18 @@ public sealed class AddApplicationResponseCommandHandler(
                 append.Response,
                 append.Now,
                 dbUser.Id!,
-                cancellationToken);
+                cancellationToken,
+                (appended, ct) => projectionEventPublisher.PublishAsync(
+                    new ProjectionRequest(
+                        appended.ApplicationId,
+                        ProjectionTransition.Saved,
+                        appended.SourceRevision,
+                        appended.ResponseId,
+                        SubmittedRevision: null,
+                        appended.TemplateId,
+                        appended.TemplateVersionId,
+                        append.Now),
+                    ct));
 
             if (persisted is null)
                 return Result<ApplicationResponseDto>.NotFound("Application not found");

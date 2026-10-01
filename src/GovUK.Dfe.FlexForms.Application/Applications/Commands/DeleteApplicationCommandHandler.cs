@@ -22,6 +22,7 @@ public sealed class DeleteApplicationCommandHandler(
     IPermissionCheckerService permissionCheckerService,
     ITenantTemplateResolver tenantTemplateResolver,
     IUserCacheInvalidator userCacheInvalidator,
+    IProjectionEventPublisher projectionEventPublisher,
     IUnitOfWork unitOfWork) : IRequestHandler<DeleteApplicationCommand, Result<ApplicationDto>>
 {
     public async Task<Result<ApplicationDto>> Handle(
@@ -67,6 +68,18 @@ public sealed class DeleteApplicationCommandHandler(
 
             var now = DateTime.UtcNow;
             application.Delete(now, dbUser.Id!, dbUser.Email, dbUser.Name);
+
+            await projectionEventPublisher.PublishAsync(
+                new ProjectionRequest(
+                    applicationId,
+                    ProjectionTransition.Deleted,
+                    application.SourceRevision,
+                    ResponseId: null,
+                    application.SubmittedRevision,
+                    templateId,
+                    application.TemplateVersionId,
+                    now),
+                cancellationToken);
 
             await unitOfWork.CommitAsync(cancellationToken);
 

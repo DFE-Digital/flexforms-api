@@ -58,6 +58,7 @@ public class SubmitApplicationCommandHandlerTests
             DateTime.UtcNow,
             userWithExternalId.Id!);
         application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
+        application.AddResponse(new ApplicationResponse(new ResponseId(Guid.NewGuid()), applicationId, "{}", DateTime.UtcNow, userWithExternalId.Id!));
 
         var applications = new[] { application }.AsQueryable().BuildMockDbSet();
         applicationRepo.Query().Returns(applications);
@@ -122,6 +123,7 @@ public class SubmitApplicationCommandHandlerTests
             DateTime.UtcNow,
             testUser.Id!);
         application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
+        application.AddResponse(new ApplicationResponse(new ResponseId(Guid.NewGuid()), applicationId, "{}", DateTime.UtcNow, testUser.Id!));
 
         var applications = new[] { application }.AsQueryable().BuildMockDbSet();
         applicationRepo.Query().Returns(applications);
@@ -391,6 +393,7 @@ public class SubmitApplicationCommandHandlerTests
             policy ?? new ApplicationFileValidationPolicy(),
             Substitute.For<IUserCacheInvalidator>(),
             tenantPermissionFilter,
+            Substitute.For<IProjectionEventPublisher>(),
             unitOfWork);
     }
 }

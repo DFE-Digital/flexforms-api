@@ -27,6 +27,7 @@ public sealed class SubmitApplicationCommandHandler(
     IApplicationFileValidationPolicy fileValidationPolicy,
     IUserCacheInvalidator userCacheInvalidator,
     ITenantPermissionFilter tenantPermissionFilter,
+    IProjectionEventPublisher projectionEventPublisher,
     IUnitOfWork unitOfWork) : IRequestHandler<SubmitApplicationCommand, Result<ApplicationDto>>
 {
     public async Task<Result<ApplicationDto>> Handle(
@@ -83,6 +84,29 @@ public sealed class SubmitApplicationCommandHandler(
 
             var now = DateTime.UtcNow;
             application.Submit(now, dbUser.Id!, dbUser.Email, dbUser.Name);
+
+            var submittedResponseId = await applicationRepo.Query()
+                .Where(a => a.Id == applicationId)
+                .SelectMany(a => a.Responses)
+                .OrderByDescending(r => r.CreatedAtRevision)
+                .ThenByDescending(r => r.CreatedOn)
+                .Select(r => r.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (submittedResponseId is null)
+                return Result<ApplicationDto>.Validation("Application has no response to submit");
+
+            await projectionEventPublisher.PublishAsync(
+                new ProjectionRequest(
+                    applicationId,
+                    ProjectionTransition.Submitted,
+                    application.SourceRevision,
+                    submittedResponseId,
+                    application.SubmittedRevision,
+                    application.TemplateVersion?.TemplateId,
+                    application.TemplateVersionId,
+                    now),
+                cancellationToken);
 
             await unitOfWork.CommitAsync(cancellationToken);
 

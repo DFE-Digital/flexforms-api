@@ -58,6 +58,7 @@ public class CreateApplicationCommandHandlerTests
             userFactory ?? new UserFactory(),
             mediator,
             Substitute.For<IUserCacheInvalidator>(),
+            Substitute.For<IProjectionEventPublisher>(),
             unitOfWork);
     }
 

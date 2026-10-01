@@ -21,10 +21,14 @@
 
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<PackageReference Include="GovUK.Dfe.CoreLibs.Contracts" Version="1.0.106" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Http" Version="1.0.12" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.30" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- TEMPORARY: swap back to the GovUK.Dfe.CoreLibs.Contracts package once the Prism DTOs are published. -->
+		<ProjectReference Include="..\..\..\DfE.CoreLibs\src\GovUK.Dfe.CoreLibs.Contracts\GovUK.Dfe.CoreLibs.Contracts.csproj" />
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">

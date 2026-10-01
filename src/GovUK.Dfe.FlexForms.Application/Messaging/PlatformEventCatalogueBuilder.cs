@@ -59,7 +59,8 @@ public static class PlatformEventCatalogueBuilder
                 || type.IsAbstract
                 || type.IsInterface
                 || (!type.IsClass && !type.IsValueType)
-                || !type.Name.EndsWith("Event", StringComparison.Ordinal))
+                || !type.Name.EndsWith("Event", StringComparison.Ordinal)
+                || PlatformInternalMessagingEvents.IsInternal(type))
             {
                 continue;
             }
