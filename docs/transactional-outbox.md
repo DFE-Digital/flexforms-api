@@ -95,8 +95,15 @@ The outbox is **only** used when all of the following are true:
 
 1. MassTransit is running (`SkipMassTransit` is `false`).
 2. `MassTransit:Outbox:Enabled` is `true`.
-3. The event matches the routing rule: `Mode` is `All`, **or** `Mode` is `Allowlist` and the event is listed in `Events`.
+3. The event matches the routing rule: `Mode` is `All`, **or** `Mode` is `Allowlist` and the event is listed in `Events`, **or** it is a Prism event (see below).
 4. The event is published outside a consumer (API requests, domain event handlers).
+
+**Prism events always use the outbox.** `ApplicationProjectionRequestedEvent` is hard-coded in
+`MessageEndpointSelector` to use the outbox whatever `Mode` and `Events` say, because Prism depends on it being
+atomic with the change. It is published **before** the save commits, so the outbox row, the data change and the
+`SourceRevision` increment share one transaction. It still needs `Enabled` to be `true`: with the outbox switched
+off it would publish directly and lose that guarantee. It goes to topic `flexforms-prism`, which must have
+duplicate detection on, with session ID `{tenantId}:{applicationId}` and a deterministic `MessageId`.
 
 Everything else is published directly to Service Bus, exactly as before the outbox existed.
 
@@ -209,7 +216,7 @@ An event is matched if **any** of its identifiers is in `Events` (case-insensiti
 | Virus scan request | `FileUploadedDomainEventHandler` | Class name, full class name | `ScanRequestedEvent` |
 | Typed event triggers (`EventTriggers` with `EventKind` `Typed`) | `EventTriggerDispatcher` via `TenantAwareEventPublisher` | Class name (the same name tenants use as `EventType` in `EventTriggers`), full class name | `TransferApplicationSubmittedEvent` |
 | Schema event triggers (`EventKind` `Schema`) | `EventTriggerDispatcher` | The `EventType` from the tenant's `EventTriggers` entry, **or** the `TopicName` from `SchemaEvents` | `LsrpApplicationSubmitted` or `lsrp-application-submitted` |
-| Prism events (planned) | Prism publishing code | Class name | `ApplicationResponseSaved` |
+| Prism projection requests | `ProjectionEventPublisher` | Always routed through the outbox; listing it has no effect | `ApplicationProjectionRequestedEvent` |
 
 Routing is decided per event type for **all** tenants. If a typed event is shared by several tenants, adding it to the list moves it to the outbox for all of them.
 
@@ -228,7 +235,7 @@ If a subscriber cannot handle duplicates, you have two options:
    - needs the Standard or Premium tier;
    - is an infrastructure change, because `AutoCreateEntities` is `false` in our configuration.
 
-Recommended order: Prism events first (built to handle duplicates), then existing events one at a time as their subscribers are confirmed.
+Prism events already use the outbox (Prism re-reads the source and compares revisions, so duplicates are harmless). Move the existing events over one at a time, as their subscribers are confirmed.
 
 ## Database setup and migrations
 
