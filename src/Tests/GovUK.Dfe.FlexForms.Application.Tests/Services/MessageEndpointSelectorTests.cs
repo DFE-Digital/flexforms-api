@@ -68,12 +68,14 @@ public class MessageEndpointSelectorTests
         Assert.Same(_bus, selector.GetSendEndpointProvider("OtherEvent", "other-topic"));
     }
 
-    [Fact]
-    public void GetPublishEndpoint_AlwaysUsesOutbox_ForPrismProjectionEvents()
+    [Theory]
+    [InlineData(typeof(ApplicationProjectionRequestedEvent))]
+    [InlineData(typeof(TemplateVersionPublishedEvent))]
+    public void GetPublishEndpoint_AlwaysUsesOutbox_ForPrismEvents(Type eventType)
     {
         var selector = CreateSelector(new OutboxOptions { Events = [] }, scopedIsOutbox: true);
 
-        Assert.Same(_scopedPublish, selector.GetPublishEndpoint(typeof(ApplicationProjectionRequestedEvent)));
+        Assert.Same(_scopedPublish, selector.GetPublishEndpoint(eventType));
     }
 
     [Fact]

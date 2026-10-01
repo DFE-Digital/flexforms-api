@@ -467,6 +467,13 @@ sequenceDiagram
     Prism->>API: GET /v1/internal/prism/... (X-Tenant-ID, Prism.Read token)
     API-->>Prism: Current state, response, template version
     Prism->>Prism: Flatten answers and write rows
+
+    User->>API: Create template / add template version
+    API->>EA: One transaction: new TemplateVersion row, outbox row
+    API->>SB: Outbox delivery loop sends TemplateVersionPublishedEvent
+    SB->>Prism: Delivered in order per template (session)
+    Prism->>API: GET /v1/internal/prism/template-versions/{id}
+    Prism->>Prism: Catalogue fields (new fields Unclassified)
 ```
 
 ### Source revisions: how Prism knows what is newer
@@ -513,6 +520,8 @@ For the save path the publish runs in the repository's `beforeCommit` callback (
    - **`MessageId`** = `ApplicationProjectionIdentifiers.MessageId(tenant, application, revision, reason)`. The same change always gets the same id, so Service Bus duplicate detection drops a resend from the outbox.
    - **Headers** `TenantId` and `TenantName`, like every other FlexForms event.
 5. When the outbox delivers it, the Azure Service Bus send topology sets the **session id** to `{tenantId}:{applicationId}`, so Prism processes one application's events strictly in order while different applications run in parallel.
+
+`PublishTemplateVersionAsync` does the same for template versions, with no reason mapping: see [Template changes](#template-changes).
 
 Prism events **always** use the outbox, whatever the `MassTransit:Outbox:Mode` and `Events` allowlist say (`MessageEndpointSelector.AlwaysOutboxEvents`). They do need `MassTransit:Outbox:Enabled = true` (the default); with the outbox switched off they would publish directly and lose the all-or-nothing guarantee. When MassTransit is not registered at all (`SkipMassTransit`, used by integration tests and code generation), `NoOpProjectionEventPublisher` is used instead.
 
@@ -594,7 +603,7 @@ These endpoints are for the Prism Function only, never for users or tenant integ
 |---|---|
 | Entra (platform API app registration) | Define the app role `Prism.Read` (allowed member type: Applications) and assign it to the Prism Function's managed identity. |
 | API app settings | `MassTransit:Outbox:Enabled` must be `true` (the default). Nothing Prism-specific to add to the allowlist. |
-| Service Bus | Topic `flexforms-prism` with **duplicate detection** on, and a **session-enabled** subscription for Prism. Both must be set when created. |
+| Service Bus | Topic `flexforms-prism` with **duplicate detection** on, and a **session-enabled** subscription for Prism. Both must be set when created. Template-version events use the same topic and subscription. |
 | EA databases | Run the migrations (`AddMassTransitTransactionalOutbox`, `AddPrismSourceRevisions`) on every tenant EA database. |
 
 Step-by-step Azure setup, rollout order and the runbook are in the Prism repo: [`docs/azure-setup.md`](https://github.com/DFE-Digital/flexforms-prism/blob/main/docs/azure-setup.md) and [`docs/runbook.md`](https://github.com/DFE-Digital/flexforms-prism/blob/main/docs/runbook.md).
@@ -604,6 +613,9 @@ Step-by-step Azure setup, rollout order and the runbook are in the Prism repo: [
 | What | Where |
 |---|---|
 | All-or-nothing outbox guarantee on real SQL Server, for application and template-version events (rollback leaves nothing; a commit while the bus is down is delivered later; a resend keeps its `MessageId`). Needs Docker. | `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Messaging/Outbox/PrismOutboxAcceptanceTests.cs` |
+| Event contents, `MessageId` and headers for both events; no publish without a tenant | `src/Tests/GovUK.Dfe.FlexForms.Application.Tests/Services/ProjectionEventPublisherTests.cs` |
+| Prism events always routed to the outbox | `src/Tests/GovUK.Dfe.FlexForms.Application.Tests/Services/MessageEndpointSelectorTests.cs` |
+| Template handlers publish the version event before commit, and not when the version is rejected | `src/Tests/GovUK.Dfe.FlexForms.Application.Tests/CommandHandlers/Templates/` |
 | `Prism.Read` role handler, `PlatformBearer` selection for every Prism action, no anonymous access | `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Security/` |
 | Tenant bypass only for the tenants list | `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Middleware/TenantResolutionMiddlewareTests.cs` |
 
@@ -918,7 +930,7 @@ Safe TenantConfig category (tenant Admins may edit). Operator guide: [flexforms-
 | [flexforms-web](https://github.com/DFE-Digital/flexforms-web) | Razor Pages UI + form engine |
 | [rsd-file-scanner-function](https://github.com/DFE-Digital/rsd-file-scanner-function) | AV scan worker |
 | [rsd-clamav-api](https://github.com/DFE-Digital/rsd-clamav-api) | ClamAV sidecar/API |
-| [flexforms-prism](https://github.com/DFE-Digital/flexforms-prism) | Prism analytics projection (Azure Functions + SQL) fed by `ApplicationProjectionRequestedEvent` |
+| [flexforms-prism](https://github.com/DFE-Digital/flexforms-prism) | Prism analytics projection (Azure Functions + SQL) fed by `ApplicationProjectionRequestedEvent` and `TemplateVersionPublishedEvent` |
 | [DfE.CoreLibs](https://github.com/DFE-Digital/DfE.CoreLibs) | Shared contracts, security, caching, **Http** (correlation, exception handler, SaaS log keys) |
 
 See also `DfE.CoreLibs.Http/ExceptionHandler.md` for exception middleware configuration and KQL playbooks.
