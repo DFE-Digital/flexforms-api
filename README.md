@@ -15,7 +15,7 @@ Tenants (products such as Transfers, Visits, LSRP) share one API. Each tenant’
 - **Secure files** — Azure File Share + ClamAV scan via Azure Service Bus
 - **Tenant file validation** — Optional per-template callback; status + SignalR notify the uploader
 - **GOV.UK Notify** — Email for submit, invites, feedback; optional TenantConfig `EmailPlaceholderMappings` for custom personalisation from form answers
-- **Prism analytics feed** — Every save, submit and delete is published (atomically, via the outbox) for the Prism projection, which reads the data back through internal read-only endpoints ([details](#prism-analytics-projection))
+- **Prism analytics feed** — Every save, submit and delete, and every new template version, is published (atomically, via the outbox) for the Prism projection, which reads the data back through internal read-only endpoints ([details](#prism-analytics-projection))
 - **Real-time notifications** — Azure SignalR
 - **Audit** — SQL Server temporal tables on `ea` entities
 - **Redis + memory cache** — Tenant-prefixed keys
@@ -446,7 +446,7 @@ Full guide (configuration reference, rollout runbook, monitoring SQL, troublesho
 
 [Prism](https://github.com/DFE-Digital/flexforms-prism) turns FlexForms applications into flat, queryable rows in its own SQL database, so analysts can report on form answers without touching the EA databases or parsing response JSON. Prism is a separate Azure Function app. The API's job is small and well-defined:
 
-1. **Tell Prism when an application changes**, by publishing an event to Service Bus.
+1. **Tell Prism when an application changes, or a template version is published**, by publishing an event to Service Bus.
 2. **Let Prism read the source data**, through a handful of read-only internal endpoints.
 
 The event is only a nudge ("application X changed, it is now at revision N"). It carries no form answers. Prism always reads the real data back from the API, so a late, duplicated or out-of-order event can never put wrong data into Prism.
@@ -534,6 +534,31 @@ Topic `flexforms-prism` (`TopicNames.FlexFormsPrism`).
 
 The full contract is in [`docs/prism-contract-v1.md`](https://github.com/DFE-Digital/flexforms-prism/blob/main/docs/prism-contract-v1.md) in the Prism repo.
 
+### Template changes
+
+Template versions are immutable: changing a template (adding or removing a field, relabelling, changing options) always creates a **new version**, and existing applications stay on the version they started with. So the API tells Prism about each new version, and Prism catalogues its fields straight away. The data team can then see what changed (`prism.v_template_field_changes`) and classify new fields before anyone has answered them, instead of finding out when the first application on the new version is projected.
+
+| Action (command handler) | Event |
+|---|---|
+| Create a template with an initial version (`CreateTemplateCommandHandler`) | `TemplateVersionPublishedEvent` for the initial version |
+| Add a template version (`CreateTemplateVersionCommandHandler`) | `TemplateVersionPublishedEvent` for the new version |
+
+It works exactly like the application event:
+
+- The handler calls `IProjectionEventPublisher.PublishTemplateVersionAsync` **before** `IUnitOfWork.CommitAsync`, so the outbox row is committed with the new version row, or not at all.
+- It always goes through the outbox (`MessageEndpointSelector.AlwaysOutboxEvents`), to the same topic `flexforms-prism`.
+- **`MessageId`** = `ApplicationProjectionIdentifiers.TemplateVersionMessageId(tenant, templateVersion)`, and the **session id** is `{tenantId}:template:{templateId}` (`TemplateSessionId`), so it uses the existing session-enabled subscription. Nothing new is needed in Azure.
+- It carries no template JSON. Prism reads it back from `GET template-versions/{templateVersionId}`.
+
+| Field | Meaning |
+|---|---|
+| `ContractVersion` | Currently `1`. |
+| `TenantId`, `TemplateId`, `TemplateVersionId` | Which version was published. |
+| `VersionNumber` | The version label, for example `1.4.0`. |
+| `CreatedAt` | When the version was created (UTC). |
+
+Template versions created before this event existed are catalogued by Prism the first time one of their applications is projected.
+
 ### Internal endpoints for Prism
 
 `InternalPrismController`, under `/v1/internal/prism`. All endpoints are **read-only GETs** and return data as it is in the source, including **deleted** applications (so deletions are never missed).
@@ -543,7 +568,7 @@ The full contract is in [`docs/prism-contract-v1.md`](https://github.com/DFE-Dig
 | `GET tenants` | Not needed | Every configured tenant (`PrismTenantDto`: id and name) | Deciding which tenants a backfill or reconciliation run covers. |
 | `GET applications/{applicationId}/current` | Required | `PrismApplicationStateDto`: revision, status, deleted flag, template, latest response (id, revision and body), and the submit details (`SubmittedRevision`, `SubmissionId`, `SubmittedResponseId`) | The main call for every event: "what does this application look like **now**?" Prism compares the revision with what it has and projects the latest response. |
 | `GET responses/{responseId}` | Required | `PrismResponseDto`: one immutable response version and its body | Freezing the **exact** answers that were submitted, even if the user saved again after submitting. |
-| `GET template-versions/{templateVersionId}` | Required | `PrismTemplateVersionDto`: version number and JSON schema | Working out the fields (names, types, repeating sections) needed to flatten answers. Template versions never change, so Prism caches them. |
+| `GET template-versions/{templateVersionId}` | Required | `PrismTemplateVersionDto`: version number, JSON schema and creation time | Working out the fields (names, types, repeating sections) needed to flatten answers, and cataloguing a newly published version. Template versions never change, so Prism caches them. |
 | `GET applications?modifiedSince=&page=&pageSize=` | Required | `PrismApplicationPageDto`: application id, revision, status, deleted flag and last-changed time, oldest first, with `HasMore` | Backfill (load everything) and reconciliation (find anything changed since a point in time that Prism has missed). `pageSize` defaults to 500, maximum 1000. |
 
 The DTOs live in `GovUK.Dfe.CoreLibs.Contracts` (`ExternalApplications/Models/Response/PrismDtos.cs`) and Prism calls these endpoints through the generated `GovUK.Dfe.FlexForms.Api.Client`.
@@ -578,7 +603,7 @@ Step-by-step Azure setup, rollout order and the runbook are in the Prism repo: [
 
 | What | Where |
 |---|---|
-| All-or-nothing outbox guarantee on real SQL Server (rollback leaves nothing; a commit while the bus is down is delivered later; a resend keeps its `MessageId`). Needs Docker. | `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Messaging/Outbox/PrismOutboxAcceptanceTests.cs` |
+| All-or-nothing outbox guarantee on real SQL Server, for application and template-version events (rollback leaves nothing; a commit while the bus is down is delivered later; a resend keeps its `MessageId`). Needs Docker. | `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Messaging/Outbox/PrismOutboxAcceptanceTests.cs` |
 | `Prism.Read` role handler, `PlatformBearer` selection for every Prism action, no anonymous access | `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Security/` |
 | Tenant bypass only for the tenants list | `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Middleware/TenantResolutionMiddlewareTests.cs` |
 

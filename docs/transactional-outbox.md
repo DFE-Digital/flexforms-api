@@ -98,9 +98,9 @@ The outbox is **only** used when all of the following are true:
 3. The event matches the routing rule: `Mode` is `All`, **or** `Mode` is `Allowlist` and the event is listed in `Events`, **or** it is a Prism event (see below).
 4. The event is published outside a consumer (API requests, domain event handlers).
 
-**Prism events always use the outbox.** `ApplicationProjectionRequestedEvent` is hard-coded in
-`MessageEndpointSelector` to use the outbox whatever `Mode` and `Events` say, because Prism depends on it being
-atomic with the change. It is published **before** the save commits, so the outbox row, the data change and the
+**Prism events always use the outbox.** `ApplicationProjectionRequestedEvent` and `TemplateVersionPublishedEvent`
+are hard-coded in `MessageEndpointSelector` to use the outbox whatever `Mode` and `Events` say, because Prism
+depends on them being atomic with the change. It is published **before** the save commits, so the outbox row, the data change and the
 `SourceRevision` increment share one transaction. It still needs `Enabled` to be `true`: with the outbox switched
 off it would publish directly and lose that guarantee. It goes to topic `flexforms-prism`, which must have
 duplicate detection on, with session ID `{tenantId}:{applicationId}` and a deterministic `MessageId`.
@@ -217,6 +217,7 @@ An event is matched if **any** of its identifiers is in `Events` (case-insensiti
 | Typed event triggers (`EventTriggers` with `EventKind` `Typed`) | `EventTriggerDispatcher` via `TenantAwareEventPublisher` | Class name (the same name tenants use as `EventType` in `EventTriggers`), full class name | `TransferApplicationSubmittedEvent` |
 | Schema event triggers (`EventKind` `Schema`) | `EventTriggerDispatcher` | The `EventType` from the tenant's `EventTriggers` entry, **or** the `TopicName` from `SchemaEvents` | `LsrpApplicationSubmitted` or `lsrp-application-submitted` |
 | Prism projection requests | `ProjectionEventPublisher` | Always routed through the outbox; listing it has no effect | `ApplicationProjectionRequestedEvent` |
+| Prism template versions | `ProjectionEventPublisher` | Always routed through the outbox; listing it has no effect | `TemplateVersionPublishedEvent` |
 
 Routing is decided per event type for **all** tenants. If a typed event is shared by several tenants, adding it to the list moves it to the outbox for all of them.
 
