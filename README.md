@@ -658,15 +658,11 @@ Step-by-step Azure setup, rollout order and the runbook are in the Prism repo: [
 
 Per-tenant secrets and connections live in **TenantConfig**, not only in appsettings.
 
-### Local project references (development)
+### CoreLibs packages
 
-While developing against unreleased CoreLibs telemetry:
+All CoreLibs dependencies are NuGet packages from nuget.org, including the Prism contracts (`GovUK.Dfe.CoreLibs.Contracts` 1.0.108 or later and `GovUK.Dfe.CoreLibs.Messaging.Contracts` 0.1.6 or later). No sibling checkout of DfE.CoreLibs is needed.
 
-- `GovUK.Dfe.FlexForms.Api` → project reference to `DfE.CoreLibs/src/GovUK.Dfe.CoreLibs.Http`
-- `GovUK.Dfe.FlexForms.Api.Client` → same CoreLibs project reference
-- `flexforms-web` → project references to local Api.Client + CoreLibs.Http
-
-CI/publish should restore **NuGet** package versions once CoreLibs is released and Api.Client is bumped.
+Don't swap them for project references: other CoreLibs packages (for example `GovUK.Dfe.CoreLibs.Notifications`) are compiled against a published `Contracts` assembly version, and a local project builds as `1.0.0.0`, so the API fails to start with `Could not load file or assembly 'GovUK.Dfe.CoreLibs.Contracts, Version=1.0.x.0'`.
 
 ### Run
 
