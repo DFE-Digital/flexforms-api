@@ -10,7 +10,8 @@ public static class PlatformInternalMessagingEvents
 {
     private static readonly HashSet<string> Names = new(StringComparer.Ordinal)
     {
-        nameof(ApplicationProjectionRequestedEvent)
+        nameof(ApplicationProjectionRequestedEvent),
+        nameof(TemplateVersionPublishedEvent)
     };
 
     public static bool IsInternal(Type type) => Names.Contains(type.Name);

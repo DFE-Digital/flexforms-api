@@ -1,9 +1,11 @@
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Utils.Configuration;
 using MassTransit;
 using MassTransit.DependencyInjection;
 using MassTransit.Middleware;
+using Microsoft.Extensions.Configuration;
 using NSubstitute;
 
 namespace GovUK.Dfe.FlexForms.Application.Tests.Services;
@@ -14,7 +16,10 @@ public class MessageEndpointSelectorTests
     private readonly ISendEndpointProvider _scopedSend = Substitute.For<ISendEndpointProvider>();
     private readonly IBus _bus = Substitute.For<IBus>();
 
-    private MessageEndpointSelector CreateSelector(OutboxOptions options, bool scopedIsOutbox)
+    private MessageEndpointSelector CreateSelector(
+        OutboxOptions options,
+        bool scopedIsOutbox,
+        Dictionary<string, string?>? tenantSettings = null)
     {
         var context = scopedIsOutbox
             ? Substitute.For<ScopedBusContext, OutboxSendContext>()
@@ -23,7 +28,47 @@ public class MessageEndpointSelectorTests
         var contextProvider = Substitute.For<IScopedBusContextProvider<IBus>>();
         contextProvider.Context.Returns(context);
 
-        return new MessageEndpointSelector(_scopedPublish, _scopedSend, _bus, contextProvider, Microsoft.Extensions.Options.Options.Create(options));
+        var tenantAccessor = Substitute.For<ITenantContextAccessor>();
+        if (tenantSettings is not null)
+        {
+            tenantAccessor.CurrentTenant.Returns(new TenantConfiguration(
+                Guid.NewGuid(),
+                "Tenant",
+                new ConfigurationBuilder().AddInMemoryCollection(tenantSettings).Build(),
+                []));
+        }
+
+        return new MessageEndpointSelector(
+            _scopedPublish,
+            _scopedSend,
+            _bus,
+            contextProvider,
+            Microsoft.Extensions.Options.Options.Create(options),
+            tenantAccessor);
+    }
+
+    [Fact]
+    public void GetSendEndpointProvider_UsesTenantAllowlist_OverHostAllowlist()
+    {
+        var selector = CreateSelector(
+            new OutboxOptions { Events = ["host-topic"] },
+            scopedIsOutbox: true,
+            new Dictionary<string, string?> { ["MassTransit:Outbox:Events:0"] = "tenant-topic" });
+
+        Assert.Same(_scopedSend, selector.GetSendEndpointProvider("TenantSchemaEvent", "tenant-topic"));
+        Assert.Same(_bus, selector.GetSendEndpointProvider("HostSchemaEvent", "host-topic"));
+    }
+
+    [Fact]
+    public void GetPublishEndpoint_KeepsPrismEventsOnOutbox_WhenTenantOptsOut()
+    {
+        var selector = CreateSelector(
+            new OutboxOptions { Mode = OutboxRoutingMode.All },
+            scopedIsOutbox: true,
+            new Dictionary<string, string?> { ["MassTransit:Outbox:Enabled"] = "false" });
+
+        Assert.Same(_bus, selector.GetPublishEndpoint(typeof(TestEvent)));
+        Assert.Same(_scopedPublish, selector.GetPublishEndpoint(typeof(ApplicationProjectionRequestedEvent)));
     }
 
     [Fact]

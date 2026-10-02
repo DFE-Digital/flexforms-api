@@ -321,6 +321,23 @@ public static class TenantSettingCategoryCookbook
                 "ScanRequestedEvent is published by the platform and cannot be configured here"
             ],
             requiresObject: true),
+
+        Entry(
+            "MassTransit",
+            "Per-tenant transactional outbox routing that overrides the host MassTransit:Outbox settings.",
+            ["Shared"],
+            example: """{"Outbox":{"Mode":"Allowlist","Events":["TransferApplicationSubmittedEvent","transfer-application-submitted-schema"]}}""",
+            notes:
+            [
+                "Non-secret",
+                "Saved with Target=Shared so the API runtime can read it",
+                "Only Outbox:Enabled, Outbox:Mode and Outbox:Events are read; any key you set replaces the host value for this tenant, missing keys inherit it",
+                "Events: typed event class name, or a schema event's EventType or TopicName (case-insensitive)",
+                "Enabled=false opts this tenant out; it cannot switch the outbox on when the host has it disabled",
+                "Takes effect on the next tenant configuration refresh (no restart)",
+                "Prism events always use the outbox regardless of this setting"
+            ],
+            requiresObject: true),
     ];
 
     private static TenantSettingCategoryCookbookEntryDto Entry(

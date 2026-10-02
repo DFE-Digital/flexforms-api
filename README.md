@@ -434,7 +434,8 @@ How it fits the platform:
 - **Same topics, bodies and headers** (`TenantId`, `TenantName`, custom properties) as direct publishing.
 - **Consumers are unaffected**: publishes inside a consumer still use the consume context.
 - **Post-commit handlers**: `DomainEventDispatcherInterceptor` does a follow-up save so events published by domain event handlers (which run after commit) reach the outbox. New events needing strict atomicity (Prism) must be published **before** `SaveChangesAsync`.
-- The effective routing is logged at startup: `Transactional outbox routing: Mode ..., Events [...]`.
+- **Per-tenant overrides**: a tenant's `MassTransit` settings category (`{"Outbox":{"Mode":...,"Events":[...]}}`, Target `Shared`) replaces the host `Enabled`/`Mode`/`Events` for that tenant's events, with no restart needed. A tenant can opt out but cannot enable the outbox when the host has it disabled.
+- The host routing is logged at startup: `Transactional outbox routing: Mode ..., Events [...]`.
 
 **Before listing an event**, confirm every subscriber of its topic tolerates duplicates, or enable Service Bus duplicate detection on the topic (only possible when the topic is created).
 
