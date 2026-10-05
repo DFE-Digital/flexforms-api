@@ -1,9 +1,13 @@
-using FluentValidation;
+using System.Security.Claims;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
-using GovUK.Dfe.FlexForms.Domain.Interfaces;
+using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using MediatR;
+using Microsoft.AspNetCore.Http;
 
 namespace GovUK.Dfe.FlexForms.Application.ReportingExport.Commands;
 
@@ -15,33 +19,69 @@ public sealed record UpdateReportingExportDefaultCommand(
     string? Reason)
     : IRequest<Result<ReportingExportChangeResultDto>>;
 
-public sealed class UpdateReportingExportDefaultCommandValidator : AbstractValidator<UpdateReportingExportDefaultCommand>
-{
-    public UpdateReportingExportDefaultCommandValidator()
-    {
-        RuleFor(x => x.TenantId).NotEmpty();
-        RuleFor(x => x.TemplateId).NotEqual(Guid.Empty);
-        RuleFor(x => x.Mode).IsInEnum();
-        RuleFor(x => x.Reason).MaximumLength(1000);
-        RuleFor(x => x.Reason)
-            .NotEmpty()
-            .When(x => x.Mode == ReportingExportModeSetting.ExportAll)
-            .WithMessage("Give a reason for exporting new fields automatically, for example who agreed it.");
-    }
-}
-
-/// <summary>Changes what happens to undecided fields. A change starts a refresh of the tenant's exported data.</summary>
-public sealed class UpdateReportingExportDefaultCommandHandler(IReportingExportAccess access, IPrismExportControlClient prism)
+/// <summary>
+/// Changes what happens to undecided fields. A change starts a refresh of the tenant's exported data.
+/// Callers must be interactive tenant Admin or SuperAdmin of the tenant resolved for the current request.
+/// </summary>
+public sealed class UpdateReportingExportDefaultCommandHandler(
+    IReportingExportPolicyService reportingExportPolicyService,
+    ITenantContextAccessor tenantContextAccessor,
+    IPermissionCheckerService permissionChecker,
+    ITenantTemplateResolver tenantTemplateResolver,
+    IHttpContextAccessor httpContextAccessor)
     : IRequestHandler<UpdateReportingExportDefaultCommand, Result<ReportingExportChangeResultDto>>
 {
-    public async Task<Result<ReportingExportChangeResultDto>> Handle(UpdateReportingExportDefaultCommand request, CancellationToken cancellationToken)
+    public async Task<Result<ReportingExportChangeResultDto>> Handle(
+        UpdateReportingExportDefaultCommand request,
+        CancellationToken cancellationToken)
     {
-        if (await access.CheckAsync(request.TenantId, request.TemplateId, cancellationToken) is { } denial)
+        if (!permissionChecker.IsInteractiveTenantAdmin())
         {
-            return denial.As<ReportingExportChangeResultDto>();
+            return Result<ReportingExportChangeResultDto>.Forbid(
+                "Only interactive tenant administrators can manage reporting export.");
         }
 
-        var body = new UpdateReportingExportDefaultRequest { Mode = request.Mode, Reason = request.Reason };
-        return await prism.ChangeDefaultAsync(request.TenantId, request.TemplateId, body, access.ActingUser, cancellationToken);
+        var currentTenant = tenantContextAccessor.CurrentTenant;
+        if (currentTenant is null || currentTenant.Id != request.TenantId)
+        {
+            return Result<ReportingExportChangeResultDto>.Forbid(
+                "Administrators can only manage reporting export for their own tenant.");
+        }
+
+        if (request.TemplateId is { } templateId
+            && !await tenantTemplateResolver.IsTemplateInCurrentTenantAsync(new TemplateId(templateId), cancellationToken))
+        {
+            return Result<ReportingExportChangeResultDto>.NotFound("Template not found.");
+        }
+
+        try
+        {
+            var result = await reportingExportPolicyService.ChangeDefaultAsync(
+                request.TenantId,
+                request.TemplateId,
+                new UpdateReportingExportDefaultRequest { Mode = request.Mode, Reason = request.Reason },
+                ResolveActorEmail(),
+                cancellationToken);
+
+            return result is null
+                ? Result<ReportingExportChangeResultDto>.NotFound("Template not found.")
+                : Result<ReportingExportChangeResultDto>.Success(result);
+        }
+        catch (ArgumentException ex)
+        {
+            return Result<ReportingExportChangeResultDto>.Validation(ex.Message);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result<ReportingExportChangeResultDto>.Failure(ex.Message);
+        }
+    }
+
+    private string ResolveActorEmail()
+    {
+        var user = httpContextAccessor.HttpContext?.User;
+        return new[] { user?.FindFirst(ClaimTypes.Email)?.Value, user?.FindFirst("email")?.Value, user?.Identity?.Name }
+                   .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))
+               ?? "unknown";
     }
 }

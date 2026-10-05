@@ -1,8 +1,9 @@
 using Azure.Core;
 using Azure.Identity;
+using GovUK.Dfe.FlexForms.Infrastructure.Configurations;
 using Microsoft.Extensions.Options;
 
-namespace GovUK.Dfe.FlexForms.Infrastructure.Prism;
+namespace GovUK.Dfe.FlexForms.Infrastructure.Services;
 
 /// <summary>Bearer tokens for Prism's control endpoints, carrying the API identity's Prism app roles.</summary>
 public interface IPrismAccessTokenSource

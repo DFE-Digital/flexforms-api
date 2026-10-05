@@ -2,13 +2,14 @@ using System.Net;
 using System.Text;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
-using GovUK.Dfe.FlexForms.Infrastructure.Prism;
+using GovUK.Dfe.FlexForms.Infrastructure.Configurations;
+using GovUK.Dfe.FlexForms.Infrastructure.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 
-namespace GovUK.Dfe.FlexForms.Application.Tests.ReportingExport;
+namespace GovUK.Dfe.FlexForms.Application.Tests.Services;
 
-public class PrismExportControlClientTests
+public class PrismReportingExportPolicyServiceTests
 {
     private static readonly Guid TenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
     private static readonly Guid TemplateId = Guid.Parse("33333333-3333-4333-8333-333333333333");
@@ -17,8 +18,8 @@ public class PrismExportControlClientTests
     private readonly IPrismAccessTokenSource _tokens = Substitute.For<IPrismAccessTokenSource>();
     private readonly PrismControlApiOptions _options = new() { BaseUrl = "http://prism.local/", DevelopmentKey = "dev-key" };
 
-    private PrismExportControlClient Client() =>
-        new(new HttpClient(_handler), Microsoft.Extensions.Options.Options.Create(_options), _tokens, NullLogger<PrismExportControlClient>.Instance);
+    private PrismReportingExportPolicyService Service() =>
+        new(new HttpClient(_handler), Microsoft.Extensions.Options.Options.Create(_options), _tokens, NullLogger<PrismReportingExportPolicyService>.Instance);
 
     [Fact]
     public async Task GetPolicy_ShouldMapPrismView()
@@ -30,32 +31,28 @@ public class PrismExportControlClientTests
                         "decidedBy":null,"decidedAt":null,"policyVersion":null}]}
             """);
 
-        var result = await Client().GetPolicyAsync(TenantId, TemplateId, CancellationToken.None);
+        var policy = await Service().GetPolicyAsync(TenantId, TemplateId);
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(7, result.Value!.PolicyVersion);
-        Assert.Equal(ReportingExportMode.ExportAll, result.Value.DefaultMode);
-        Assert.Equal(ReportingExportDefaultSource.Template, result.Value.DefaultSource);
-        var field = Assert.Single(result.Value.Fields);
+        Assert.Equal(7, policy!.PolicyVersion);
+        Assert.Equal(ReportingExportMode.ExportAll, policy.DefaultMode);
+        Assert.Equal(ReportingExportDefaultSource.Template, policy.DefaultSource);
+        var field = Assert.Single(policy.Fields);
         Assert.Equal(ReportingExportStatus.AllowedByDefault, field.Status);
         Assert.Equal("Your details", field.PageTitle);
         Assert.Equal($"http://prism.local/api/control/tenants/{TenantId}/templates/{TemplateId}/export-policy", _handler.Request!.RequestUri!.ToString());
-        Assert.Equal("dev-key", _handler.Request.Headers.GetValues(PrismExportControlClient.DevelopmentKeyHeader).Single());
+        Assert.Equal("dev-key", _handler.Request.Headers.GetValues(PrismReportingExportPolicyService.DevelopmentKeyHeader).Single());
     }
 
     [Fact]
-    public async Task GetPolicy_ShouldExplainUncataloguedTemplate_OnNotFound()
+    public async Task GetPolicy_ShouldReturnNull_WhenTemplateNotCatalogued()
     {
         _handler.Respond(HttpStatusCode.NotFound, "");
 
-        var result = await Client().GetPolicyAsync(TenantId, TemplateId, CancellationToken.None);
-
-        Assert.Equal(DomainErrorCode.NotFound, result.ErrorCode);
-        Assert.Equal(PrismExportControlClient.NotCatalogued, result.Error);
+        Assert.Null(await Service().GetPolicyAsync(TenantId, TemplateId));
     }
 
     [Fact]
-    public async Task ChangeDecisions_ShouldSendActingUserAndMapBackfill()
+    public async Task ChangeDecisions_ShouldSendActingUserAndMapRefresh()
     {
         var operationId = Guid.NewGuid();
         _handler.Respond(HttpStatusCode.OK, $$"""
@@ -64,34 +61,31 @@ public class PrismExportControlClientTests
                          "messagesEnqueued":0,"error":null,"createdAt":"2026-10-05T10:00:00Z","startedAt":null,"completedAt":null} }
             """);
 
-        var result = await Client().ChangeDecisionsAsync(
+        var change = await Service().ChangeDecisionsAsync(
             TenantId,
             TemplateId,
             [new ReportingExportDecisionRequest { FieldId = "email", Decision = ReportingExportDecision.Allowed, Reason = "Needed" }],
-            "ada@example.gov.uk",
-            CancellationToken.None);
+            "ada@example.gov.uk");
 
-        Assert.True(result.IsSuccess);
-        Assert.Equal(ReportingExportChangeStatus.Applied, result.Value!.Status);
-        Assert.Equal(operationId, result.Value.RefreshId);
-        Assert.Equal(["Email is personal data"], result.Value.Warnings);
+        Assert.Equal(ReportingExportChangeStatus.Applied, change!.Status);
+        Assert.Equal(operationId, change.RefreshId);
+        Assert.Equal(["Email is personal data"], change.Warnings);
         Assert.Equal(HttpMethod.Put, _handler.Request!.Method);
-        Assert.Equal("ada@example.gov.uk", _handler.Request.Headers.GetValues(PrismExportControlClient.ActingUserHeader).Single());
+        Assert.Equal("ada@example.gov.uk", _handler.Request.Headers.GetValues(PrismReportingExportPolicyService.ActingUserHeader).Single());
         Assert.Contains("\"decision\":\"Allowed\"", _handler.Body);
         Assert.Contains("\"fieldId\":\"email\"", _handler.Body);
     }
 
     [Fact]
-    public async Task ChangeDecisions_ShouldListUnknownFields_OnUnprocessableEntity()
+    public async Task ChangeDecisions_ShouldThrowArgumentListingUnknownFields_OnUnprocessableEntity()
     {
         _handler.Respond(HttpStatusCode.UnprocessableEntity, """
             {"result":{"status":"UnknownFields","policyVersion":3,"changed":0,"problems":["phone","fax"],"warnings":[]},"backfill":null}
             """);
 
-        var result = await Client().ChangeDecisionsAsync(TenantId, TemplateId, [], "ada", CancellationToken.None);
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => Service().ChangeDecisionsAsync(TenantId, TemplateId, [], "ada"));
 
-        Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
-        Assert.Equal("These fields are not in the template: phone, fax.", result.Error);
+        Assert.Equal("These fields are not in the template: phone, fax.", ex.Message);
     }
 
     [Fact]
@@ -99,29 +93,29 @@ public class PrismExportControlClientTests
     {
         _handler.Respond(HttpStatusCode.OK, """{"result":{"status":"Unchanged","policyVersion":2,"default":null,"problems":[]},"backfill":null}""");
 
-        var result = await Client().ChangeDefaultAsync(
-            TenantId, null, new UpdateReportingExportDefaultRequest { Mode = ReportingExportModeSetting.ApproveFirst }, "ada", CancellationToken.None);
+        var change = await Service().ChangeDefaultAsync(
+            TenantId, null, new UpdateReportingExportDefaultRequest { Mode = ReportingExportModeSetting.ApproveFirst }, "ada");
 
-        Assert.Equal(ReportingExportChangeStatus.Unchanged, result.Value!.Status);
-        Assert.Null(result.Value.RefreshId);
+        Assert.Equal(ReportingExportChangeStatus.Unchanged, change!.Status);
+        Assert.Equal(0, change.Changed);
+        Assert.Null(change.RefreshId);
         Assert.Equal($"http://prism.local/api/control/tenants/{TenantId}/export-default", _handler.Request!.RequestUri!.ToString());
         Assert.Contains("\"mode\":\"ApproveFirst\"", _handler.Body);
     }
 
     [Fact]
-    public async Task ChangeDefault_ShouldSurfaceProblemDetail_OnBadRequest()
+    public async Task ChangeDefault_ShouldThrowArgumentWithProblemDetail_OnBadRequest()
     {
         _handler.Respond(HttpStatusCode.BadRequest, """{"status":400,"detail":"A reason is required to export everything."}""");
 
-        var result = await Client().ChangeDefaultAsync(
-            TenantId, TemplateId, new UpdateReportingExportDefaultRequest { Mode = ReportingExportModeSetting.ExportAll }, "ada", CancellationToken.None);
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => Service().ChangeDefaultAsync(
+            TenantId, TemplateId, new UpdateReportingExportDefaultRequest { Mode = ReportingExportModeSetting.ExportAll }, "ada"));
 
-        Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
-        Assert.Equal("A reason is required to export everything.", result.Error);
+        Assert.Equal("A reason is required to export everything.", ex.Message);
     }
 
     [Fact]
-    public async Task GetRefresh_ShouldHideOtherTenantsOperations()
+    public async Task GetRefresh_ShouldReturnNull_ForAnotherTenantsRefresh()
     {
         var refreshId = Guid.NewGuid();
         _handler.Respond(HttpStatusCode.OK, $$"""
@@ -129,33 +123,30 @@ public class PrismExportControlClientTests
              "messagesEnqueued":2,"error":null,"createdAt":"2026-10-05T10:00:00Z","startedAt":null,"completedAt":null}
             """);
 
-        var result = await Client().GetRefreshAsync(TenantId, refreshId, CancellationToken.None);
-
-        Assert.Equal(DomainErrorCode.NotFound, result.ErrorCode);
+        Assert.Null(await Service().GetRefreshAsync(TenantId, refreshId));
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.Unauthorized, PrismExportControlClient.NotAllowed)]
-    [InlineData(HttpStatusCode.Forbidden, PrismExportControlClient.NotAllowed)]
-    [InlineData(HttpStatusCode.InternalServerError, PrismExportControlClient.Unavailable)]
-    public async Task Failures_ShouldGiveAdminFacingMessages(HttpStatusCode status, string message)
+    [InlineData(HttpStatusCode.Unauthorized, PrismReportingExportPolicyService.NotAllowed)]
+    [InlineData(HttpStatusCode.Forbidden, PrismReportingExportPolicyService.NotAllowed)]
+    [InlineData(HttpStatusCode.InternalServerError, PrismReportingExportPolicyService.Unavailable)]
+    public async Task Failures_ShouldThrowInvalidOperationWithAdminFacingMessage(HttpStatusCode status, string message)
     {
         _handler.Respond(status, "");
 
-        var result = await Client().GetDefaultAsync(TenantId, null, CancellationToken.None);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Service().GetDefaultAsync(TenantId, null));
 
-        Assert.Equal(DomainErrorCode.BadRequest, result.ErrorCode);
-        Assert.Equal(message, result.Error);
+        Assert.Equal(message, ex.Message);
     }
 
     [Fact]
-    public async Task Unreachable_ShouldReportUnavailable()
+    public async Task Unreachable_ShouldThrowInvalidOperation()
     {
         _handler.Throw(new HttpRequestException("refused"));
 
-        var result = await Client().GetDefaultAsync(TenantId, TemplateId, CancellationToken.None);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Service().GetDefaultAsync(TenantId, TemplateId));
 
-        Assert.Equal(PrismExportControlClient.Unavailable, result.Error);
+        Assert.Equal(PrismReportingExportPolicyService.Unavailable, ex.Message);
     }
 
     [Fact]
@@ -166,24 +157,24 @@ public class PrismExportControlClientTests
         _tokens.GetTokenAsync("api://prism/.default", Arg.Any<CancellationToken>()).Returns("token-123");
         _handler.Respond(HttpStatusCode.NotFound, "");
 
-        await Client().GetDefaultAsync(TenantId, null, CancellationToken.None);
+        await Service().GetDefaultAsync(TenantId, null);
 
         Assert.Equal("Bearer token-123", _handler.Request!.Headers.Authorization!.ToString());
-        Assert.False(_handler.Request.Headers.Contains(PrismExportControlClient.DevelopmentKeyHeader));
+        Assert.False(_handler.Request.Headers.Contains(PrismReportingExportPolicyService.DevelopmentKeyHeader));
     }
 
     [Theory]
     [InlineData("", "dev-key", null)]
     [InlineData("http://prism.local/", null, null)]
-    public async Task ShouldReportNotConfigured_WithoutBaseUrlOrCredentials(string baseUrl, string? developmentKey, string? scope)
+    public async Task ShouldThrowNotConfigured_WithoutBaseUrlOrCredentials(string baseUrl, string? developmentKey, string? scope)
     {
         _options.BaseUrl = baseUrl;
         _options.DevelopmentKey = developmentKey;
         _options.Scope = scope;
 
-        var result = await Client().GetDefaultAsync(TenantId, null, CancellationToken.None);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() => Service().GetDefaultAsync(TenantId, null));
 
-        Assert.Equal(PrismExportControlClient.NotConfigured, result.Error);
+        Assert.Equal(PrismReportingExportPolicyService.NotConfigured, ex.Message);
         Assert.Null(_handler.Request);
     }
 

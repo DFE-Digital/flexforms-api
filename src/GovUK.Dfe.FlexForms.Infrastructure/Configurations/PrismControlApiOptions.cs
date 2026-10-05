@@ -1,4 +1,4 @@
-namespace GovUK.Dfe.FlexForms.Infrastructure.Prism;
+namespace GovUK.Dfe.FlexForms.Infrastructure.Configurations;
 
 /// <summary>Bound from <c>Prism:ControlApi</c>. Without a base URL the reporting export endpoints report that it isn't set up.</summary>
 public sealed class PrismControlApiOptions

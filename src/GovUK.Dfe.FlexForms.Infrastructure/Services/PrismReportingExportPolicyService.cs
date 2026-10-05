@@ -6,21 +6,22 @@ using System.Text.Json.Serialization;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
-using GovUK.Dfe.FlexForms.Domain.Interfaces;
+using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Infrastructure.Configurations;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace GovUK.Dfe.FlexForms.Infrastructure.Prism;
+namespace GovUK.Dfe.FlexForms.Infrastructure.Services;
 
 /// <summary>
-/// Calls Prism's export control endpoints with the API's identity, naming the signed-in admin in
-/// <c>X-Prism-Acting-User</c>. Prism failures become <see cref="Result{T}"/> failures with a message for the admin.
+/// Reads and changes the reporting export policy through Prism's control API, with the API's own identity and the
+/// signed-in admin named in <c>X-Prism-Acting-User</c>.
 /// </summary>
-public sealed partial class PrismExportControlClient(
+public sealed partial class PrismReportingExportPolicyService(
     HttpClient http,
     IOptions<PrismControlApiOptions> options,
     IPrismAccessTokenSource tokens,
-    ILogger<PrismExportControlClient> logger) : IPrismExportControlClient
+    ILogger<PrismReportingExportPolicyService> logger) : IReportingExportPolicyService
 {
     public const string ActingUserHeader = "X-Prism-Acting-User";
     public const string DevelopmentKeyHeader = "X-Prism-Development-Key";
@@ -28,75 +29,82 @@ public sealed partial class PrismExportControlClient(
     internal const string NotConfigured = "Reporting export is not set up in this environment.";
     internal const string Unavailable = "The reporting service could not be reached. Try again later.";
     internal const string NotAllowed = "FlexForms is not allowed to manage reporting export. Ask the platform team to check its Prism roles.";
-    internal const string NotCatalogued = "This template's fields are not known to reporting yet. They appear once the template is published or an application is saved.";
 
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {
         Converters = { new JsonStringEnumConverter() },
     };
 
-    public async Task<Result<ReportingExportPolicyDto>> GetPolicyAsync(Guid tenantId, Guid templateId, CancellationToken cancellationToken)
+    public async Task<ReportingExportPolicyDto?> GetPolicyAsync(Guid tenantId, Guid templateId, CancellationToken cancellationToken = default)
     {
-        var response = await SendAsync<PrismPolicyView>(HttpMethod.Get, $"{TemplatePath(tenantId, templateId)}/export-policy", null, null, cancellationToken);
-        return response.Map(p => new ReportingExportPolicyDto(
-            p.TemplateId,
-            p.PolicyVersion,
-            p.DefaultMode,
-            p.DefaultSource,
-            p.Fields.Select(f => new ReportingExportFieldDto(
-                f.ParentFieldId, f.FieldId, f.Label, f.DataType, f.IsCollection, f.TaskName, f.PageTitle,
-                f.TemplateVersionNumber, f.ExportStatus, f.Reason, f.DecidedBy, f.DecidedAt)).ToList()),
-            notFound: NotCatalogued);
+        var policy = await SendAsync<PrismPolicyView>(HttpMethod.Get, $"{TemplatePath(tenantId, templateId)}/export-policy", null, null, cancellationToken);
+        return policy is null
+            ? null
+            : new ReportingExportPolicyDto(
+                policy.TemplateId,
+                policy.PolicyVersion,
+                policy.DefaultMode,
+                policy.DefaultSource,
+                policy.Fields.Select(f => new ReportingExportFieldDto(
+                    f.ParentFieldId, f.FieldId, f.Label, f.DataType, f.IsCollection, f.TaskName, f.PageTitle,
+                    f.TemplateVersionNumber, f.ExportStatus, f.Reason, f.DecidedBy, f.DecidedAt)).ToList());
     }
 
-    public async Task<Result<ReportingExportChangeResultDto>> ChangeDecisionsAsync(
+    public async Task<ReportingExportChangeResultDto?> ChangeDecisionsAsync(
         Guid tenantId,
         Guid templateId,
         IReadOnlyList<ReportingExportDecisionRequest> decisions,
-        string actingUser,
-        CancellationToken cancellationToken)
+        string actorEmail,
+        CancellationToken cancellationToken = default)
     {
         var body = new
         {
             Decisions = decisions.Select(d => new { d.ParentFieldId, d.FieldId, d.Decision, d.Reason }),
         };
-        var response = await SendAsync<PrismChange<PrismApplyResult>>(
-            HttpMethod.Put, $"{TemplatePath(tenantId, templateId)}/export-policy", body, actingUser, cancellationToken);
-        return response.Map(c => new ReportingExportChangeResultDto(
-            Status(c.Result.Status), c.Result.PolicyVersion, c.Result.Changed, c.Result.Warnings, c.Backfill?.OperationId));
+        var change = await SendAsync<PrismChange<PrismApplyResult>>(
+            HttpMethod.Put, $"{TemplatePath(tenantId, templateId)}/export-policy", body, actorEmail, cancellationToken);
+        return change is null
+            ? null
+            : new ReportingExportChangeResultDto(
+                Status(change.Result.Status), change.Result.PolicyVersion, change.Result.Changed, change.Result.Warnings, change.Backfill?.OperationId);
     }
 
-    public async Task<Result<ReportingExportDefaultDto>> GetDefaultAsync(Guid tenantId, Guid? templateId, CancellationToken cancellationToken)
+    public async Task<ReportingExportDefaultDto?> GetDefaultAsync(Guid tenantId, Guid? templateId, CancellationToken cancellationToken = default)
     {
-        var response = await SendAsync<PrismDefaultView>(HttpMethod.Get, DefaultPath(tenantId, templateId), null, null, cancellationToken);
-        return response.Map(ToDto);
+        var view = await SendAsync<PrismDefaultView>(HttpMethod.Get, DefaultPath(tenantId, templateId), null, null, cancellationToken);
+        return view is null
+            ? null
+            : new ReportingExportDefaultDto(view.TemplateId, view.Mode, view.EffectiveMode, view.Source, view.Reason, view.DecidedBy, view.DecidedAt);
     }
 
-    public async Task<Result<ReportingExportChangeResultDto>> ChangeDefaultAsync(
+    public async Task<ReportingExportChangeResultDto?> ChangeDefaultAsync(
         Guid tenantId,
         Guid? templateId,
         UpdateReportingExportDefaultRequest request,
-        string actingUser,
-        CancellationToken cancellationToken)
+        string actorEmail,
+        CancellationToken cancellationToken = default)
     {
         var body = new { request.Mode, request.Reason };
-        var response = await SendAsync<PrismChange<PrismDefaultChangeResult>>(
-            HttpMethod.Put, DefaultPath(tenantId, templateId), body, actingUser, cancellationToken);
-        return response.Map(c => new ReportingExportChangeResultDto(
-            Status(c.Result.Status), c.Result.PolicyVersion, c.Result.Status == "Applied" ? 1 : 0, [], c.Backfill?.OperationId));
-    }
-
-    public async Task<Result<ReportingExportRefreshDto>> GetRefreshAsync(Guid tenantId, Guid refreshId, CancellationToken cancellationToken)
-    {
-        var response = await SendAsync<PrismOperation>(HttpMethod.Get, $"api/control/backfill/{refreshId}", null, null, cancellationToken);
-        if (response.Value is { } operation && operation.TenantId != tenantId)
+        var change = await SendAsync<PrismChange<PrismDefaultChangeResult>>(
+            HttpMethod.Put, DefaultPath(tenantId, templateId), body, actorEmail, cancellationToken);
+        if (change is null)
         {
-            return Result<ReportingExportRefreshDto>.NotFound("Refresh not found.");
+            return null;
         }
 
-        return response.Map(o => new ReportingExportRefreshDto(
-            o.OperationId, o.Status, o.ApplicationsScanned, o.MessagesEnqueued, o.Error, o.CreatedAt, o.StartedAt, o.CompletedAt),
-            notFound: "Refresh not found.");
+        var status = Status(change.Result.Status);
+        return new ReportingExportChangeResultDto(
+            status, change.Result.PolicyVersion, status == ReportingExportChangeStatus.Applied ? 1 : 0, [], change.Backfill?.OperationId);
+    }
+
+    public async Task<ReportingExportRefreshDto?> GetRefreshAsync(Guid tenantId, Guid refreshId, CancellationToken cancellationToken = default)
+    {
+        var operation = await SendAsync<PrismOperation>(HttpMethod.Get, $"api/control/backfill/{refreshId}", null, null, cancellationToken);
+        return operation is null || operation.TenantId != tenantId
+            ? null
+            : new ReportingExportRefreshDto(
+                operation.OperationId, operation.Status, operation.ApplicationsScanned, operation.MessagesEnqueued,
+                operation.Error, operation.CreatedAt, operation.StartedAt, operation.CompletedAt);
     }
 
     private static string TemplatePath(Guid tenantId, Guid templateId) => $"api/control/tenants/{tenantId}/templates/{templateId}";
@@ -108,17 +116,15 @@ public sealed partial class PrismExportControlClient(
     private static ReportingExportChangeStatus Status(string status) =>
         status == "Unchanged" ? ReportingExportChangeStatus.Unchanged : ReportingExportChangeStatus.Applied;
 
-    private static ReportingExportDefaultDto ToDto(PrismDefaultView d) =>
-        new(d.TemplateId, d.Mode, d.EffectiveMode, d.Source, d.Reason, d.DecidedBy, d.DecidedAt);
-
-    private async Task<PrismResponse<T>> SendAsync<T>(
-        HttpMethod method, string path, object? body, string? actingUser, CancellationToken cancellationToken)
+    /// <returns>The response body, or null when Prism answers 404.</returns>
+    private async Task<T?> SendAsync<T>(HttpMethod method, string path, object? body, string? actorEmail, CancellationToken cancellationToken)
         where T : class
     {
         var settings = options.Value;
-        if (string.IsNullOrWhiteSpace(settings.BaseUrl))
+        if (string.IsNullOrWhiteSpace(settings.BaseUrl)
+            || (string.IsNullOrEmpty(settings.DevelopmentKey) && string.IsNullOrWhiteSpace(settings.Scope)))
         {
-            return PrismResponse<T>.Failed(NotConfigured);
+            throw new InvalidOperationException(NotConfigured);
         }
 
         try
@@ -128,18 +134,14 @@ public sealed partial class PrismExportControlClient(
             {
                 request.Headers.Add(DevelopmentKeyHeader, settings.DevelopmentKey);
             }
-            else if (!string.IsNullOrWhiteSpace(settings.Scope))
-            {
-                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await tokens.GetTokenAsync(settings.Scope, cancellationToken));
-            }
             else
             {
-                return PrismResponse<T>.Failed(NotConfigured);
+                request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", await tokens.GetTokenAsync(settings.Scope!, cancellationToken));
             }
 
-            if (actingUser is not null)
+            if (actorEmail is not null)
             {
-                request.Headers.Add(ActingUserHeader, actingUser);
+                request.Headers.Add(ActingUserHeader, actorEmail);
             }
 
             if (body is not null)
@@ -153,37 +155,38 @@ public sealed partial class PrismExportControlClient(
 
             if (response.IsSuccessStatusCode)
             {
-                return PrismResponse<T>.Ok((await response.Content.ReadFromJsonAsync<T>(Json, timeout.Token))!);
+                return await response.Content.ReadFromJsonAsync<T>(Json, timeout.Token);
             }
 
-            return await FailureAsync<T>(response, path, timeout.Token);
+            if (response.StatusCode == HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+
+            throw await FailureAsync(response, path, timeout.Token);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or JsonException or Azure.Identity.AuthenticationFailedException
                                    && !cancellationToken.IsCancellationRequested)
         {
             LogUnavailable(ex, path);
-            return PrismResponse<T>.Failed(Unavailable);
+            throw new InvalidOperationException(Unavailable, ex);
         }
     }
 
-    private async Task<PrismResponse<T>> FailureAsync<T>(HttpResponseMessage response, string path, CancellationToken cancellationToken)
-        where T : class
+    private async Task<Exception> FailureAsync(HttpResponseMessage response, string path, CancellationToken cancellationToken)
     {
         switch (response.StatusCode)
         {
-            case HttpStatusCode.NotFound:
-                return PrismResponse<T>.NotFound();
             case HttpStatusCode.BadRequest:
-                return PrismResponse<T>.Validation(await ProblemsAsync(response, " ", cancellationToken));
+                return new ArgumentException(await ProblemsAsync(response, " ", cancellationToken));
             case HttpStatusCode.UnprocessableEntity:
-                return PrismResponse<T>.Validation(
-                    $"These fields are not in the template: {await ProblemsAsync(response, ", ", cancellationToken)}.");
+                return new ArgumentException($"These fields are not in the template: {await ProblemsAsync(response, ", ", cancellationToken)}.");
             case HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden:
                 LogRejected((int)response.StatusCode, path);
-                return PrismResponse<T>.Failed(NotAllowed);
+                return new InvalidOperationException(NotAllowed);
             default:
                 LogFailed((int)response.StatusCode, path);
-                return PrismResponse<T>.Failed(Unavailable);
+                return new InvalidOperationException(Unavailable);
         }
     }
 
@@ -222,26 +225,6 @@ public sealed partial class PrismExportControlClient(
 
     [LoggerMessage(Level = LogLevel.Error, Message = "Prism could not be reached for {Path}")]
     private partial void LogUnavailable(Exception exception, string path);
-
-    private sealed record PrismResponse<T>(T? Value, DomainErrorCode? ErrorCode, string? Error)
-        where T : class
-    {
-        public static PrismResponse<T> Ok(T value) => new(value, null, null);
-
-        public static PrismResponse<T> NotFound() => new(null, DomainErrorCode.NotFound, null);
-
-        public static PrismResponse<T> Validation(string error) => new(null, DomainErrorCode.Validation, error);
-
-        public static PrismResponse<T> Failed(string error) => new(null, DomainErrorCode.BadRequest, error);
-
-        public Result<TOut> Map<TOut>(Func<T, TOut> map, string notFound = "Not found.") => ErrorCode switch
-        {
-            null => Result<TOut>.Success(map(Value!)),
-            DomainErrorCode.NotFound => Result<TOut>.NotFound(notFound),
-            DomainErrorCode.Validation => Result<TOut>.Validation(Error!),
-            _ => Result<TOut>.Failure(Error!),
-        };
-    }
 
     private sealed record PrismField(
         string ParentFieldId,

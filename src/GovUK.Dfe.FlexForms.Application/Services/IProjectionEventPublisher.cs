@@ -1,7 +1,7 @@
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 
-namespace GovUK.Dfe.FlexForms.Domain.Interfaces;
+namespace GovUK.Dfe.FlexForms.Application.Services;
 
 public enum ProjectionTransition
 {
