@@ -464,6 +464,41 @@
       "Controller": "InternalPrismController",
       "Action": "ListPrismApplicationsAsync",
       "ExpectedSecurity": "Authorize: Policy=PlatformPrismRead"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "GetTenantReportingExportDefaultAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "UpdateTenantReportingExportDefaultAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "GetTemplateReportingExportPolicyAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "UpdateTemplateReportingExportDecisionsAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "GetTemplateReportingExportDefaultAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "UpdateTemplateReportingExportDefaultAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "GetReportingExportRefreshAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
     }
   ]
 }

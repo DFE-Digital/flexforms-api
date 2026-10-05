@@ -117,6 +117,8 @@ namespace Microsoft.Extensions.DependencyInjection
 
             services.AddScoped<ITenantTemplateCatalogue, TenantTemplateCatalogue>();
             services.AddScoped<ITenantTemplateResolver, TenantTemplateResolver>();
+            services.AddScoped<GovUK.Dfe.FlexForms.Application.ReportingExport.IReportingExportAccess,
+                GovUK.Dfe.FlexForms.Application.ReportingExport.ReportingExportAccess>();
             services.AddScoped<ITenantPermissionFilter, TenantPermissionFilter>();
             services.AddScoped<IUserAccessibleTemplateService, UserAccessibleTemplateService>();
             services.AddScoped<ISelfRegistrationTemplateAccessService, SelfRegistrationTemplateAccessService>();

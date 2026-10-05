@@ -370,6 +370,68 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
+    public partial interface IReportingExportClient
+    {
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// The tenant-wide default for fields without a decision.
+        /// </summary>
+        /// <returns>The tenant default.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ReportingExportDefaultDto> GetTenantReportingExportDefaultAsync(System.Guid tenantId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Sets the tenant-wide default. A change starts a refresh of the tenant's exported data.
+        /// </summary>
+        /// <returns>The outcome.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ReportingExportChangeResultDto> UpdateTenantReportingExportDefaultAsync(System.Guid tenantId, UpdateReportingExportDefaultRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Every field of a template with whether its answers are exported, and the default in force.
+        /// </summary>
+        /// <returns>The template's fields.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ReportingExportPolicyDto> GetTemplateReportingExportPolicyAsync(System.Guid tenantId, System.Guid templateId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Allows or denies fields of a template. Fields left out keep their decision.
+        /// </summary>
+        /// <returns>The outcome.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ReportingExportChangeResultDto> UpdateTemplateReportingExportDecisionsAsync(System.Guid tenantId, System.Guid templateId, UpdateReportingExportDecisionsRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// The template's own default and the default in force for it.
+        /// </summary>
+        /// <returns>The template default.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ReportingExportDefaultDto> GetTemplateReportingExportDefaultAsync(System.Guid tenantId, System.Guid templateId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Overrides the tenant default for one template, or sets it back to Inherit.
+        /// </summary>
+        /// <returns>The outcome.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ReportingExportChangeResultDto> UpdateTemplateReportingExportDefaultAsync(System.Guid tenantId, System.Guid templateId, UpdateReportingExportDefaultRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Progress of the refresh started by a change.
+        /// </summary>
+        /// <returns>The refresh.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ReportingExportRefreshDto> GetReportingExportRefreshAsync(System.Guid tenantId, System.Guid refreshId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+    }
+
+    [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
     public partial interface IRolesClient
     {
 

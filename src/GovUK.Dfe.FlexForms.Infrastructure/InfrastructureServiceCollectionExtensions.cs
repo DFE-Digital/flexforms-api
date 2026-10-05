@@ -4,6 +4,7 @@ using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Infrastructure;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
+using GovUK.Dfe.FlexForms.Infrastructure.Prism;
 using GovUK.Dfe.FlexForms.Infrastructure.Repositories;
 using GovUK.Dfe.FlexForms.Infrastructure.Services;
 using GovUK.Dfe.FlexForms.Utils.Caching;
@@ -56,6 +57,11 @@ namespace Microsoft.Extensions.DependencyInjection
 
             // SignalR Services
             services.AddScoped<INotificationSignalRService, NotificationSignalRService>();
+
+            // Prism export control (reporting export admin)
+            services.Configure<PrismControlApiOptions>(config.GetSection(PrismControlApiOptions.SectionName));
+            services.AddSingleton<IPrismAccessTokenSource, AzurePrismAccessTokenSource>();
+            services.AddHttpClient<IPrismExportControlClient, PrismExportControlClient>();
 
             //Db - with fallback for message consumers that don't have tenant context yet
             services.AddDbContext<ExternalApplicationsContext>((serviceProvider, options) =>

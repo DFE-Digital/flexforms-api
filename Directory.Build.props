@@ -5,4 +5,12 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 	</PropertyGroup>
+	<!-- Local development: GovUK.Dfe.CoreLibs.Contracts is referenced from a sibling DfE.CoreLibs checkout instead of
+	     the NuGet package. Its project has no version (1.0.0), so packages that depend on a newer Contracts raise NU1605,
+	     and Directory.Build.targets stamps the assembly with LocalCoreLibsVersion so those packages still bind to it at runtime. -->
+	<PropertyGroup>
+		<LocalCoreLibsSrc>$(MSBuildThisFileDirectory)..\DfE.CoreLibs\src\</LocalCoreLibsSrc>
+		<LocalCoreLibsVersion>1.0.999</LocalCoreLibsVersion>
+		<NoWarn>$(NoWarn);NU1605</NoWarn>
+	</PropertyGroup>
 </Project>

@@ -9,6 +9,7 @@
   </ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Azure.Identity" Version="1.21.0" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Caching" Version="1.0.13" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.30" />
 		<PackageReference Include="MassTransit.EntityFrameworkCore" Version="8.5.5" />

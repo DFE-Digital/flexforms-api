@@ -21,7 +21,7 @@
 
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<PackageReference Include="GovUK.Dfe.CoreLibs.Contracts" Version="1.0.108" />
+		<ProjectReference Include="$(LocalCoreLibsSrc)GovUK.Dfe.CoreLibs.Contracts\GovUK.Dfe.CoreLibs.Contracts.csproj" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Http" Version="1.0.12" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.30" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
