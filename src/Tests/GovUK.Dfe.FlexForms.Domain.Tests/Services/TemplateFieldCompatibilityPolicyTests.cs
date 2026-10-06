@@ -7,11 +7,13 @@ public class TemplateFieldCompatibilityPolicyTests
 {
     private readonly TemplateFieldCompatibilityPolicy _policy = new();
 
-    private static object Field(string id, string type = "text", string? lookup = null) =>
-        lookup is null ? new { fieldId = id, type } : new { fieldId = id, type, complexField = new { id = lookup } };
+    private static object Field(string id, string type = "text", string? lookup = null, string? key = null) =>
+        new { fieldId = id, type, complexField = lookup is null ? null : new { id = lookup }, semanticKey = key };
 
-    private static object Flow(string collectionId, params object[] fields) =>
-        new { flowId = $"{collectionId}-flow", fieldId = collectionId, pages = new[] { new { pageId = "item", fields } } };
+    private static object Flow(string collectionId, params object[] fields) => KeyedFlow(collectionId, null, fields);
+
+    private static object KeyedFlow(string collectionId, string? key, params object[] fields) =>
+        new { flowId = $"{collectionId}-flow", fieldId = collectionId, semanticKey = key, pages = new[] { new { pageId = "item", fields } } };
 
     private static string Template(object[] fields, object[]? flows = null, object[]? retiredFields = null) =>
         JsonSerializer.Serialize(new
@@ -183,6 +185,92 @@ public class TemplateFieldCompatibilityPolicyTests
 
         Assert.Single(result.Violations);
         Assert.Contains("\"surname\"", result.Violations[0]);
+    }
+
+    [Fact]
+    public void A_declared_rename_can_carry_on_the_old_reporting_key()
+    {
+        var v1 = Template([Field("name")]);
+        var v2 = Template([Field("fullName", key: "name")], retiredFields: [Retired("name", null, "fullName")]);
+
+        Assert.True(Evaluate(v2, v1).IsCompatible);
+    }
+
+    [Fact]
+    public void A_rename_message_tells_the_author_which_semanticKey_keeps_reports_continuous()
+    {
+        var violation = Assert.Single(Evaluate(Template([Field("fullName")]), Template([Field("name", key: "applicantName")])).Violations);
+
+        Assert.Contains("\"semanticKey\": \"applicantName\"", violation);
+    }
+
+    [Fact]
+    public void Taking_over_a_reporting_key_without_naming_the_field_in_replacedBy_is_rejected()
+    {
+        var v2 = Template([Field("fullName", key: "name")], retiredFields: [Retired("name")]);
+
+        var violation = Assert.Single(Evaluate(v2, Template([Field("name")])).Violations);
+
+        Assert.Contains("doesn't name it as a replacement", violation);
+        Assert.Contains("{ \"fieldId\": \"name\", \"replacedBy\": [\"fullName\"] }", violation);
+    }
+
+    [Fact]
+    public void Taking_over_a_reporting_key_with_a_different_kind_of_answer_is_rejected()
+    {
+        var v2 = Template([Field("ageInYears", "number", key: "age")], retiredFields: [Retired("age", null, "ageInYears")]);
+
+        var violation = Assert.Single(Evaluate(v2, Template([Field("age")])).Violations);
+
+        Assert.Contains("same kind of answer", violation);
+    }
+
+    [Fact]
+    public void Changing_the_semanticKey_of_a_kept_field_is_rejected()
+    {
+        var violation = Assert.Single(Evaluate(Template([Field("name", key: "fullName")]), Template([Field("name")])).Violations);
+
+        Assert.Contains("\"semanticKey\": \"name\"", violation);
+    }
+
+    [Fact]
+    public void Two_fields_sharing_a_reporting_key_are_rejected()
+    {
+        var v2 = Template([Field("name"), Field("fullName", key: "name")]);
+
+        var violation = Assert.Single(Evaluate(v2, Template([Field("name")])).Violations);
+
+        Assert.Contains("share the reporting key \"name\"", violation);
+    }
+
+    [Fact]
+    public void Reusing_a_dropped_reporting_key_is_rejected()
+    {
+        var v1 = Template([Field("name")]);
+        var v2 = Template([Field("other")], retiredFields: [Retired("name")]);
+        var v3 = Template([Field("other"), Field("fullName", key: "name")]);
+
+        var violation = Assert.Single(Evaluate(v3, v1, v2).Violations);
+
+        Assert.Contains("can't be reused", violation);
+    }
+
+    [Fact]
+    public void A_renamed_collection_carries_on_its_fields_reporting_keys()
+    {
+        var v1 = Template([Field("title")], [Flow("attendees", Field("attendeeName"), Field("role"))]);
+        var v2 = Template([Field("title")], [KeyedFlow("visitors", "attendees", Field("attendeeName"), Field("role"))],
+            retiredFields: [Retired("attendees", null, "visitors")]);
+
+        Assert.True(Evaluate(v2, v1).IsCompatible);
+    }
+
+    [Fact]
+    public void A_semanticKey_cannot_contain_a_slash()
+    {
+        var violation = Assert.Single(Evaluate(Template([Field("name"), Field("extra", key: "a/b")]), Template([Field("name")])).Violations);
+
+        Assert.Contains("can't contain \"/\"", violation);
     }
 
     [Fact]

@@ -29,13 +29,25 @@ public sealed record TemplateFieldKey(string ParentFieldId, string FieldId)
 }
 
 /// <summary>A field the template author has declared as retired, optionally naming the fields that replace it.</summary>
-public sealed record RetiredTemplateField(TemplateFieldKey Field, IReadOnlyList<string> ReplacedBy);
+public sealed record RetiredTemplateField(TemplateFieldKey Field, IReadOnlyList<string> ReplacedBy)
+{
+    public bool IsReplacedBy(string fieldId) => ReplacedBy.Contains(fieldId, StringComparer.OrdinalIgnoreCase);
+}
+
+/// <param name="Kind">The kind of answer the field stores, described for template authors, for example "text".</param>
+/// <param name="SemanticKey">The field's own <c>semanticKey</c>, or its field ID when it has none.</param>
+/// <param name="ReportingKey">
+/// The key reports use for the field across versions: <see cref="SemanticKey"/>, prefixed with the collection's
+/// reporting key and a slash for fields in a collection.
+/// </param>
+public sealed record TemplateField(string Kind, string SemanticKey, string ReportingKey);
 
 /// <summary>
 /// The fields a template version defines, read from its JSON: fields on task pages, collections (the
 /// <c>fieldId</c> of each multi-collection or derived-collection flow) and the fields on each flow's pages, plus
 /// the <c>retiredFields</c> the author declared. Each field has a kind; a field can only keep its ID while its
-/// kind stays the same.
+/// kind stays the same. A field's optional <c>semanticKey</c> (on the field, or on the flow for a collection) lets a
+/// renamed field carry on the old field's reporting key.
 /// </summary>
 public sealed class TemplateFieldInventory
 {
@@ -47,19 +59,20 @@ public sealed class TemplateFieldInventory
         CommentHandling = JsonCommentHandling.Skip,
     };
 
-    private readonly Dictionary<TemplateFieldKey, string> fields = new();
+    private readonly Dictionary<TemplateFieldKey, TemplateField> fields = new();
     private readonly List<RetiredTemplateField> retired = [];
 
     private TemplateFieldInventory()
     {
     }
 
-    /// <summary>Each field and the kind of answer it stores, described for template authors, for example "text".</summary>
-    public IReadOnlyDictionary<TemplateFieldKey, string> Fields => fields;
+    public IReadOnlyDictionary<TemplateFieldKey, TemplateField> Fields => fields;
 
     public IReadOnlyList<RetiredTemplateField> Retired => retired;
 
-    public bool IsRetired(TemplateFieldKey field) => retired.Any(r => r.Field.Equals(field));
+    public bool IsRetired(TemplateFieldKey field) => RetirementOf(field) is not null;
+
+    public RetiredTemplateField? RetirementOf(TemplateFieldKey field) => retired.FirstOrDefault(r => r.Field.Equals(field));
 
     public bool DefinesFieldId(string fieldId) =>
         fields.Keys.Any(k => string.Equals(k.FieldId, fieldId, StringComparison.OrdinalIgnoreCase));
@@ -94,7 +107,7 @@ public sealed class TemplateFieldInventory
     {
         foreach (var task in Items(template, "taskGroups").SelectMany(group => Items(group, "tasks")))
         {
-            AddPageFields(task, string.Empty);
+            AddPageFields(task, string.Empty, string.Empty);
 
             if (Property(task, "summary") is not { } summary)
             {
@@ -108,8 +121,10 @@ public sealed class TemplateFieldInventory
                     continue;
                 }
 
-                fields.TryAdd(new TemplateFieldKey(string.Empty, collectionId), CollectionKind);
-                AddPageFields(flow, collectionId);
+                var key = new TemplateFieldKey(string.Empty, collectionId);
+                var semanticKey = Text(flow, "semanticKey") ?? collectionId;
+                fields.TryAdd(key, new TemplateField(CollectionKind, semanticKey, semanticKey));
+                AddPageFields(flow, collectionId, fields[key].ReportingKey);
             }
         }
 
@@ -130,13 +145,15 @@ public sealed class TemplateFieldInventory
         }
     }
 
-    private void AddPageFields(JsonElement owner, string parentFieldId)
+    private void AddPageFields(JsonElement owner, string parentFieldId, string parentReportingKey)
     {
         foreach (var field in Items(owner, "pages").SelectMany(page => Items(page, "fields")))
         {
             if (Text(field, "fieldId") is { } fieldId)
             {
-                fields.TryAdd(new TemplateFieldKey(parentFieldId, fieldId), KindOf(field));
+                var semanticKey = Text(field, "semanticKey") ?? fieldId;
+                var reportingKey = parentReportingKey.Length == 0 ? semanticKey : $"{parentReportingKey}/{semanticKey}";
+                fields.TryAdd(new TemplateFieldKey(parentFieldId, fieldId), new TemplateField(KindOf(field), semanticKey, reportingKey));
             }
         }
     }
