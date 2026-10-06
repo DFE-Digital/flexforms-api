@@ -19,6 +19,8 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.Templates
     {
         private readonly IEaRepository<Template> _templateRepo = Substitute.For<IEaRepository<Template>>();
         private readonly IEaRepository<User> _userRepo = Substitute.For<IEaRepository<User>>();
+        private readonly IEaRepository<Domain.Entities.Application> _applicationRepo = Substitute.For<IEaRepository<Domain.Entities.Application>>();
+        private readonly ITemplateFieldCompatibilityPolicy _fieldCompatibilityPolicy = Substitute.For<ITemplateFieldCompatibilityPolicy>();
         private readonly IHttpContextAccessor _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         private readonly IPermissionCheckerService _permissionChecker = Substitute.For<IPermissionCheckerService>();
         private readonly ITenantTemplateResolver _tenantTemplateResolver = Substitute.For<ITenantTemplateResolver>();
@@ -42,10 +44,12 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.Templates
             _handler = new CreateTemplateVersionCommandHandler(
                 _templateRepo,
                 _userRepo,
+                _applicationRepo,
                 _httpContextAccessor,
                 _permissionChecker,
                 _tenantTemplateResolver,
                 _templateFactory,
+                _fieldCompatibilityPolicy,
                 _unitOfWork,
                 _templateSchemaCacheInvalidator,
                 _projectionPublisher);
@@ -182,6 +186,55 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.Templates
             Assert.Equal("Access denied", result.Error);
         }
         
+        private TemplateVersion AddEarlierVersion()
+        {
+            var earlier = new TemplateVersion(new TemplateVersionId(Guid.NewGuid()), _testTemplate.Id!, "1.0.0", "{ \"earlier\": true }", DateTime.UtcNow.AddDays(-1), _testUser.Id!);
+            _testTemplate.AddVersion(earlier);
+            return earlier;
+        }
+
+        private void GivenApplicationsOn(TemplateVersion version)
+        {
+            var application = new Domain.Entities.Application(new Domain.ValueObjects.ApplicationId(Guid.NewGuid()), "APP-1", version.Id!, DateTime.UtcNow, _testUser.Id!);
+            application.GetType().GetProperty("TemplateVersion")?.SetValue(application, version);
+            _applicationRepo.Query().Returns(new[] { application }.AsQueryable().BuildMock());
+        }
+
+        [Fact]
+        public async Task Handle_ReturnsValidation_AndDoesNotSave_WhenFieldsAreIncompatibleWithAUsedTemplate()
+        {
+            var earlier = AddEarlierVersion();
+            GivenApplicationsOn(earlier);
+            _permissionChecker.HasTemplatePermission(_testTemplate.Id!.Value.ToString(), AccessType.Write).Returns(true);
+            var incompatible = TemplateFieldCompatibilityResult.Incompatible(["Field 'name' from version 1.0.0 is missing."]);
+            _fieldCompatibilityPolicy
+                .Evaluate(Arg.Is<IReadOnlyList<TemplateVersionSchema>>(v => v.Single().JsonSchema == earlier.JsonSchema), _testJsonSchema)
+                .Returns(incompatible);
+
+            var result = await _handler.Handle(new CreateTemplateVersionCommand(_testTemplate.Id.Value, "1.1.0", _testBase64JsonSchema), CancellationToken.None);
+
+            Assert.False(result.IsSuccess);
+            Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
+            Assert.Equal(incompatible.ToErrorMessage(), result.Error);
+            _templateFactory.DidNotReceiveWithAnyArgs().AddVersionToTemplate(default!, default!, default!, default!);
+            await _unitOfWork.DidNotReceiveWithAnyArgs().CommitAsync(default);
+        }
+
+        [Fact]
+        public async Task Handle_DoesNotCheckFields_WhenTheTemplateHasNoApplications()
+        {
+            AddEarlierVersion();
+            _applicationRepo.Query().Returns(new List<Domain.Entities.Application>().AsQueryable().BuildMock());
+            _permissionChecker.HasTemplatePermission(_testTemplate.Id!.Value.ToString(), AccessType.Write).Returns(true);
+            var newVersion = new TemplateVersion(new TemplateVersionId(Guid.NewGuid()), _testTemplate.Id, "1.1.0", _testJsonSchema, DateTime.UtcNow, _testUser.Id);
+            _templateFactory.AddVersionToTemplate(_testTemplate, "1.1.0", _testJsonSchema, _testUser.Id!).Returns(newVersion);
+
+            var result = await _handler.Handle(new CreateTemplateVersionCommand(_testTemplate.Id.Value, "1.1.0", _testBase64JsonSchema), CancellationToken.None);
+
+            Assert.True(result.IsSuccess);
+            _fieldCompatibilityPolicy.DidNotReceiveWithAnyArgs().Evaluate(default!, default!);
+        }
+
         [Fact]
         public async Task Handle_ReturnsFailure_WhenFactoryThrowsException()
         {

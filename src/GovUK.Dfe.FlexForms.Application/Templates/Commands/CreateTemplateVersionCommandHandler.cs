@@ -1,5 +1,6 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
+using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
 using GovUK.Dfe.FlexForms.Application.Common.Attributes;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Templates.QueryObjects;
@@ -27,10 +28,12 @@ public record CreateTemplateVersionCommand(
 public sealed class CreateTemplateVersionCommandHandler(
     IEaRepository<Template> templateRepo,
     IEaRepository<User> userRepo,
+    IEaRepository<Domain.Entities.Application> applicationRepo,
     IHttpContextAccessor httpContextAccessor,
     IPermissionCheckerService permissionChecker,
     ITenantTemplateResolver tenantTemplateResolver,
     ITemplateFactory templateFactory,
+    ITemplateFieldCompatibilityPolicy fieldCompatibilityPolicy,
     IUnitOfWork unitOfWork,
     ITemplateSchemaCacheInvalidator templateSchemaCacheInvalidator,
     IProjectionEventPublisher projectionEventPublisher)
@@ -99,6 +102,21 @@ public sealed class CreateTemplateVersionCommandHandler(
                 return Result<TemplateSchemaDto>.Validation($"Version {request.VersionNumber} already exists");
             }
 
+            var earlierVersions = (template.TemplateVersions ?? [])
+                .OrderBy(v => v.CreatedOn)
+                .Select(v => new TemplateVersionSchema(v.VersionNumber, v.JsonSchema))
+                .ToList();
+
+            // Until the template has applications there is no data to keep consistent, so fields can change freely.
+            if (earlierVersions.Count > 0 && await HasApplicationsAsync(templateId, cancellationToken))
+            {
+                var compatibility = fieldCompatibilityPolicy.Evaluate(earlierVersions, decodedJsonSchema);
+                if (!compatibility.IsCompatible)
+                {
+                    return Result<TemplateSchemaDto>.Validation(compatibility.ToErrorMessage());
+                }
+            }
+
             var newVersion = templateFactory.AddVersionToTemplate(
                 template,
                 request.VersionNumber,
@@ -141,4 +159,9 @@ public sealed class CreateTemplateVersionCommandHandler(
             return Result<TemplateSchemaDto>.Failure(ex.ToString());
         }
     }
+
+    private Task<bool> HasApplicationsAsync(TemplateId templateId, CancellationToken cancellationToken) =>
+        new GetApplicationsByTemplateIdQueryObject(templateId, null)
+            .Apply(applicationRepo.Query().AsNoTracking())
+            .AnyAsync(cancellationToken);
 }
