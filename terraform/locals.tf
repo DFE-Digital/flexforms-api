@@ -53,6 +53,8 @@ locals {
   container_app_name_override                        = var.container_app_name_override
   restrict_container_apps_to_cdn_inbound_only        = var.restrict_container_apps_to_cdn_inbound_only
   container_apps_infra_subnet_cidr                   = var.container_apps_infra_subnet_cidr
+  linux_function_apps                                = var.linux_function_apps
+  function_app_subnet_cidr                           = var.function_app_subnet_cidr
 
   is_windows = can(regex("^[A-Za-z]:", abspath(path.root)))
   bash       = local.is_windows ? "C:/Program Files/Git/bin/bash.exe" : "/bin/bash"
