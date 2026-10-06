@@ -47,6 +47,9 @@ module "azure_container_apps_hosting" {
   launch_in_vnet                     = true
   container_app_name_override        = local.container_app_name_override
 
+  linux_function_apps      = local.linux_function_apps
+  function_app_subnet_cidr = local.function_app_subnet_cidr
+
   enable_monitoring              = local.enable_monitoring
   monitor_email_receivers        = local.monitor_email_receivers
   container_health_probe_path    = local.container_health_probe_path

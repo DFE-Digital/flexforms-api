@@ -299,6 +299,32 @@ variable "restrict_container_apps_to_cdn_inbound_only" {
   default     = false
 }
 
+variable "linux_function_apps" {
+  description = "Linux function apps"
+  type = map(object({
+    runtime                                        = string
+    runtime_version                                = string
+    app_settings                                   = optional(map(string), {})
+    allowed_origins                                = optional(list(string), ["*"])
+    ftp_publish_basic_authentication_enabled       = optional(bool, false)
+    webdeploy_publish_basic_authentication_enabled = optional(bool, false)
+    ipv4_access                                    = optional(list(string), [])
+    minimum_tls_version                            = optional(string, "1.3")
+    enable_service_bus                             = optional(bool, false)
+    service_bus_additional_subscriptions           = optional(list(string), [])
+    connection_strings = optional(map(object({
+      type  = string
+      value = string
+    })), {})
+  }))
+}
+
+variable "function_app_subnet_cidr" {
+  description = "Specify a subnet prefix to use for the function app subnet"
+  type        = string
+  default     = ""
+}
+
 variable "enable_dns_zone" {
   description = "Conditionally create a DNS zone"
   type        = bool
