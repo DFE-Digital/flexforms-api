@@ -420,6 +420,7 @@ public class DeleteApplicationCommandHandlerTests
             permissionCheckerService,
             tenantTemplateResolver ?? AllowAllTenantTemplates(),
             cacheInvalidator ?? Substitute.For<IUserCacheInvalidator>(),
+            Substitute.For<IProjectionEventPublisher>(),
             unitOfWork);
     }
 }

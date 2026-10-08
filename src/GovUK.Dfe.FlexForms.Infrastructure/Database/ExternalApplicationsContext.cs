@@ -602,6 +602,13 @@ public class ExternalApplicationsContext : DbContext
             .HasColumnName("DeletedBy")
             .HasConversion(v => v!.Value, v => new UserId(v))
             .IsRequired(false);
+        b.Property(e => e.SourceRevision)
+            .HasColumnName("SourceRevision")
+            .IsConcurrencyToken()
+            .IsRequired();
+        b.Property(e => e.SubmittedRevision)
+            .HasColumnName("SubmittedRevision")
+            .IsRequired(false);
 
         b.HasOne(e => e.TemplateVersion)
             .WithMany()
@@ -681,6 +688,9 @@ public class ExternalApplicationsContext : DbContext
             .HasColumnName("LastModifiedBy")
             .HasConversion(v => v!.Value, v => new UserId(v))
             .IsRequired(false);
+        b.Property(e => e.CreatedAtRevision)
+            .HasColumnName("CreatedAtRevision")
+            .IsRequired();
 
         b.HasOne(e => e.Application)
             .WithMany(a => a.Responses)

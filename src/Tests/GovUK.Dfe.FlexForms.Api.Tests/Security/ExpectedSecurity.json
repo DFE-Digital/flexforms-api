@@ -439,6 +439,66 @@
       "Controller": "TenantConfigController",
       "Action": "ResolveTenantByHostname",
       "ExpectedSecurity": "Authorize: Policy=PlatformTenantConfig"
+    },
+    {
+      "Controller": "InternalPrismController",
+      "Action": "GetPrismTenantsAsync",
+      "ExpectedSecurity": "Authorize: Policy=PlatformPrismRead"
+    },
+    {
+      "Controller": "InternalPrismController",
+      "Action": "GetPrismApplicationStateAsync",
+      "ExpectedSecurity": "Authorize: Policy=PlatformPrismRead"
+    },
+    {
+      "Controller": "InternalPrismController",
+      "Action": "GetPrismResponseAsync",
+      "ExpectedSecurity": "Authorize: Policy=PlatformPrismRead"
+    },
+    {
+      "Controller": "InternalPrismController",
+      "Action": "GetPrismTemplateVersionAsync",
+      "ExpectedSecurity": "Authorize: Policy=PlatformPrismRead"
+    },
+    {
+      "Controller": "InternalPrismController",
+      "Action": "ListPrismApplicationsAsync",
+      "ExpectedSecurity": "Authorize: Policy=PlatformPrismRead"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "GetTenantReportingExportDefaultAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "UpdateTenantReportingExportDefaultAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "GetTemplateReportingExportPolicyAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "UpdateTemplateReportingExportDecisionsAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "GetTemplateReportingExportDefaultAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "UpdateTemplateReportingExportDefaultAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ReportingExportController",
+      "Action": "GetReportingExportRefreshAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
     }
   ]
 }

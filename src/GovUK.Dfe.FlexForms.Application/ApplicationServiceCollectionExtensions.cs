@@ -5,6 +5,7 @@ using GovUK.Dfe.CoreLibs.FileStorage.Interfaces;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Entities.Topics;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Exceptions;
 using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Events;
+using GovUK.Dfe.CoreLibs.Messaging.Contracts.Messages.Identifiers;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Extensions;
 using GovUK.Dfe.CoreLibs.Notifications.Extensions;
 using GovUK.Dfe.CoreLibs.Notifications.Interfaces;
@@ -20,6 +21,7 @@ using GovUK.Dfe.FlexForms.Application.Security;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.TenantAdmin.Validation;
 using GovUK.Dfe.FlexForms.Domain.Factories;
+using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Services.RoleProvisioners;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
@@ -95,6 +97,7 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddTransient<ITemplateFactory, TemplateFactory>();
             services.AddTransient<IFileFactory, FileFactory>();
             services.AddSingleton<IApplicationFileValidationPolicy, ApplicationFileValidationPolicy>();
+            services.AddSingleton<ITemplateFieldCompatibilityPolicy, TemplateFieldCompatibilityPolicy>();
             services.AddScoped<IFileValidationModeResolver, FileValidationModeResolver>();
 
             services.AddTransient<IEmailTemplateResolver, EmailTemplateResolver>();
@@ -205,10 +208,18 @@ namespace Microsoft.Extensions.DependencyInjection
                         // Applied last so the scan pipeline never depends on name discovery.
                         cfg.Message<ScanRequestedEvent>(m => m.SetEntityName(TopicNames.ScanRequests));
                         cfg.Message<ScanResultEvent>(m => m.SetEntityName(TopicNames.ScanResult));
+                        cfg.Message<ApplicationProjectionRequestedEvent>(m => m.SetEntityName(TopicNames.FlexFormsPrism));
+                        cfg.Message<TemplateVersionPublishedEvent>(m => m.SetEntityName(TopicNames.FlexFormsPrism));
                     },
                     configureAzureServiceBus: (context, cfg) =>
                     {
                         cfg.UseJsonSerializer();
+
+                        // Applied when the outbox delivers, so the native session id survives the outbox.
+                        cfg.Send<ApplicationProjectionRequestedEvent>(s => s.UseSessionIdFormatter(
+                            c => ApplicationProjectionIdentifiers.SessionId(c.Message.TenantId, c.Message.ApplicationId)));
+                        cfg.Send<TemplateVersionPublishedEvent>(s => s.UseSessionIdFormatter(
+                            c => ApplicationProjectionIdentifiers.TemplateSessionId(c.Message.TenantId, c.Message.TemplateId)));
 
                         cfg.SubscriptionEndpoint<ScanResultEvent>($"{subscriptionPrefix}-scan-result", e =>
                         {
@@ -234,11 +245,13 @@ namespace Microsoft.Extensions.DependencyInjection
                 services.AddScoped<IMessageEndpointSelector, MessageEndpointSelector>();
                 services.AddScoped<GovUK.Dfe.CoreLibs.Messaging.MassTransit.Interfaces.IEventPublisher, TenantAwareEventPublisher>();
                 services.AddScoped<IEventTriggerDispatcher, EventTriggerDispatcher>();
+                services.AddScoped<IProjectionEventPublisher, ProjectionEventPublisher>();
             }
             else
             {
                 // File upload/submit still resolve IEventTriggerDispatcher; MassTransit is not in the container.
                 services.AddScoped<IEventTriggerDispatcher, NoOpEventTriggerDispatcher>();
+                services.AddScoped<IProjectionEventPublisher, NoOpProjectionEventPublisher>();
             }
 
             return services;

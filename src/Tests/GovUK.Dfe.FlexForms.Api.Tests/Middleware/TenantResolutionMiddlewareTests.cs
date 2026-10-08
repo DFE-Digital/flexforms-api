@@ -223,6 +223,72 @@ public class TenantResolutionMiddlewareTests
         Assert.True(nextCalled);
     }
 
+    [Theory]
+    [InlineData("/v1/internal/prism/tenants")]
+    [InlineData("/V1/Internal/Prism/Tenants")]
+    public async Task InvokeAsync_ShouldBypassTenantResolution_ForPrismTenantList(string path)
+    {
+        var nextCalled = false;
+        var middleware = new TenantResolutionMiddleware(
+            _ => { nextCalled = true; return Task.CompletedTask; },
+            _tenantConfigProvider, _logger);
+
+        var context = CreateHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = path;
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(nextCalled);
+        Assert.Null(context.RequestServices.GetRequiredService<ITenantContextAccessor>().CurrentTenant);
+    }
+
+    [Theory]
+    [InlineData("/v1/internal/prism/applications/9816b822-56e3-4b65-852a-00a4a3294e11/current")]
+    [InlineData("/v1/internal/prism/responses/f08a670f-ae0f-407d-ba3d-935d3e642362")]
+    [InlineData("/v1/internal/prism/template-versions/ea4c4969-be95-46a8-813b-942af93a90be")]
+    [InlineData("/v1/internal/prism/applications")]
+    [InlineData("/v1/internal/prism/tenants/extra")]
+    public async Task InvokeAsync_ShouldReturn400_ForTenantScopedPrismPath_WithoutTenantHeader(string path)
+    {
+        var nextCalled = false;
+        var middleware = new TenantResolutionMiddleware(
+            _ => { nextCalled = true; return Task.CompletedTask; },
+            _tenantConfigProvider, _logger);
+
+        var context = CreateHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = path;
+
+        await middleware.InvokeAsync(context);
+
+        Assert.False(nextCalled);
+        Assert.Equal(400, context.Response.StatusCode);
+    }
+
+    [Fact]
+    public async Task InvokeAsync_ShouldResolveTenant_ForTenantScopedPrismPath_FromHeader()
+    {
+        var tenantId = Guid.NewGuid();
+        var tenant = CreateTenant(tenantId, "TestTenant");
+        _tenantConfigProvider.GetTenant(tenantId).Returns(tenant);
+
+        var nextCalled = false;
+        var middleware = new TenantResolutionMiddleware(
+            _ => { nextCalled = true; return Task.CompletedTask; },
+            _tenantConfigProvider, _logger);
+
+        var context = CreateHttpContext();
+        context.Request.Method = "GET";
+        context.Request.Path = "/v1/internal/prism/applications/9816b822-56e3-4b65-852a-00a4a3294e11/current";
+        context.Request.Headers[TenantResolutionMiddleware.TenantIdHeader] = tenantId.ToString();
+
+        await middleware.InvokeAsync(context);
+
+        Assert.True(nextCalled);
+        Assert.Equal(tenant, context.RequestServices.GetRequiredService<ITenantContextAccessor>().CurrentTenant);
+    }
+
     private class TestTenantContextAccessor : ITenantContextAccessor
     {
         public TenantConfiguration? CurrentTenant { get; set; }

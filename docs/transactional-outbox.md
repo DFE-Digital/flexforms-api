@@ -95,14 +95,21 @@ The outbox is **only** used when all of the following are true:
 
 1. MassTransit is running (`SkipMassTransit` is `false`).
 2. `MassTransit:Outbox:Enabled` is `true`.
-3. The event matches the routing rule: `Mode` is `All`, **or** `Mode` is `Allowlist` and the event is listed in `Events`.
+3. The event matches the routing rule: `Mode` is `All`, **or** `Mode` is `Allowlist` and the event is listed in `Events`, **or** it is a Prism event (see below).
 4. The event is published outside a consumer (API requests, domain event handlers).
+
+**Prism events always use the outbox.** `ApplicationProjectionRequestedEvent` and `TemplateVersionPublishedEvent`
+are hard-coded in `MessageEndpointSelector` to use the outbox whatever `Mode` and `Events` say, because Prism
+depends on them being atomic with the change. It is published **before** the save commits, so the outbox row, the data change and the
+`SourceRevision` increment share one transaction. It still needs `Enabled` to be `true`: with the outbox switched
+off it would publish directly and lose that guarantee. It goes to topic `flexforms-prism`, which must have
+duplicate detection on, with session ID `{tenantId}:{applicationId}` and a deterministic `MessageId`.
 
 Everything else is published directly to Service Bus, exactly as before the outbox existed.
 
 ## Configuration reference
 
-All settings live under `MassTransit:Outbox` in host configuration (`appsettings*.json`, environment variables or App Service settings). They are **host-level** settings, not per-tenant TenantConfig settings.
+All settings live under `MassTransit:Outbox` in host configuration (`appsettings*.json`, environment variables or App Service settings). A tenant can override the routing settings (`Enabled`, `Mode`, `Events`) for its own events in TenantConfig. See [Per-tenant overrides](#per-tenant-overrides). `Delivery` settings are host-only.
 
 ### Routing settings
 
@@ -116,7 +123,7 @@ Notes:
 
 - The effective `Mode` and `Events` are logged at startup: `Transactional outbox routing: Mode Allowlist, Events [...]`.
 - A misspelt identifier does not cause an error; the event simply publishes directly. Check the startup log.
-- Changes to `Mode` and `Events` take effect after an app restart.
+- Host changes to `Mode` and `Events` take effect after an app restart. Tenant overrides take effect on the next tenant configuration refresh.
 
 ### Delivery settings (`MassTransit:Outbox:Delivery`)
 
@@ -209,9 +216,32 @@ An event is matched if **any** of its identifiers is in `Events` (case-insensiti
 | Virus scan request | `FileUploadedDomainEventHandler` | Class name, full class name | `ScanRequestedEvent` |
 | Typed event triggers (`EventTriggers` with `EventKind` `Typed`) | `EventTriggerDispatcher` via `TenantAwareEventPublisher` | Class name (the same name tenants use as `EventType` in `EventTriggers`), full class name | `TransferApplicationSubmittedEvent` |
 | Schema event triggers (`EventKind` `Schema`) | `EventTriggerDispatcher` | The `EventType` from the tenant's `EventTriggers` entry, **or** the `TopicName` from `SchemaEvents` | `LsrpApplicationSubmitted` or `lsrp-application-submitted` |
-| Prism events (planned) | Prism publishing code | Class name | `ApplicationResponseSaved` |
+| Prism projection requests | `ProjectionEventPublisher` | Always routed through the outbox; listing it has no effect | `ApplicationProjectionRequestedEvent` |
+| Prism template versions | `ProjectionEventPublisher` | Always routed through the outbox; listing it has no effect | `TemplateVersionPublishedEvent` |
 
-Routing is decided per event type for **all** tenants. If a typed event is shared by several tenants, adding it to the list moves it to the outbox for all of them.
+The host list applies to **all** tenants. If a typed event is shared by several tenants, adding it to the host list moves it to the outbox for all of them. To change routing for one tenant only, use a per-tenant override.
+
+## Per-tenant overrides
+
+Add a `MassTransit` category to the tenant's settings (Target `Shared`):
+
+```json
+{
+  "Outbox": {
+    "Mode": "Allowlist",
+    "Events": [ "TransferApplicationSubmittedEvent", "transfer-application-submitted-schema" ]
+  }
+}
+```
+
+Rules:
+
+- Each key the tenant sets **replaces** the host value for that tenant's events, and keys it leaves out inherit the host value. A tenant `Events` list replaces the host list; it is not merged with it.
+- `Enabled: false` opts the tenant out: its events publish directly. A tenant cannot turn the outbox on when the host has `Enabled: false`, because the outbox is then not registered at all.
+- Overrides are read when each event is published, so they apply on the next tenant configuration refresh without a restart.
+- The startup log line `Transactional outbox routing: ...` shows the host settings only.
+- Prism events always use the outbox, whatever the tenant sets.
+- Delivery loops already run for every tenant EA database whenever the host has the outbox enabled, so no extra setup is needed. The tenant's database still needs the outbox tables (see below).
 
 ## Choosing which events to put through the outbox
 
@@ -228,7 +258,7 @@ If a subscriber cannot handle duplicates, you have two options:
    - needs the Standard or Premium tier;
    - is an infrastructure change, because `AutoCreateEntities` is `false` in our configuration.
 
-Recommended order: Prism events first (built to handle duplicates), then existing events one at a time as their subscribers are confirmed.
+Prism events already use the outbox (Prism re-reads the source and compares revisions, so duplicates are harmless). Move the existing events over one at a time, as their subscribers are confirmed.
 
 ## Database setup and migrations
 
@@ -337,3 +367,4 @@ Messages from the same request are delivered in order. Messages from different r
 | Outbox tables (model) | `ExternalApplicationsContext.OnModelCreating` |
 | Migration | `src/GovUK.Dfe.FlexForms.Infrastructure/Migrations/*_AddMassTransitTransactionalOutbox.cs` |
 | Wiring | `Program.cs` → `AddApplicationDependencyGroup(..., configureBusRegistration: ...)` |
+| Acceptance tests (Prism events, real SQL Server via Testcontainers, so Docker is required) | `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Messaging/Outbox/PrismOutboxAcceptanceTests.cs` |

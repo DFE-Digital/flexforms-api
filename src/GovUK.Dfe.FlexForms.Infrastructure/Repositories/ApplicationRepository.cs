@@ -47,35 +47,65 @@ public sealed class ApplicationRepository(ExternalApplicationsContext dbContext)
         ApplicationResponse response,
         DateTime lastModifiedOn,
         UserId lastModifiedBy,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<ResponseVersionAppended, CancellationToken, Task>? beforeCommit = null)
     {
-        // Minimal read: only fetch the reference for return payload + existence check.
-        var applicationReference = await DbContext.Applications
+        // Minimal read: only fetch what the return payload and projection event need, plus an existence check.
+        var application = await DbContext.Applications
             .AsNoTracking()
             .Where(a => a.Id == applicationId)
-            .Select(a => a.ApplicationReference)
+            .Select(a => new
+            {
+                a.ApplicationReference,
+                a.TemplateVersionId,
+                TemplateId = a.TemplateVersion != null ? a.TemplateVersion.TemplateId : null
+            })
             .SingleOrDefaultAsync(cancellationToken);
 
-        if (applicationReference is null)
+        if (application is null)
             return null;
 
         await using var tx = await DbContext.Database.BeginTransactionAsync(cancellationToken);
 
-        DbContext.ApplicationResponses.Add(response);
-
-        // Update last-modified tracking without loading the Application aggregate graph.
-        await DbContext.Applications
+        // Update last-modified tracking and bump the revision without loading the Application aggregate graph.
+        // The row stays write-locked until commit, so the revision read back below is ours alone.
+        var updated = await DbContext.Applications
             .Where(a => a.Id == applicationId)
             .ExecuteUpdateAsync(setters => setters
                     .SetProperty(a => a.Status, a => a.Status == ApplicationStatus.Submitted ? a.Status : ApplicationStatus.InProgress)
                     .SetProperty(a => a.LastModifiedOn, lastModifiedOn)
-                    .SetProperty(a => a.LastModifiedBy, lastModifiedBy),
+                    .SetProperty(a => a.LastModifiedBy, lastModifiedBy)
+                    .SetProperty(a => a.SourceRevision, a => a.SourceRevision + 1),
                 cancellationToken);
+
+        if (updated == 0)
+            return null;
+
+        var sourceRevision = await DbContext.Applications
+            .AsNoTracking()
+            .Where(a => a.Id == applicationId)
+            .Select(a => a.SourceRevision)
+            .SingleAsync(cancellationToken);
+
+        response.AssignCreatedAtRevision(sourceRevision);
+        DbContext.ApplicationResponses.Add(response);
+
+        if (beforeCommit is not null)
+        {
+            await beforeCommit(
+                new ResponseVersionAppended(
+                    applicationId,
+                    response.Id!,
+                    sourceRevision,
+                    application.TemplateVersionId,
+                    application.TemplateId),
+                cancellationToken);
+        }
 
         await DbContext.SaveChangesAsync(cancellationToken);
         await tx.CommitAsync(cancellationToken);
 
-        return (applicationReference, response);
+        return (application.ApplicationReference, response);
     }
 }
 

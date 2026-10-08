@@ -37,7 +37,7 @@ namespace GovUK.Dfe.FlexForms.Api.ExceptionHandlers
         private string FormatValidationErrors(IDictionary<string, string[]> errors)
         {
             var formattedErrors = errors
-                .SelectMany(kvp => kvp.Value.Select(error => $"{kvp.Key}: {error}"))
+                .SelectMany(kvp => kvp.Value.Select(error => string.IsNullOrEmpty(kvp.Key) ? error : $"{kvp.Key}: {error}"))
                 .ToList();
 
             return string.Join("; ", formattedErrors);

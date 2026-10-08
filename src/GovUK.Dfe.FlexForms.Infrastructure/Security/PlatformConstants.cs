@@ -17,6 +17,12 @@ public static class PlatformConstants
     /// <summary>Entra app role required to call platform tenant-config endpoints.</summary>
     public const string TenantConfigReadAppRole = "Platform.TenantConfig.Read";
 
+    /// <summary>Authorization policy for the internal read endpoints used by the Prism analytics projector.</summary>
+    public const string PlatformPrismReadPolicy = "PlatformPrismRead";
+
+    /// <summary>Entra app role required to call the internal Prism endpoints.</summary>
+    public const string PrismReadAppRole = "Prism.Read";
+
     /// <summary>Configuration section for the API's own Entra app registration (platform tokens).</summary>
     public const string AzureAdSection = "Platform:AzureAd";
 }

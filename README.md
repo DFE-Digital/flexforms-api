@@ -15,6 +15,7 @@ Tenants (products such as Transfers, Visits, LSRP) share one API. Each tenant’
 - **Secure files** — Azure File Share + ClamAV scan via Azure Service Bus
 - **Tenant file validation** — Optional per-template callback; status + SignalR notify the uploader
 - **GOV.UK Notify** — Email for submit, invites, feedback; optional TenantConfig `EmailPlaceholderMappings` for custom personalisation from form answers
+- **Prism analytics feed** — Every save, submit and delete, and every new template version, is published (atomically, via the outbox) for the Prism projection, which reads the data back through internal read-only endpoints ([details](#prism-analytics-projection))
 - **Real-time notifications** — Azure SignalR
 - **Audit** — SQL Server temporal tables on `ea` entities
 - **Redis + memory cache** — Tenant-prefixed keys
@@ -191,7 +192,7 @@ Maps Azure AD **oid** / **appid** of a workload identity to a tenant. Used when 
 | `TenantBearer` | User JWTs (HS256 from TokenSettings) + Entra service tokens |
 | `ApiKey` | `X-Api-Key` |
 | `Mtls` | Client certificate |
-| `PlatformBearer` | Platform Entra app (`Platform:AzureAd`) for host-config / tenant-config ops |
+| `PlatformBearer` | Platform Entra app (`Platform:AzureAd`) for host-config / tenant-config ops and the internal Prism endpoints (`Prism.Read` role) |
 | `HubCookie` | Short-lived cookie for SignalR |
 
 ### Token exchange
@@ -372,6 +373,7 @@ Templates belong to a tenant via `Template.TenantId` and/or TenantSettings HostM
 | Tenant admin | `/v1/admin/tenants` | Refresh, list, seed, get/upsert settings |
 | Tenant config | `/v1/tenant-config` | Consume config, resolve hostname, get by id |
 | Host config | `/v1/host-config` | Platform bootstrap for Web |
+| Prism (internal) | `/v1/internal/prism` | Read-only source data for the Prism projector; `Prism.Read` platform token only ([details](#internal-endpoints-for-prism)) |
 | Hub auth | hub ticket endpoints | SignalR cookie bridge |
 | Feedback | `/v1/userfeedback` | Support / feedback emails |
 
@@ -432,11 +434,191 @@ How it fits the platform:
 - **Same topics, bodies and headers** (`TenantId`, `TenantName`, custom properties) as direct publishing.
 - **Consumers are unaffected**: publishes inside a consumer still use the consume context.
 - **Post-commit handlers**: `DomainEventDispatcherInterceptor` does a follow-up save so events published by domain event handlers (which run after commit) reach the outbox. New events needing strict atomicity (Prism) must be published **before** `SaveChangesAsync`.
-- The effective routing is logged at startup: `Transactional outbox routing: Mode ..., Events [...]`.
+- **Per-tenant overrides**: a tenant's `MassTransit` settings category (`{"Outbox":{"Mode":...,"Events":[...]}}`, Target `Shared`) replaces the host `Enabled`/`Mode`/`Events` for that tenant's events, with no restart needed. A tenant can opt out but cannot enable the outbox when the host has it disabled.
+- The host routing is logged at startup: `Transactional outbox routing: Mode ..., Events [...]`.
 
 **Before listing an event**, confirm every subscriber of its topic tolerates duplicates, or enable Service Bus duplicate detection on the topic (only possible when the topic is created).
 
 Full guide (configuration reference, rollout runbook, monitoring SQL, troubleshooting): [`docs/transactional-outbox.md`](docs/transactional-outbox.md). Tenant admin guidance: [Tenant Admin User Manual §12.19](https://github.com/DFE-Digital/flexforms-web/blob/main/docs/Tenant-Admin-User-Manual.md#1219-delivery-guarantees-transactional-outbox).
+
+---
+
+## Prism (analytics projection)
+
+[Prism](https://github.com/DFE-Digital/flexforms-prism) turns FlexForms applications into flat, queryable rows in its own SQL database, so analysts can report on form answers without touching the EA databases or parsing response JSON. Prism is a separate Azure Function app. The API's job is small and well-defined:
+
+1. **Tell Prism when an application changes, or a template version is published**, by publishing an event to Service Bus.
+2. **Let Prism read the source data**, through a handful of read-only internal endpoints.
+
+The event is only a nudge ("application X changed, it is now at revision N"). It carries no form answers. Prism always reads the real data back from the API, so a late, duplicated or out-of-order event can never put wrong data into Prism.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant API as FlexForms API
+    participant EA as Tenant EA database
+    participant SB as Service Bus topic flexforms-prism
+    participant Prism as Prism Function
+
+    User->>API: Save / submit / delete application
+    API->>EA: One transaction: change data, SourceRevision + 1, outbox row
+    API-->>User: 200 OK
+    API->>SB: Outbox delivery loop sends ApplicationProjectionRequestedEvent
+    SB->>Prism: Delivered in order per application (session)
+    Prism->>API: GET /v1/internal/prism/... (X-Tenant-ID, Prism.Read token)
+    API-->>Prism: Current state, response, template version
+    Prism->>Prism: Flatten answers and write rows
+
+    User->>API: Create template / add template version
+    API->>EA: One transaction: new TemplateVersion row, outbox row
+    API->>SB: Outbox delivery loop sends TemplateVersionPublishedEvent
+    SB->>Prism: Delivered in order per template (session)
+    Prism->>API: GET /v1/internal/prism/template-versions/{id}
+    Prism->>Prism: Catalogue fields (new fields Unclassified)
+```
+
+### Source revisions: how Prism knows what is newer
+
+Every application has a counter, `SourceRevision`, that goes up by one on each change Prism cares about. Prism stores the revision it last projected and ignores anything older, which is what makes duplicates and reordering harmless.
+
+| Column | Table | Meaning |
+|---|---|---|
+| `SourceRevision` | `ea.Applications` | Incremented on every response save, the submit and the delete. Also the row's optimistic concurrency token. |
+| `SubmittedRevision` | `ea.Applications` | The `SourceRevision` the submit produced; `NULL` if never submitted. |
+| `CreatedAtRevision` | `ea.ApplicationResponses` | The application's `SourceRevision` when this response version was saved. Immutable. |
+
+Example: create (revision 1) → save (2) → save (3) → submit (4, so `SubmittedRevision = 4`) → delete (5).
+
+The increments live in the domain (`Application.AddResponse`, `Submit`, `Delete`). Saving a response goes through `ApplicationRepository.AppendResponseVersionAsync`, which increments the revision with an atomic SQL `UPDATE` inside an explicit transaction, so two concurrent saves can never get the same revision.
+
+The migration `AddPrismSourceRevisions` adds the columns and backfills existing data: responses are numbered in creation order, then the submit (the temporal history is used to find deleted applications that were submitted first), then the delete.
+
+### How the event is published
+
+**Which actions publish**
+
+| Action (command handler) | Reason in the event | Response sent |
+|---|---|---|
+| Create application (`CreateApplicationCommandHandler`) | `Saved` | The initial response |
+| Save a response (`AddApplicationResponseCommandHandler`) | `Saved` | The new response version |
+| Submit (`SubmitApplicationCommandHandler`) | `Submitted` | The response that was current when submitted |
+| Delete (`DeleteApplicationCommandHandler`) | `Deleted` | None |
+
+Each handler builds a `ProjectionRequest` and calls `IProjectionEventPublisher.PublishAsync` **before** committing. That ordering is the important part:
+
+- The publish goes through the transactional outbox, so "publishing" only adds a row to `ea.OutboxMessage` in the same EA database.
+- That row is committed in the **same transaction** as the data change and the revision increment. Either all three are saved, or none are. There is no window where the data changed but Prism is never told, or Prism is told about a change that rolled back.
+- If Service Bus is down, the row simply waits in the outbox and `TenantOutboxDeliveryService` sends it when Service Bus is back.
+
+For the save path the publish runs in the repository's `beforeCommit` callback (inside its explicit transaction). For create, submit and delete it runs just before `IUnitOfWork.CommitAsync`.
+
+**What `ProjectionEventPublisher` does**
+
+1. Reads the current tenant (it refuses to publish without one).
+2. Maps the transition to a `ProjectionReason` (`Saved`, `Submitted`, `Deleted`) and checks a response id is present for saves and submits.
+3. For a submit, computes the deterministic `SubmissionId`.
+4. Builds `ApplicationProjectionRequestedEvent` (from `GovUK.Dfe.CoreLibs.Messaging.Contracts`) and publishes it with:
+   - **`MessageId`** = `ApplicationProjectionIdentifiers.MessageId(tenant, application, revision, reason)`. The same change always gets the same id, so Service Bus duplicate detection drops a resend from the outbox.
+   - **Headers** `TenantId` and `TenantName`, like every other FlexForms event.
+5. When the outbox delivers it, the Azure Service Bus send topology sets the **session id** to `{tenantId}:{applicationId}`, so Prism processes one application's events strictly in order while different applications run in parallel.
+
+`PublishTemplateVersionAsync` does the same for template versions, with no reason mapping: see [Template changes](#template-changes).
+
+Prism events **always** use the outbox, whatever the `MassTransit:Outbox:Mode` and `Events` allowlist say (`MessageEndpointSelector.AlwaysOutboxEvents`). They do need `MassTransit:Outbox:Enabled = true` (the default); with the outbox switched off they would publish directly and lose the all-or-nothing guarantee. When MassTransit is not registered at all (`SkipMassTransit`, used by integration tests and code generation), `NoOpProjectionEventPublisher` is used instead.
+
+**The event**
+
+Topic `flexforms-prism` (`TopicNames.FlexFormsPrism`).
+
+| Field | Meaning |
+|---|---|
+| `ContractVersion` | Currently `1`. Prism dead-letters versions it doesn't understand. |
+| `TenantId`, `ApplicationId` | Which application changed. |
+| `Reason` | `Saved`, `Submitted` or `Deleted`. (`Resync` is only used by Prism itself, for backfills.) |
+| `SourceRevision` | The application's revision after this change. |
+| `ResponseId` | The response version saved or submitted. Not set for `Deleted`. |
+| `SubmissionId` | Deterministic id of the submission. Only for `Submitted`. |
+| `TemplateId`, `TemplateVersionId` | The application's template. |
+| `OperationId` | Not set by the API (Prism backfills only). |
+| `OccurredAt` | When the change happened (UTC). |
+
+The full contract is in [`docs/prism-contract-v1.md`](https://github.com/DFE-Digital/flexforms-prism/blob/main/docs/prism-contract-v1.md) in the Prism repo.
+
+### Template changes
+
+Template versions are immutable: changing a template (adding or removing a field, relabelling, changing options) always creates a **new version**, and existing applications stay on the version they started with. So the API tells Prism about each new version, and Prism catalogues its fields straight away. The data team can then see what changed (`prism.v_template_field_changes`) and classify new fields before anyone has answered them, instead of finding out when the first application on the new version is projected.
+
+| Action (command handler) | Event |
+|---|---|
+| Create a template with an initial version (`CreateTemplateCommandHandler`) | `TemplateVersionPublishedEvent` for the initial version |
+| Add a template version (`CreateTemplateVersionCommandHandler`) | `TemplateVersionPublishedEvent` for the new version |
+
+It works exactly like the application event:
+
+- The handler calls `IProjectionEventPublisher.PublishTemplateVersionAsync` **before** `IUnitOfWork.CommitAsync`, so the outbox row is committed with the new version row, or not at all.
+- It always goes through the outbox (`MessageEndpointSelector.AlwaysOutboxEvents`), to the same topic `flexforms-prism`.
+- **`MessageId`** = `ApplicationProjectionIdentifiers.TemplateVersionMessageId(tenant, templateVersion)`, and the **session id** is `{tenantId}:template:{templateId}` (`TemplateSessionId`), so it uses the existing session-enabled subscription. Nothing new is needed in Azure.
+- It carries no template JSON. Prism reads it back from `GET template-versions/{templateVersionId}`.
+
+| Field | Meaning |
+|---|---|
+| `ContractVersion` | Currently `1`. |
+| `TenantId`, `TemplateId`, `TemplateVersionId` | Which version was published. |
+| `VersionNumber` | The version label, for example `1.4.0`. |
+| `CreatedAt` | When the version was created (UTC). |
+
+Template versions created before this event existed are catalogued by Prism the first time one of their applications is projected.
+
+### Internal endpoints for Prism
+
+`InternalPrismController`, under `/v1/internal/prism`. All endpoints are **read-only GETs** and return data as it is in the source, including **deleted** applications (so deletions are never missed).
+
+| Endpoint | Tenant header | Returns | What Prism uses it for |
+|---|---|---|---|
+| `GET tenants` | Not needed | Every configured tenant (`PrismTenantDto`: id and name) | Deciding which tenants a backfill or reconciliation run covers. |
+| `GET applications/{applicationId}/current` | Required | `PrismApplicationStateDto`: revision, status, deleted flag, template, latest response (id, revision and body), and the submit details (`SubmittedRevision`, `SubmissionId`, `SubmittedResponseId`) | The main call for every event: "what does this application look like **now**?" Prism compares the revision with what it has and projects the latest response. |
+| `GET responses/{responseId}` | Required | `PrismResponseDto`: one immutable response version and its body | Freezing the **exact** answers that were submitted, even if the user saved again after submitting. |
+| `GET template-versions/{templateVersionId}` | Required | `PrismTemplateVersionDto`: version number, JSON schema and creation time | Working out the fields (names, types, repeating sections) needed to flatten answers, and cataloguing a newly published version. Template versions never change, so Prism caches them. |
+| `GET applications?modifiedSince=&page=&pageSize=` | Required | `PrismApplicationPageDto`: application id, revision, status, deleted flag and last-changed time, oldest first, with `HasMore` | Backfill (load everything) and reconciliation (find anything changed since a point in time that Prism has missed). `pageSize` defaults to 500, maximum 1000. |
+
+The DTOs live in `GovUK.Dfe.CoreLibs.Contracts` (`ExternalApplications/Models/Response/PrismDtos.cs`) and Prism calls these endpoints through the generated `GovUK.Dfe.FlexForms.Api.Client`.
+
+A few details worth knowing:
+
+- **Consistent reads.** The `current` endpoint reads the revision first and then only considers responses with `CreatedAtRevision` up to it, so a save committing in between can't produce a mismatched answer.
+- **Tenant isolation.** Every tenant-scoped endpoint only returns data whose template belongs to the `X-Tenant-ID` tenant. Anything else is a `404`, exactly as if it didn't exist.
+- **Handlers** are MediatR queries in `src/GovUK.Dfe.FlexForms.Application/Prism/Queries`.
+
+### Security of the internal endpoints
+
+These endpoints are for the Prism Function only, never for users or tenant integrations.
+
+- **Who can call them:** a token from the **platform** Entra app (`Platform:AzureAd`) containing the app role **`Prism.Read`**. In Azure, that role is granted to the Prism Function's managed identity.
+- **How it's enforced:** the controller has `[Authorize(Policy = "PlatformPrismRead")]`. The policy authenticates with the `PlatformBearer` scheme only and requires the role (`PlatformPrismReadRoleAuthorizationHandler` accepts it from the `roles` or role claim, case-insensitively). User JWTs, tenant Entra tokens, API keys and client certificates are all rejected.
+- **Scheme selection:** `CompositeScheme` routes these requests to `PlatformBearer` because their only policy is a platform policy (`AuthorizationExtensions.EndpointRequiresPlatformBearerOnly`).
+- **Tenant resolution:** `TenantResolutionMiddleware` lets exactly `/v1/internal/prism/tenants` through without a tenant (it lists all tenants). Every other Prism endpoint needs `X-Tenant-ID`, and gets `400` without it.
+
+### Setting it up
+
+| Where | What |
+|---|---|
+| Entra (platform API app registration) | Define the app role `Prism.Read` (allowed member type: Applications) and assign it to the Prism Function's managed identity. |
+| API app settings | `MassTransit:Outbox:Enabled` must be `true` (the default). Nothing Prism-specific to add to the allowlist. |
+| Service Bus | Topic `flexforms-prism` with **duplicate detection** on, and a **session-enabled** subscription for Prism. Both must be set when created. Template-version events use the same topic and subscription. |
+| EA databases | Run the migrations (`AddMassTransitTransactionalOutbox`, `AddPrismSourceRevisions`) on every tenant EA database. |
+
+Step-by-step Azure setup, rollout order and the runbook are in the Prism repo: [`docs/azure-setup.md`](https://github.com/DFE-Digital/flexforms-prism/blob/main/docs/azure-setup.md) and [`docs/runbook.md`](https://github.com/DFE-Digital/flexforms-prism/blob/main/docs/runbook.md).
+
+### Tests
+
+| What | Where |
+|---|---|
+| All-or-nothing outbox guarantee on real SQL Server, for application and template-version events (rollback leaves nothing; a commit while the bus is down is delivered later; a resend keeps its `MessageId`). Needs Docker. | `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Messaging/Outbox/PrismOutboxAcceptanceTests.cs` |
+| Event contents, `MessageId` and headers for both events; no publish without a tenant | `src/Tests/GovUK.Dfe.FlexForms.Application.Tests/Services/ProjectionEventPublisherTests.cs` |
+| Prism events always routed to the outbox | `src/Tests/GovUK.Dfe.FlexForms.Application.Tests/Services/MessageEndpointSelectorTests.cs` |
+| Template handlers publish the version event before commit, and not when the version is rejected | `src/Tests/GovUK.Dfe.FlexForms.Application.Tests/CommandHandlers/Templates/` |
+| `Prism.Read` role handler, `PlatformBearer` selection for every Prism action, no anonymous access | `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Security/` |
+| Tenant bypass only for the tenants list | `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Middleware/TenantResolutionMiddlewareTests.cs` |
 
 ---
 
@@ -477,15 +659,11 @@ Full guide (configuration reference, rollout runbook, monitoring SQL, troublesho
 
 Per-tenant secrets and connections live in **TenantConfig**, not only in appsettings.
 
-### Local project references (development)
+### CoreLibs packages
 
-While developing against unreleased CoreLibs telemetry:
+All CoreLibs dependencies are NuGet packages from nuget.org, including the Prism contracts (`GovUK.Dfe.CoreLibs.Contracts` 1.0.108 or later and `GovUK.Dfe.CoreLibs.Messaging.Contracts` 0.1.6 or later). No sibling checkout of DfE.CoreLibs is needed.
 
-- `GovUK.Dfe.FlexForms.Api` → project reference to `DfE.CoreLibs/src/GovUK.Dfe.CoreLibs.Http`
-- `GovUK.Dfe.FlexForms.Api.Client` → same CoreLibs project reference
-- `flexforms-web` → project references to local Api.Client + CoreLibs.Http
-
-CI/publish should restore **NuGet** package versions once CoreLibs is released and Api.Client is bumped.
+Don't swap them for project references: other CoreLibs packages (for example `GovUK.Dfe.CoreLibs.Notifications`) are compiled against a published `Contracts` assembly version, and a local project builds as `1.0.0.0`, so the API fails to start with `Could not load file or assembly 'GovUK.Dfe.CoreLibs.Contracts, Version=1.0.x.0'`.
 
 ### Run
 
@@ -749,6 +927,7 @@ Safe TenantConfig category (tenant Admins may edit). Operator guide: [flexforms-
 | [flexforms-web](https://github.com/DFE-Digital/flexforms-web) | Razor Pages UI + form engine |
 | [rsd-file-scanner-function](https://github.com/DFE-Digital/rsd-file-scanner-function) | AV scan worker |
 | [rsd-clamav-api](https://github.com/DFE-Digital/rsd-clamav-api) | ClamAV sidecar/API |
+| [flexforms-prism](https://github.com/DFE-Digital/flexforms-prism) | Prism analytics projection (Azure Functions + SQL) fed by `ApplicationProjectionRequestedEvent` and `TemplateVersionPublishedEvent` |
 | [DfE.CoreLibs](https://github.com/DFE-Digital/DfE.CoreLibs) | Shared contracts, security, caching, **Http** (correlation, exception handler, SaaS log keys) |
 
 See also `DfE.CoreLibs.Http/ExceptionHandler.md` for exception middleware configuration and KQL playbooks.

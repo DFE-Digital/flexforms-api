@@ -1947,6 +1947,372 @@
         }
       }
     },
+    "/v1/internal/prism/tenants": {
+      "get": {
+        "tags": [
+          "InternalPrism"
+        ],
+        "summary": "Returns every configured tenant. Does not require tenant context.",
+        "operationId": "InternalPrism_GetPrismTenants",
+        "responses": {
+          "200": {
+            "description": "Configured tenants.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PrismTenantDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing Prism.Read app role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/internal/prism/applications/{applicationId}/current": {
+      "get": {
+        "tags": [
+          "InternalPrism"
+        ],
+        "summary": "Returns the current source state of an application, including deleted applications.",
+        "operationId": "InternalPrism_GetPrismApplicationState",
+        "parameters": [
+          {
+            "name": "applicationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current application state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrismApplicationStateDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing Prism.Read app role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Application not found in this tenant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/internal/prism/responses/{responseId}": {
+      "get": {
+        "tags": [
+          "InternalPrism"
+        ],
+        "summary": "Returns one immutable response version.",
+        "operationId": "InternalPrism_GetPrismResponse",
+        "parameters": [
+          {
+            "name": "responseId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrismResponseDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing Prism.Read app role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Response not found in this tenant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/internal/prism/template-versions/{templateVersionId}": {
+      "get": {
+        "tags": [
+          "InternalPrism"
+        ],
+        "summary": "Returns an immutable template version and its JSON schema.",
+        "operationId": "InternalPrism_GetPrismTemplateVersion",
+        "parameters": [
+          {
+            "name": "templateVersionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrismTemplateVersionDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing Prism.Read app role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template version not found in this tenant.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/internal/prism/applications": {
+      "get": {
+        "tags": [
+          "InternalPrism"
+        ],
+        "summary": "Pages through the tenant's applications (including deleted), oldest first.",
+        "operationId": "InternalPrism_ListPrismApplications",
+        "parameters": [
+          {
+            "name": "modifiedSince",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true
+            },
+            "x-position": 1
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 1
+            },
+            "x-position": 2
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32",
+              "default": 500
+            },
+            "x-position": 3
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of applications.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PrismApplicationPageDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid paging parameters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Missing Prism.Read app role.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/Notifications": {
       "post": {
         "tags": [
@@ -2859,6 +3225,509 @@
           },
           "429": {
             "description": "Too Many Requests.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/reporting-export/default": {
+      "get": {
+        "tags": [
+          "ReportingExport"
+        ],
+        "summary": "The tenant-wide default for fields without a decision.",
+        "operationId": "ReportingExport_GetTenantReportingExportDefault",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The tenant default.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportingExportDefaultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Reporting is unavailable or not set up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - interactive Admin of own tenant required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ReportingExport"
+        ],
+        "summary": "Sets the tenant-wide default. A change starts a refresh of the tenant's exported data.",
+        "operationId": "ReportingExport_UpdateTenantReportingExportDefault",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReportingExportDefaultRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 2
+        },
+        "responses": {
+          "200": {
+            "description": "The outcome.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportingExportChangeResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, or reporting is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - interactive Admin of own tenant required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/reporting-export/templates/{templateId}": {
+      "get": {
+        "tags": [
+          "ReportingExport"
+        ],
+        "summary": "Every field of a template with whether its answers are exported, and the default in force.",
+        "operationId": "ReportingExport_GetTemplateReportingExportPolicy",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 2
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The template's fields.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportingExportPolicyDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Reporting is unavailable or not set up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - interactive Admin of own tenant required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found, or its fields are not known to reporting yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/reporting-export/templates/{templateId}/decisions": {
+      "put": {
+        "tags": [
+          "ReportingExport"
+        ],
+        "summary": "Allows or denies fields of a template. Fields left out keep their decision.",
+        "operationId": "ReportingExport_UpdateTemplateReportingExportDecisions",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 2
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReportingExportDecisionsRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 3
+        },
+        "responses": {
+          "200": {
+            "description": "The outcome.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportingExportChangeResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid decisions, unknown fields, or reporting is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - interactive Admin of own tenant required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/reporting-export/templates/{templateId}/default": {
+      "get": {
+        "tags": [
+          "ReportingExport"
+        ],
+        "summary": "The template's own default and the default in force for it.",
+        "operationId": "ReportingExport_GetTemplateReportingExportDefault",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 2
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The template default.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportingExportDefaultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Reporting is unavailable or not set up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - interactive Admin of own tenant required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "ReportingExport"
+        ],
+        "summary": "Overrides the tenant default for one template, or sets it back to Inherit.",
+        "operationId": "ReportingExport_UpdateTemplateReportingExportDefault",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "templateId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 2
+          }
+        ],
+        "requestBody": {
+          "x-name": "request",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateReportingExportDefaultRequest"
+              }
+            }
+          },
+          "required": true,
+          "x-position": 3
+        },
+        "responses": {
+          "200": {
+            "description": "The outcome.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportingExportChangeResultDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, or reporting is unavailable.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - interactive Admin of own tenant required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Template not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/tenants/{tenantId}/reporting-export/refreshes/{refreshId}": {
+      "get": {
+        "tags": [
+          "ReportingExport"
+        ],
+        "summary": "Progress of the refresh started by a change.",
+        "operationId": "ReportingExport_GetReportingExportRefresh",
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 1
+          },
+          {
+            "name": "refreshId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "guid"
+            },
+            "x-position": 2
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The refresh.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportingExportRefreshDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Reporting is unavailable or not set up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden - interactive Admin of own tenant required.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExceptionResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Refresh not found.",
             "content": {
               "application/json": {
                 "schema": {
@@ -6933,6 +7802,199 @@
           }
         }
       },
+      "PrismTenantDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tenantId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "tenantName": {
+            "type": "string"
+          }
+        }
+      },
+      "PrismApplicationStateDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "applicationId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "applicationReference": {
+            "type": "string"
+          },
+          "sourceRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationStatus"
+              }
+            ]
+          },
+          "isDeleted": {
+            "type": "boolean"
+          },
+          "deletedOn": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "templateId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "templateVersionId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "createdOn": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "lastModifiedOn": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "responseId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "responseRevision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "responseBody": {
+            "type": "string",
+            "nullable": true
+          },
+          "submittedRevision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "submissionId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "submittedResponseId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "PrismResponseDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "responseId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "applicationId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "createdAtRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "createdOn": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "responseBody": {
+            "type": "string"
+          }
+        }
+      },
+      "PrismTemplateVersionDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "templateVersionId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "templateId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "versionNumber": {
+            "type": "string"
+          },
+          "jsonSchema": {
+            "type": "string"
+          },
+          "createdOn": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "PrismApplicationPageDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PrismApplicationSummaryDto"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "PrismApplicationSummaryDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "applicationId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "sourceRevision": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "status": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationStatus"
+              }
+            ]
+          },
+          "isDeleted": {
+            "type": "boolean"
+          },
+          "lastChangedOn": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "NotificationDto": {
         "type": "object",
         "additionalProperties": false,
@@ -7081,6 +8143,326 @@
             "nullable": true
           }
         }
+      },
+      "ReportingExportDefaultDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ReportingExportModeSetting"
+          },
+          "effectiveMode": {
+            "$ref": "#/components/schemas/ReportingExportMode"
+          },
+          "source": {
+            "$ref": "#/components/schemas/ReportingExportDefaultSource"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "decidedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ReportingExportModeSetting": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Inherit",
+          "ApproveFirst",
+          "ExportAll"
+        ],
+        "enum": [
+          "Inherit",
+          "ApproveFirst",
+          "ExportAll"
+        ]
+      },
+      "ReportingExportMode": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "ApproveFirst",
+          "ExportAll"
+        ],
+        "enum": [
+          "ApproveFirst",
+          "ExportAll"
+        ]
+      },
+      "ReportingExportDefaultSource": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "BuiltIn",
+          "Tenant",
+          "Template"
+        ],
+        "enum": [
+          "BuiltIn",
+          "Tenant",
+          "Template"
+        ]
+      },
+      "ReportingExportChangeResultDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ReportingExportChangeStatus"
+          },
+          "policyVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "changed": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "refreshId": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
+          }
+        }
+      },
+      "ReportingExportChangeStatus": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Applied",
+          "Unchanged"
+        ],
+        "enum": [
+          "Applied",
+          "Unchanged"
+        ]
+      },
+      "UpdateReportingExportDefaultRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/ReportingExportModeSetting"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ReportingExportPolicyDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "templateId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "policyVersion": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "defaultMode": {
+            "$ref": "#/components/schemas/ReportingExportMode"
+          },
+          "defaultSource": {
+            "$ref": "#/components/schemas/ReportingExportDefaultSource"
+          },
+          "fields": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportingExportFieldDto"
+            }
+          }
+        }
+      },
+      "ReportingExportFieldDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "parentFieldId": {
+            "type": "string"
+          },
+          "fieldId": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataType": {
+            "type": "string",
+            "nullable": true
+          },
+          "isCollection": {
+            "type": "boolean"
+          },
+          "taskName": {
+            "type": "string",
+            "nullable": true
+          },
+          "pageTitle": {
+            "type": "string",
+            "nullable": true
+          },
+          "templateVersionNumber": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReportingExportStatus"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "decidedBy": {
+            "type": "string",
+            "nullable": true
+          },
+          "decidedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ReportingExportStatus": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Unclassified",
+          "Allowed",
+          "Denied",
+          "AllowedByDefault"
+        ],
+        "enum": [
+          "Unclassified",
+          "Allowed",
+          "Denied",
+          "AllowedByDefault"
+        ]
+      },
+      "UpdateReportingExportDecisionsRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "decisions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReportingExportDecisionRequest"
+            }
+          }
+        }
+      },
+      "ReportingExportDecisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "parentFieldId": {
+            "type": "string",
+            "nullable": true
+          },
+          "fieldId": {
+            "type": "string"
+          },
+          "decision": {
+            "$ref": "#/components/schemas/ReportingExportDecision"
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "ReportingExportDecision": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Allowed",
+          "Denied"
+        ],
+        "enum": [
+          "Allowed",
+          "Denied"
+        ]
+      },
+      "ReportingExportRefreshDto": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "refreshId": {
+            "type": "string",
+            "format": "guid"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ReportingExportRefreshStatus"
+          },
+          "applicationsScanned": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "applicationsQueued": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "error": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "completedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "ReportingExportRefreshStatus": {
+        "type": "string",
+        "description": "",
+        "x-enumNames": [
+          "Pending",
+          "Running",
+          "Completed",
+          "Cancelled",
+          "Failed"
+        ],
+        "enum": [
+          "Pending",
+          "Running",
+          "Completed",
+          "Cancelled",
+          "Failed"
+        ]
       },
       "TenantRoleDto": {
         "type": "object",

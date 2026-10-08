@@ -25,6 +25,16 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
     public User? DeletedByUser { get; private set; }
     public UserId? LastModifiedBy { get; private set; }
     public User? LastModifiedByUser { get; private set; }
+
+    /// <summary>
+    /// Application-level revision, incremented on every projected transition (response saved, submitted, deleted).
+    /// Also the optimistic concurrency token for the application row.
+    /// </summary>
+    public long SourceRevision { get; private set; }
+
+    /// <summary>The <see cref="SourceRevision"/> produced by the submit transition, or null if never submitted.</summary>
+    public long? SubmittedRevision { get; private set; }
+
     public IReadOnlyCollection<ApplicationResponse> Responses => _responses.AsReadOnly();
     public IReadOnlyCollection<File> Files => _files.AsReadOnly();
 
@@ -72,6 +82,8 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
         if (response.ApplicationId != Id)
             throw new InvalidOperationException("Response's ApplicationId must match the Application's Id");
 
+        SourceRevision++;
+        response.AssignCreatedAtRevision(SourceRevision);
         _responses.Add(response);
     }
 
@@ -115,6 +127,8 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
         Status = ApplicationStatus.Submitted;
         LastModifiedOn = submittedOn;
         LastModifiedBy = submittedBy;
+        SourceRevision++;
+        SubmittedRevision = SourceRevision;
         
         // Raise domain event
         AddDomainEvent(new ApplicationSubmittedEvent(
@@ -149,6 +163,7 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
         DeletedBy = deletedBy;
         LastModifiedOn = deletedOn;
         LastModifiedBy = deletedBy;
+        SourceRevision++;
 
         // Raise domain event
         AddDomainEvent(new ApplicationDeletedEvent(

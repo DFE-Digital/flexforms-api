@@ -71,9 +71,18 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations
                         .HasColumnType("datetime2")
                         .HasColumnName("PeriodStart");
 
+                    b.Property<long>("SourceRevision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("SourceRevision");
+
                     b.Property<int?>("Status")
                         .HasColumnType("int")
                         .HasColumnName("Status");
+
+                    b.Property<long?>("SubmittedRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("SubmittedRevision");
 
                     b.Property<Guid>("TemplateVersionId")
                         .HasColumnType("uniqueidentifier")
@@ -123,6 +132,10 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations
                     b.Property<Guid>("ApplicationId")
                         .HasColumnType("uniqueidentifier")
                         .HasColumnName("ApplicationId");
+
+                    b.Property<long>("CreatedAtRevision")
+                        .HasColumnType("bigint")
+                        .HasColumnName("CreatedAtRevision");
 
                     b.Property<Guid>("CreatedBy")
                         .HasColumnType("uniqueidentifier")

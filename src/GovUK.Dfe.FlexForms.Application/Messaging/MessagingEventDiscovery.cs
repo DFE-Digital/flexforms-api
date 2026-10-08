@@ -60,7 +60,8 @@ public static class MessagingEventDiscovery
             }
 
             // Convention: public CLR message types live in Messages.Events and end with "Event".
-            if (!type.Name.EndsWith("Event", StringComparison.Ordinal))
+            if (!type.Name.EndsWith("Event", StringComparison.Ordinal)
+                || PlatformInternalMessagingEvents.IsInternal(type))
                 continue;
 
             results.Add(new DiscoveredMessagingEvent(type, type.Name, ResolveTopicName(type.Name, topicByName)));

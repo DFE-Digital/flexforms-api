@@ -271,6 +271,11 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                     p.AddAuthenticationSchemes(AuthConstants.PlatformBearer)
                         .RequireAuthenticatedUser()
                         .AddRequirements(new Handlers.PlatformTenantConfigRoleRequirement()));
+
+                options.AddPolicy(PlatformConstants.PlatformPrismReadPolicy, p =>
+                    p.AddAuthenticationSchemes(AuthConstants.PlatformBearer)
+                        .RequireAuthenticatedUser()
+                        .AddRequirements(new Handlers.PlatformPrismReadRoleRequirement()));
             });
 
             // Null scheme: config policies use HttpContext.User from UseAuthentication (no second JWT validate).
@@ -295,6 +300,7 @@ namespace GovUK.Dfe.FlexForms.Api.Security
             services.AddSingleton<IAuthorizationHandler, Handlers.TenantAdminUserAuthorizationHandler>();
             services.AddSingleton<IAuthorizationHandler, Handlers.PlatformHostRoleAuthorizationHandler>();
             services.AddSingleton<IAuthorizationHandler, Handlers.PlatformTenantConfigRoleAuthorizationHandler>();
+            services.AddSingleton<IAuthorizationHandler, Handlers.PlatformPrismReadRoleAuthorizationHandler>();
             services.AddTransient<ICustomClaimProvider, PermissionsClaimProvider>();
             services.AddTransient<ICustomClaimProvider, TemplatePermissionsClaimProvider>();
             services.AddTransient<ICustomClaimProvider, UserPermissionClaimProvider>();
@@ -525,7 +531,8 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                 }
 
                 if (string.Equals(data.Policy, PlatformConstants.PlatformHostPolicy, StringComparison.Ordinal)
-                    || string.Equals(data.Policy, PlatformConstants.PlatformTenantConfigPolicy, StringComparison.Ordinal))
+                    || string.Equals(data.Policy, PlatformConstants.PlatformTenantConfigPolicy, StringComparison.Ordinal)
+                    || string.Equals(data.Policy, PlatformConstants.PlatformPrismReadPolicy, StringComparison.Ordinal))
                 {
                     sawPlatformPolicy = true;
                     continue;
