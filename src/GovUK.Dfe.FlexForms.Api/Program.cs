@@ -317,12 +317,16 @@ namespace GovUK.Dfe.FlexForms.Api
                     options.AddFrameOptionsDeny()
                         .AddXssProtectionDisabled()
                         .AddContentTypeOptionsNoSniff()
+                        .AddReferrerPolicyStrictOriginWhenCrossOrigin()
                         .RemoveServerHeader()
                         .AddContentSecurityPolicy(builder =>
                         {
                             builder.AddDefaultSrc().Self();
                             builder.AddStyleSrc().Self().WithNonce();
                             builder.AddScriptSrc().Self().WithNonce();
+                            builder.AddObjectSrc().None();
+                            builder.AddBaseUri().Self();
+                            builder.AddFrameAncestors().None();
                         })
                         .AddPermissionsPolicy(builder =>
                         {
