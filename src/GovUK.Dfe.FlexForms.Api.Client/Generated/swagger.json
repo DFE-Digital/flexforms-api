@@ -7891,6 +7891,11 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "createdBy": {
+            "type": "string",
+            "format": "guid",
+            "nullable": true
           }
         }
       },

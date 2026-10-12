@@ -84,6 +84,7 @@ public class PrismQueryHandlerTests
         Assert.Equal("{\"v\":2}", dto.ResponseBody);
         Assert.False(dto.IsDeleted);
         Assert.Null(dto.SubmissionId);
+        Assert.Equal(User.Value, dto.CreatedBy);
     }
 
     [Fact]

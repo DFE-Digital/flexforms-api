@@ -40,7 +40,8 @@ public sealed class GetPrismApplicationStateQueryHandler(
                 a.TemplateVersionId,
                 a.TemplateVersion!.TemplateId,
                 a.CreatedOn,
-                a.LastModifiedOn
+                a.LastModifiedOn,
+                a.CreatedBy
             })
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -94,6 +95,7 @@ public sealed class GetPrismApplicationStateQueryHandler(
             latest?.ResponseBody,
             application.SubmittedRevision,
             submissionId,
-            submittedResponseId?.Value));
+            submittedResponseId?.Value,
+            application.CreatedBy.Value));
     }
 }
