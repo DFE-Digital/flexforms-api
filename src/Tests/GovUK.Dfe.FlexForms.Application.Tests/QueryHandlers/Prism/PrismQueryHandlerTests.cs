@@ -85,6 +85,24 @@ public class PrismQueryHandlerTests
         Assert.False(dto.IsDeleted);
         Assert.Null(dto.SubmissionId);
         Assert.Equal(User.Value, dto.CreatedBy);
+        Assert.Null(dto.CreatedByName);
+        Assert.Null(dto.CreatedByEmail);
+    }
+
+    [Fact]
+    public async Task Current_returns_the_lead_applicants_name_and_email()
+    {
+        var application = NewApplication();
+        var leadApplicant = new User(User, new RoleId(Guid.NewGuid()), "Lead Applicant", "lead@example.com", DateTime.UtcNow, null, null, null);
+        typeof(Domain.Entities.Application).GetProperty(nameof(Domain.Entities.Application.CreatedByUser))!.SetValue(application, leadApplicant);
+        Seed(application);
+
+        var result = await new GetPrismApplicationStateQueryHandler(_applicationRepo, _templateResolver)
+            .Handle(new GetPrismApplicationStateQuery(application.Id!.Value), CancellationToken.None);
+
+        var dto = result.Value!;
+        Assert.Equal("Lead Applicant", dto.CreatedByName);
+        Assert.Equal("lead@example.com", dto.CreatedByEmail);
     }
 
     [Fact]

@@ -7896,6 +7896,14 @@
             "type": "string",
             "format": "guid",
             "nullable": true
+          },
+          "createdByName": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdByEmail": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
