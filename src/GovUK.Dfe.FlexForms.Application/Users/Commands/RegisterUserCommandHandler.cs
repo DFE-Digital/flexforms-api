@@ -303,7 +303,7 @@ public sealed class RegisterUserCommandHandler(
 
                 {
 
-                    // Auto-register: grant the single live form, or a configured default when several are live.
+                    // Auto-register: grant the single live form, or the configured live defaults when several are live.
 
                     if (await selfRegistrationTemplateAccess.EnsureLiveTemplateAccessAsync(
 
@@ -381,7 +381,7 @@ public sealed class RegisterUserCommandHandler(
 
 
 
-            // Auto-register without an explicit template: single live form, or configured default.
+            // Auto-register without an explicit template: single live form, or configured live defaults.
 
             if (!request.TemplateId.HasValue)
 

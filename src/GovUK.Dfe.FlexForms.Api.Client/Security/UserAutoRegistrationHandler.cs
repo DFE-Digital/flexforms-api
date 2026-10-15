@@ -180,7 +180,7 @@ public class UserAutoRegistrationHandler : DelegatingHandler
 
             var settings = _settingsProvider.GetSettings();
 
-            // Template access is resolved by the API (one live form, or DefaultTemplateId when several are live).
+            // Template access is resolved by the API (one live form, or the live DefaultTemplateIds when several are live).
             _logger.LogInformation("Auto-registering user; template access will be resolved by the API from live tenant forms");
 
             var registerRequest = new RegisterUserRequest

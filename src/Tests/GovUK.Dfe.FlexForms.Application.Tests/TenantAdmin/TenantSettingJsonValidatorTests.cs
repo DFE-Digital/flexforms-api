@@ -346,6 +346,29 @@ public class TenantSettingJsonValidatorTests
     }
 
     [Fact]
+    public void Validate_ShouldAcceptSelfRegistrationDefaultTemplateIds()
+    {
+        var errors = TenantSettingJsonValidator.Validate(
+            "SelfRegistration",
+            "Shared",
+            """{"DefaultTemplateIds":["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","11111111-2222-3333-4444-555555555555"]}""");
+
+        Assert.Empty(errors);
+    }
+
+    [Theory]
+    [InlineData("""{"DefaultTemplateIds":"aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"}""", "DefaultTemplateIds must be an array")]
+    [InlineData("""{"DefaultTemplateIds":["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee","not-a-guid"]}""", "DefaultTemplateIds[1]")]
+    [InlineData("""{"DefaultTemplateIds":["00000000-0000-0000-0000-000000000000"]}""", "DefaultTemplateIds[0]")]
+    [InlineData("""{"DefaultTemplateIds":[123]}""", "DefaultTemplateIds[0]")]
+    public void Validate_ShouldRejectInvalidSelfRegistrationDefaultTemplateIds(string json, string expectedError)
+    {
+        var errors = TenantSettingJsonValidator.Validate("SelfRegistration", "Shared", json);
+
+        Assert.Contains(errors, e => e.Contains(expectedError));
+    }
+
+    [Fact]
     public void Validate_ShouldAcceptValidFileStorageLocal()
     {
         var errors = TenantSettingJsonValidator.Validate(
