@@ -16,6 +16,7 @@ public sealed class SelfRegistrationTemplateAccessService(
     ITenantContextAccessor tenantContextAccessor,
     IUserFactory userFactory) : ISelfRegistrationTemplateAccessService
 {
+    public const string DefaultTemplateIdsKey = "SelfRegistration:DefaultTemplateIds";
     public const string DefaultTemplateIdKey = "SelfRegistration:DefaultTemplateId";
     public const string LegacyDefaultTemplateIdKey = "ExternalApplicationsApiClient:DefaultTemplateId";
 
@@ -33,7 +34,7 @@ public sealed class SelfRegistrationTemplateAccessService(
 
         var toGrant = SelfRegistrationAccessRules.ResolveAutoGrantedTemplates(
             liveIds,
-            ReadDefaultTemplateId());
+            ReadDefaultTemplateIds());
         if (toGrant.Count == 0)
             return false;
 
@@ -52,18 +53,43 @@ public sealed class SelfRegistrationTemplateAccessService(
         return changed;
     }
 
-    private TemplateId? ReadDefaultTemplateId()
+    /// <summary>
+    /// Union of <c>SelfRegistration:DefaultTemplateIds</c> (JSON array, or a comma/semicolon-separated string)
+    /// and <c>SelfRegistration:DefaultTemplateId</c>. The legacy <c>ExternalApplicationsApiClient:DefaultTemplateId</c>
+    /// is only used when neither yields a valid id. Invalid or empty GUIDs are ignored.
+    /// </summary>
+    private IReadOnlyList<TemplateId> ReadDefaultTemplateIds()
     {
         var settings = tenantContextAccessor.CurrentTenant?.Settings;
         if (settings is null)
-            return null;
+            return Array.Empty<TemplateId>();
 
-        var raw = settings[DefaultTemplateIdKey] ?? settings[LegacyDefaultTemplateIdKey];
-        if (string.IsNullOrWhiteSpace(raw) || !Guid.TryParse(raw, out var guid) || guid == Guid.Empty)
-            return null;
+        var rawValues = new List<string?>();
 
-        return new TemplateId(guid);
+        var listSection = settings.GetSection(DefaultTemplateIdsKey);
+        rawValues.AddRange(listSection.GetChildren().Select(child => child.Value));
+        if (!string.IsNullOrWhiteSpace(listSection.Value))
+        {
+            rawValues.AddRange(listSection.Value.Split(
+                [',', ';'],
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+        }
+
+        rawValues.Add(settings[DefaultTemplateIdKey]);
+
+        var ids = ParseTemplateIds(rawValues);
+        return ids.Count > 0
+            ? ids
+            : ParseTemplateIds([settings[LegacyDefaultTemplateIdKey]]);
     }
+
+    private static IReadOnlyList<TemplateId> ParseTemplateIds(IEnumerable<string?> rawValues) =>
+        rawValues
+            .Select(raw => Guid.TryParse(raw?.Trim(), out var guid) ? guid : Guid.Empty)
+            .Where(guid => guid != Guid.Empty)
+            .Distinct()
+            .Select(guid => new TemplateId(guid))
+            .ToList();
 
     private async Task<IReadOnlyList<Template>> GetLiveTemplatesForCurrentTenantAsync(
         CancellationToken cancellationToken)

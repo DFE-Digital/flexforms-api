@@ -301,6 +301,27 @@ public static class TenantSettingJsonValidator
                     if (string.IsNullOrWhiteSpace(value) || !Guid.TryParse(value, out var guid) || guid == Guid.Empty)
                         errors.Add("DefaultTemplateId must be a non-empty GUID when present.");
                 }
+
+                if (root.TryGetProperty("DefaultTemplateIds", out var defaultTemplateIds)
+                    && defaultTemplateIds.ValueKind is not JsonValueKind.Null
+                    && defaultTemplateIds.ValueKind is not JsonValueKind.Undefined)
+                {
+                    if (defaultTemplateIds.ValueKind != JsonValueKind.Array)
+                    {
+                        errors.Add("DefaultTemplateIds must be an array of non-empty GUIDs.");
+                    }
+                    else
+                    {
+                        var index = 0;
+                        foreach (var item in defaultTemplateIds.EnumerateArray())
+                        {
+                            var value = item.ValueKind == JsonValueKind.String ? item.GetString() : null;
+                            if (string.IsNullOrWhiteSpace(value) || !Guid.TryParse(value, out var guid) || guid == Guid.Empty)
+                                errors.Add($"DefaultTemplateIds[{index}] must be a non-empty GUID.");
+                            index++;
+                        }
+                    }
+                }
                 break;
 
             case "ApplicationTemplates":

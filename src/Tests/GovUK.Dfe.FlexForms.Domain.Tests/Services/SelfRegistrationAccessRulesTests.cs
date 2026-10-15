@@ -69,6 +69,44 @@ public class SelfRegistrationAccessRulesTests
     }
 
     [Fact]
+    public void ResolveAutoGrantedTemplates_ReturnsEveryLiveDefault_WhenSeveralLive()
+    {
+        var first = new TemplateId(Guid.NewGuid());
+        var second = new TemplateId(Guid.NewGuid());
+        var third = new TemplateId(Guid.NewGuid());
+        var notLive = new TemplateId(Guid.NewGuid());
+
+        var result = SelfRegistrationAccessRules.ResolveAutoGrantedTemplates(
+            [first, second, third],
+            new[] { first, notLive, third, first });
+
+        Assert.Equal([first, third], result);
+    }
+
+    [Fact]
+    public void ResolveAutoGrantedTemplates_ReturnsEmpty_WhenNoDefaultsAreLive()
+    {
+        var first = new TemplateId(Guid.NewGuid());
+        var second = new TemplateId(Guid.NewGuid());
+
+        Assert.Empty(SelfRegistrationAccessRules.ResolveAutoGrantedTemplates(
+            [first, second],
+            new[] { new TemplateId(Guid.NewGuid()), new TemplateId(Guid.NewGuid()) }));
+    }
+
+    [Fact]
+    public void ResolveAutoGrantedTemplates_ReturnsOnlyLiveTemplate_RegardlessOfDefaults()
+    {
+        var only = new TemplateId(Guid.NewGuid());
+
+        var result = SelfRegistrationAccessRules.ResolveAutoGrantedTemplates(
+            [only],
+            new[] { new TemplateId(Guid.NewGuid()) });
+
+        Assert.Equal(only, Assert.Single(result));
+    }
+
+    [Fact]
     public void HasTemplateAccess_ReturnsExpectedResult()
     {
         var userId = new UserId(Guid.NewGuid());

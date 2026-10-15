@@ -12,12 +12,13 @@ public static class SelfRegistrationAccessRules
     /// <summary>
     /// Templates to auto-grant on self-registration:
     /// none if the tenant has no live forms; the single live form if there is exactly one;
-    /// otherwise nothing unless <paramref name="defaultTemplateId"/> is one of the live forms.
+    /// otherwise every entry in <paramref name="defaultTemplateIds"/> that is one of the live forms
+    /// (nothing when none of the defaults are live).
     /// Admins assign further templates in User Manager.
     /// </summary>
     public static IReadOnlyList<TemplateId> ResolveAutoGrantedTemplates(
         IReadOnlyList<TemplateId> liveTemplateIds,
-        TemplateId? defaultTemplateId = null)
+        IEnumerable<TemplateId>? defaultTemplateIds = null)
     {
         if (liveTemplateIds is null || liveTemplateIds.Count == 0)
             return Array.Empty<TemplateId>();
@@ -33,11 +34,24 @@ public static class SelfRegistrationAccessRules
         if (live.Count == 1)
             return live;
 
-        if (defaultTemplateId is not null && live.Contains(defaultTemplateId))
-            return [defaultTemplateId];
+        if (defaultTemplateIds is null)
+            return Array.Empty<TemplateId>();
 
-        return Array.Empty<TemplateId>();
+        return defaultTemplateIds
+            .Where(id => id is not null && live.Contains(id))
+            .Distinct()
+            .ToList();
     }
+
+    /// <summary>
+    /// Single-default overload of <see cref="ResolveAutoGrantedTemplates(IReadOnlyList{TemplateId}, IEnumerable{TemplateId}?)"/>.
+    /// </summary>
+    public static IReadOnlyList<TemplateId> ResolveAutoGrantedTemplates(
+        IReadOnlyList<TemplateId> liveTemplateIds,
+        TemplateId? defaultTemplateId) =>
+        ResolveAutoGrantedTemplates(
+            liveTemplateIds,
+            defaultTemplateId is null ? null : [defaultTemplateId]);
 
     /// <summary>
     /// Returns true when the user already has any template permission for the given template.

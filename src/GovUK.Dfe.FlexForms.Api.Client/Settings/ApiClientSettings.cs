@@ -19,9 +19,9 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Settings
         
         /// <summary>
         /// Optional default template for auto-registration when more than one form is live.
-        /// Passed to register when set; the API also reads SelfRegistration:DefaultTemplateId
-        /// from tenant settings. Leave unset so new users get no form access until an admin assigns it
-        /// (unless the tenant has exactly one live template).
+        /// Passed to register when set, which bypasses the API's tenant-level defaults
+        /// (SelfRegistration:DefaultTemplateIds / DefaultTemplateId). Prefer leaving this unset and
+        /// configuring those tenant settings instead.
         /// </summary>
         public Guid? DefaultTemplateId { get; set; }
         
