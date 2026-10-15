@@ -8,7 +8,7 @@
 		<PackageReadmeFile>readme.md</PackageReadmeFile>
 		<PackageId>GovUK.Dfe.FlexForms.Api.Client</PackageId>
 		<Title>FlexForms API Client (NSwag HTTP SDK)</Title>
-		<Description>First-party .NET HTTP client for the FlexForms API (GovUK.Dfe.FlexForms.Api). Includes NSwag-generated typed clients and DTOs for applications, templates, users, roles, tenant admin, files, notifications, and token exchange, plus ASP.NET Core handlers for DfE Sign-In / Entra token exchange, Azure bearer tokens, header forwarding (tenant, template, application), and DI registration. Targets net8.0 and net10.0. Intended for FlexForms Web and other first-party hosts — not a substitute for a narrow integration HttpClient with API-key auth.</Description>
+		<Description>First-party .NET HTTP client for the FlexForms API (GovUK.Dfe.FlexForms.Api). Includes NSwag-generated typed clients and DTOs for applications, templates, users, roles, tenant admin, files, notifications, and token exchange, plus ASP.NET Core handlers for DfE Sign-In / Entra token exchange, Azure bearer tokens, header forwarding (tenant, template, application), and DI registration. Targets net8.0 and net10.0. This package is specific and dedicated to the FlexForms service and is not intended for use by any other service.</Description>
 		<PackageTags>dfe;govuk;flexforms;api-client;nswag;http;oidc;token-exchange;multitenant</PackageTags>
 		<Authors>DFE-Digital</Authors>
 		<TargetFramework></TargetFramework>
