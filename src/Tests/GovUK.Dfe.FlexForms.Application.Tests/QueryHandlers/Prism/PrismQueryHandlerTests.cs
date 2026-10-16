@@ -173,9 +173,11 @@ public class PrismQueryHandlerTests
     public async Task Template_version_returns_schema_for_tenant_template()
     {
         var versionId = new TemplateVersionId(Guid.NewGuid());
+        var template = new Template(_templateId, "Transfer application", DateTime.UtcNow, User);
+        var version = new TemplateVersion(versionId, _templateId, "2.0", "{\"schema\":true}", DateTime.UtcNow, User);
+        typeof(TemplateVersion).GetProperty(nameof(TemplateVersion.Template))!.SetValue(version, template);
         var repo = Substitute.For<IEaRepository<TemplateVersion>>();
-        var dbSet = new[] { new TemplateVersion(versionId, _templateId, "2.0", "{\"schema\":true}", DateTime.UtcNow, User) }
-            .AsQueryable().BuildMockDbSet();
+        var dbSet = new[] { version }.AsQueryable().BuildMockDbSet();
         repo.Query().Returns(dbSet);
 
         var result = await new GetPrismTemplateVersionQueryHandler(repo, _templateResolver)
@@ -184,6 +186,7 @@ public class PrismQueryHandlerTests
         Assert.True(result.IsSuccess);
         Assert.Equal("{\"schema\":true}", result.Value!.JsonSchema);
         Assert.Equal(_templateId.Value, result.Value.TemplateId);
+        Assert.Equal("Transfer application", result.Value.TemplateName);
     }
 
     [Fact]

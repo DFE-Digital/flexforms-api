@@ -27,7 +27,14 @@ public sealed class GetPrismTemplateVersionQueryHandler(
         var version = await templateVersionRepo.Query()
             .AsNoTracking()
             .Where(v => v.Id == templateVersionId)
-            .Select(v => new { v.TemplateId, v.VersionNumber, v.JsonSchema, v.CreatedOn })
+            .Select(v => new
+            {
+                v.TemplateId,
+                v.VersionNumber,
+                v.JsonSchema,
+                v.CreatedOn,
+                TemplateName = v.Template!.Name,
+            })
             .FirstOrDefaultAsync(cancellationToken);
 
         if (version is null
@@ -41,6 +48,7 @@ public sealed class GetPrismTemplateVersionQueryHandler(
             version.TemplateId.Value,
             version.VersionNumber,
             version.JsonSchema,
-            version.CreatedOn));
+            version.CreatedOn,
+            version.TemplateName));
     }
 }
