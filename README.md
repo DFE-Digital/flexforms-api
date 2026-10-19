@@ -1,12 +1,12 @@
 # FlexForms API 
 
-Backend for **FlexForms** — a multi-tenant, template-driven form platform for GOV.UK services.
+Backend for **FlexForms** — a multi-tenant, template-driven form platform for GOV.UK services
 
 Tenants (products such as Transfers, Visits, LSRP) share one API. Each tenant’s configuration, auth, connection strings, and form templates are stored in the database and resolved per request. The companion frontend is [flexforms-web](https://github.com/DFE-Digital/flexforms-web).
 
 ---
 
-## Features
+## Features 
 
 - **Multi-tenant SaaS** — TenantConfig database + per-tenant EA data; hostname / `X-Tenant-ID` / Origin resolution
 - **JSON template engine** — Versioned schemas rendered by the Web form engine
