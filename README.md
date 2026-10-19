@@ -932,6 +932,8 @@ Safe TenantConfig category (tenant Admins may edit). Operator guide: [flexforms-
 
 See also `DfE.CoreLibs.Http/ExceptionHandler.md` for exception middleware configuration and KQL playbooks.
 
+For branching, release candidates, promoting to production and hotfixes, see [`docs/release-process.md`](docs/release-process.md).
+
 ---
 
 ## Tests

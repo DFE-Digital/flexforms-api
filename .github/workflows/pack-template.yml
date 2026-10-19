@@ -49,15 +49,18 @@ jobs:
         id: gitversion
         run: |
           BASE=$(dotnet-gitversion \
+            /config GitVersion.Packages.yml \
             /overrideconfig tag-prefix="^${{ inputs.project_name }}-" \
             /showvariable MajorMinorPatch)
 
           RAW_TAG=$(dotnet-gitversion \
+            /config GitVersion.Packages.yml \
             /overrideconfig tag-prefix="^${{ inputs.project_name }}-" \
             /showvariable PreReleaseTag)
 
           LABEL=${RAW_TAG%%[0-9]*}
           NUM=$(dotnet-gitversion \
+            /config GitVersion.Packages.yml \
             /overrideconfig tag-prefix="^${{ inputs.project_name }}-" \
             /showvariable PreReleaseNumber)
 
