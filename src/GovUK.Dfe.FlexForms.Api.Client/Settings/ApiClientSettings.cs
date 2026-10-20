@@ -9,6 +9,20 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Settings
         public string? ClientSecret { get; set; }
         public string? Authority { get; set; }
         public string? Scope { get; set; }
+
+        /// <summary>
+        /// Acquires service tokens with the host's Azure managed identity instead of a client secret.
+        /// Only <see cref="Scope"/> is required; <see cref="ClientId"/>, <see cref="ClientSecret"/> and
+        /// <see cref="Authority"/> are ignored.
+        /// </summary>
+        public bool UseManagedIdentity { get; set; }
+
+        /// <summary>
+        /// Client ID of a user-assigned managed identity. Leave unset to use the system-assigned identity.
+        /// Only used when <see cref="UseManagedIdentity"/> is true.
+        /// </summary>
+        public string? ManagedIdentityClientId { get; set; }
+
         public bool RequestTokenExchange { get; set; } = true;
         
         /// <summary>
