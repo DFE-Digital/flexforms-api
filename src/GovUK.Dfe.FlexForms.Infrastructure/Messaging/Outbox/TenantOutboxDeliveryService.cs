@@ -15,7 +15,8 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Messaging.Outbox;
 /// Runs one MassTransit <see cref="BusOutboxDeliveryService{TDbContext}"/> per distinct tenant EA
 /// database. The built-in delivery service is disabled because it has no tenant context and would
 /// only ever drain the first tenant's database. Tenants sharing a database share a loop.
-/// The set of loops is reconciled whenever tenant configuration is refreshed.
+/// The set of loops is reconciled whenever tenant configuration changes, and again after
+/// <see cref="StartRetryDelay"/> if any loop failed to start.
 /// </summary>
 public sealed class TenantOutboxDeliveryService(
     IServiceProvider provider,
@@ -25,6 +26,8 @@ public sealed class TenantOutboxDeliveryService(
     ILogger<TenantOutboxDeliveryService> logger) : BackgroundService
 {
     private const string ConnectionStringName = "DefaultConnection";
+
+    internal static readonly TimeSpan StartRetryDelay = TimeSpan.FromMinutes(1);
 
     private readonly Dictionary<string, RunningDelivery> _running = new(StringComparer.OrdinalIgnoreCase);
 
@@ -77,6 +80,8 @@ public sealed class TenantOutboxDeliveryService(
         foreach (var key in _running.Keys.Where(k => !desired.ContainsKey(k)).ToList())
             await StopDeliveryAsync(key);
 
+        var anyStartFailed = false;
+
         foreach (var (key, tenant) in desired)
         {
             if (_running.ContainsKey(key))
@@ -88,8 +93,25 @@ public sealed class TenantOutboxDeliveryService(
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                logger.LogError(ex, "Failed to start outbox delivery for tenant {TenantName}", tenant.Name);
+                anyStartFailed = true;
+                logger.LogError(ex, "Failed to start outbox delivery for tenant {TenantName}. Retrying in {RetryDelay}",
+                    tenant.Name, StartRetryDelay);
             }
+        }
+
+        if (anyStartFailed)
+            _ = SignalReconcileAfterDelayAsync(cancellationToken);
+    }
+
+    private async Task SignalReconcileAfterDelayAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(StartRetryDelay, cancellationToken);
+            _reconcileSignal.Writer.TryWrite(true);
+        }
+        catch (OperationCanceledException)
+        {
         }
     }
 
