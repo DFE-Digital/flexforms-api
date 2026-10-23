@@ -372,6 +372,9 @@ namespace GovUK.Dfe.FlexForms.Api
             {
                 options.IncludeDetails = builder.Environment.IsDevelopment();
                 options.LogExceptions = true;
+                // 4xx outcomes (unknown hostname, not found, forbidden, validation) are expected:
+                // log them as single-line errors, not exceptions with stack traces.
+                options.ClientErrorLogLevel = LogLevel.Error;
                 options.DefaultErrorMessage = "Something went wrong";
                 options.SharedPostProcessingAction = (exception, response) =>
                 {

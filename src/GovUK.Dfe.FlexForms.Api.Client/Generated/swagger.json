@@ -7953,6 +7953,10 @@
           "createdOn": {
             "type": "string",
             "format": "date-time"
+          },
+          "templateName": {
+            "type": "string",
+            "nullable": true
           }
         }
       },
