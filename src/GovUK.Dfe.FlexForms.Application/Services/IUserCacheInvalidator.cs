@@ -21,6 +21,19 @@ public interface IUserCacheInvalidator
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Removes the specified user's application listings and the tenant's by-template listings, leaving permission
+    /// claims and exchanged tokens in place. Call after an application changes without any permission change,
+    /// such as saving answers.
+    /// </summary>
+    /// <param name="email">The user's email address.</param>
+    /// <param name="externalProviderId">The user's external provider identifier, when available.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task InvalidateApplicationListingsForUserAsync(
+        string? email,
+        string? externalProviderId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Removes all tenant-scoped user permission caches (claims, GetMyPermissions queries, template permissions).
     /// Call after role permission changes or other bulk permission updates.
     /// </summary>

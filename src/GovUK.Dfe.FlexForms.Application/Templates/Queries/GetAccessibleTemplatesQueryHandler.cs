@@ -101,7 +101,19 @@ public sealed class GetAccessibleTemplatesQueryHandler(
                 templatesQuery = templatesQuery.Where(t => t.IsLive);
             }
 
-            var templates = await templatesQuery.ToListAsync(cancellationToken);
+            var templates = await templatesQuery
+                .Select(t => new
+                {
+                    t.Id,
+                    t.Name,
+                    t.CreatedOn,
+                    t.IsLive,
+                    LatestVersionNumber = t.TemplateVersions
+                        .OrderByDescending(v => v.CreatedOn)
+                        .Select(v => v.VersionNumber)
+                        .FirstOrDefault()
+                })
+                .ToListAsync(cancellationToken);
 
             // HostMappings-only GUIDs with no DB row are omitted from detail listing.
             var dtos = templates
@@ -110,10 +122,7 @@ public sealed class GetAccessibleTemplatesQueryHandler(
                     TemplateId = t.Id!.Value,
                     Name = t.Name,
                     CreatedOn = t.CreatedOn,
-                    LatestVersionNumber = t.TemplateVersions
-                        .OrderByDescending(v => v.CreatedOn)
-                        .Select(v => v.VersionNumber)
-                        .FirstOrDefault(),
+                    LatestVersionNumber = t.LatestVersionNumber,
                     IsLive = t.IsLive
                 })
                 .ToList()

@@ -83,10 +83,9 @@ public sealed class AddApplicationResponseCommandHandler(
 
             await mediator.Publish(append.DomainEvent, cancellationToken);
 
-            await userCacheInvalidator.InvalidateForUserAsync(
+            await userCacheInvalidator.InvalidateApplicationListingsForUserAsync(
                 dbUser.Email,
                 dbUser.ExternalProviderId,
-                dbUser.Id!,
                 cancellationToken);
 
             var (applicationReference, newResponse) = persisted.Value;

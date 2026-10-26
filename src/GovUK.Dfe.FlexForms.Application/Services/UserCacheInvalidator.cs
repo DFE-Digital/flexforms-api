@@ -76,6 +76,33 @@ public sealed class UserCacheInvalidator(
     }
 
     /// <inheritdoc />
+    public async Task InvalidateApplicationListingsForUserAsync(
+        string? email,
+        string? externalProviderId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            var normalizedEmail = email.Trim().ToLowerInvariant();
+            await advancedRedisCacheService.RemoveByPatternAsync(TenantCacheKeyHelper.CreateTenantScopedKey(
+                tenantContextAccessor,
+                $"Applications_ForUser_{CacheKeyHelper.GenerateHashedCacheKey(normalizedEmail)}*"));
+        }
+
+        await advancedRedisCacheService.RemoveByPatternAsync(
+            TenantCacheKeyHelper.CreateTenantScopedKey(
+                tenantContextAccessor,
+                "Applications_ByTemplate_*"));
+
+        if (!string.IsNullOrWhiteSpace(externalProviderId))
+        {
+            await advancedRedisCacheService.RemoveByPatternAsync(TenantCacheKeyHelper.CreateTenantScopedKey(
+                tenantContextAccessor,
+                $"Applications_ForUserExternal_{CacheKeyHelper.GenerateHashedCacheKey(externalProviderId.Trim())}*"));
+        }
+    }
+
+    /// <inheritdoc />
     public async Task InvalidateApplicationListingsAsync(CancellationToken cancellationToken = default)
     {
         var patterns = new[]
