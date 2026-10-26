@@ -27,20 +27,25 @@ public sealed class ApplicationRepository(ExternalApplicationsContext dbContext)
         if (applicationIds is null || applicationIds.Count == 0)
             return new Dictionary<ApplicationId, ApplicationResponse>();
 
-        var ids = applicationIds.Distinct().ToList();
-
-        // Pull candidate rows for the page, then keep the newest per application in memory.
-        // Page sizes are small; this avoids N+1 while staying portable across providers.
-        var responses = await DbContext.ApplicationResponses
-            .AsNoTracking()
-            .Where(r => ids.Contains(r.ApplicationId))
-            .OrderByDescending(r => r.CreatedOn)
+        var responses = await LatestResponsesQuery(applicationIds.Distinct().ToList())
             .ToListAsync(cancellationToken);
 
+        // Responses saved at the same instant can both be newest; keep one per application.
         return responses
             .GroupBy(r => r.ApplicationId)
             .ToDictionary(g => g.Key, g => g.First());
     }
+
+    /// <summary>
+    /// Every save appends a full copy of the answers, so only the newest response per application is read.
+    /// </summary>
+    internal IQueryable<ApplicationResponse> LatestResponsesQuery(List<ApplicationId> ids) =>
+        DbContext.ApplicationResponses
+            .AsNoTracking()
+            .Where(r => ids.Contains(r.ApplicationId))
+            .Where(r => !DbContext.ApplicationResponses.Any(newer =>
+                newer.ApplicationId == r.ApplicationId && newer.CreatedOn > r.CreatedOn))
+            .OrderByDescending(r => r.CreatedOn);
 
     public async Task<(string ApplicationReference, ApplicationResponse Response)?> AppendResponseVersionAsync(
         ApplicationId applicationId,
