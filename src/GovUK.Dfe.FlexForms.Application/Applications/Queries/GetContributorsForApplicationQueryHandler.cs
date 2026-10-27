@@ -6,6 +6,7 @@ using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
+using GovUK.Dfe.FlexForms.Utils.Diagnostics;
 using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -43,17 +44,20 @@ public sealed class GetContributorsForApplicationQueryHandler(
                 return Result<IReadOnlyCollection<UserDto>>.Forbid("No user identifier");
 
             User? dbUser;
-            if (principalId.Contains('@'))
+            using (RequestTimings.Measure("contributors: load user"))
             {
-                dbUser = await (new GetUserByEmailQueryObject(principalId))
-                    .Apply(userRepo.Query().AsNoTracking())
-                    .FirstOrDefaultAsync(cancellationToken);
-            }
-            else
-            {
-                dbUser = await (new GetUserByExternalProviderIdQueryObject(principalId))
-                    .Apply(userRepo.Query().AsNoTracking())
-                    .FirstOrDefaultAsync(cancellationToken);
+                if (principalId.Contains('@'))
+                {
+                    dbUser = await (new GetUserByEmailQueryObject(principalId))
+                        .Apply(userRepo.Query().AsNoTracking())
+                        .FirstOrDefaultAsync(cancellationToken);
+                }
+                else
+                {
+                    dbUser = await (new GetUserByExternalProviderIdQueryObject(principalId))
+                        .Apply(userRepo.Query().AsNoTracking())
+                        .FirstOrDefaultAsync(cancellationToken);
+                }
             }
 
             if (dbUser is null)
@@ -61,9 +65,11 @@ public sealed class GetContributorsForApplicationQueryHandler(
 
             // Get the application to verify it exists
             var applicationId = new ApplicationId(request.ApplicationId);
-            var application = await (new GetApplicationByIdQueryObject(applicationId))
-                .Apply(applicationRepo.Query().AsNoTracking())
-                .FirstOrDefaultAsync(cancellationToken);
+            Domain.Entities.Application? application;
+            using (RequestTimings.Measure("contributors: load application"))
+                application = await (new GetApplicationByIdQueryObject(applicationId))
+                    .Apply(applicationRepo.Query().AsNoTracking())
+                    .FirstOrDefaultAsync(cancellationToken);
 
             if (application is null)
                 return Result<IReadOnlyCollection<UserDto>>.NotFound("Application not found");
@@ -75,15 +81,20 @@ public sealed class GetContributorsForApplicationQueryHandler(
             if (!isOwner && !isAdmin)
                 return Result<IReadOnlyCollection<UserDto>>.Forbid("Only the application owner or admin can view contributors");
 
-            if (!await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(request.ApplicationId, cancellationToken))
+            bool belongsToTenant;
+            using (RequestTimings.Measure("contributors: tenant check"))
+                belongsToTenant = await tenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync(request.ApplicationId, cancellationToken);
+            if (!belongsToTenant)
             {
                 return Result<IReadOnlyCollection<UserDto>>.NotFound("Application not found");
             }
 
             // Get all contributors
-            var contributors = await (new GetContributorsForApplicationQueryObject(applicationId))
-                .Apply(userRepo.Query().AsNoTracking())
-                .ToListAsync(cancellationToken);
+            List<User> contributors;
+            using (RequestTimings.Measure("contributors: load contributors"))
+                contributors = await (new GetContributorsForApplicationQueryObject(applicationId))
+                    .Apply(userRepo.Query().AsNoTracking())
+                    .ToListAsync(cancellationToken);
 
             // Filter out the application creator
             var contributorsWithoutCreator = contributors
