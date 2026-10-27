@@ -113,19 +113,19 @@ internal static class ApplicationListingQueryBuilder
             query = new PagingQuery<Domain.Entities.Application>(pageIndex, pageSize.Value).Apply(query);
         }
 
-        var apps = await query.ToListAsync(cancellationToken);
-        var count = totalCount ?? apps.Count;
+        var rows = await ProjectListingRows(query, includeSchema).ToListAsync(cancellationToken);
+        var count = totalCount ?? rows.Count;
 
-        var applicationIds = apps
-            .Where(a => a.Id is not null)
-            .Select(a => a.Id!)
+        var applicationIds = rows
+            .Where(r => r.Id is not null)
+            .Select(r => r.Id!)
             .ToList();
 
         var latestResponses = applicationIds.Count == 0
             ? new Dictionary<ApplicationId, Domain.Entities.ApplicationResponse>()
             : await applicationRepository.GetLatestResponsesAsync(applicationIds, cancellationToken);
 
-        var dtoList = apps.Select(a => MapToDto(a, includeSchema, latestResponses)).ToList().AsReadOnly();
+        var dtoList = rows.Select(r => MapToDto(r, includeSchema, latestResponses)).ToList().AsReadOnly();
         var effectivePageSize = pageSize ?? count;
         var effectivePage = pageNumber ?? 1;
         var totalPages = effectivePageSize > 0
@@ -152,8 +152,51 @@ internal static class ApplicationListingQueryBuilder
             TotalPages = 0
         };
 
+    /// <summary>
+    /// Reads only the columns a listing shows. A template version holds the full template JSON, so it is
+    /// read only when the caller asks for the schema.
+    /// </summary>
+    internal static IQueryable<ListingRow> ProjectListingRows(
+        IQueryable<Domain.Entities.Application> query,
+        bool includeSchema) =>
+        query.Select(a => new ListingRow
+        {
+            Id = a.Id,
+            ApplicationReference = a.ApplicationReference,
+            TemplateVersionId = a.TemplateVersionId,
+            CreatedOn = a.CreatedOn,
+            Status = a.Status,
+            LastModifiedOn = a.LastModifiedOn,
+            HasTemplateVersion = a.TemplateVersion != null,
+            TemplateName = a.TemplateVersion != null && a.TemplateVersion.Template != null
+                ? a.TemplateVersion.Template.Name
+                : null,
+            TemplateId = includeSchema && a.TemplateVersion != null && a.TemplateVersion.Template != null
+                ? a.TemplateVersion.Template.Id
+                : null,
+            SchemaTemplateVersionId = includeSchema && a.TemplateVersion != null ? a.TemplateVersion.Id : null,
+            VersionNumber = includeSchema && a.TemplateVersion != null ? a.TemplateVersion.VersionNumber : null,
+            JsonSchema = includeSchema && a.TemplateVersion != null ? a.TemplateVersion.JsonSchema : null
+        });
+
+    internal sealed class ListingRow
+    {
+        public ApplicationId? Id { get; init; }
+        public string ApplicationReference { get; init; } = string.Empty;
+        public TemplateVersionId TemplateVersionId { get; init; } = null!;
+        public DateTime CreatedOn { get; init; }
+        public ApplicationStatus? Status { get; init; }
+        public DateTime? LastModifiedOn { get; init; }
+        public bool HasTemplateVersion { get; init; }
+        public string? TemplateName { get; init; }
+        public TemplateId? TemplateId { get; init; }
+        public TemplateVersionId? SchemaTemplateVersionId { get; init; }
+        public string? VersionNumber { get; init; }
+        public string? JsonSchema { get; init; }
+    }
+
     private static ApplicationDto MapToDto(
-        Domain.Entities.Application a,
+        ListingRow a,
         bool includeSchema,
         IReadOnlyDictionary<ApplicationId, Domain.Entities.ApplicationResponse> latestResponses)
     {
@@ -179,15 +222,15 @@ internal static class ApplicationListingQueryBuilder
             DateCreated = a.CreatedOn,
             DateSubmitted = a.Status == ApplicationStatus.Submitted ? a.LastModifiedOn : null,
             Status = a.Status,
-            TemplateName = a.TemplateVersion?.Template?.Name ?? string.Empty,
+            TemplateName = a.TemplateName ?? string.Empty,
             LatestResponse = latestResponse,
-            TemplateSchema = includeSchema && a.TemplateVersion != null
+            TemplateSchema = includeSchema && a.HasTemplateVersion
                 ? new TemplateSchemaDto
                 {
-                    TemplateId = a.TemplateVersion.Template?.Id?.Value ?? Guid.Empty,
-                    TemplateVersionId = a.TemplateVersion.Id!.Value,
-                    VersionNumber = a.TemplateVersion.VersionNumber,
-                    JsonSchema = a.TemplateVersion.JsonSchema
+                    TemplateId = a.TemplateId?.Value ?? Guid.Empty,
+                    TemplateVersionId = a.SchemaTemplateVersionId!.Value,
+                    VersionNumber = a.VersionNumber!,
+                    JsonSchema = a.JsonSchema!
                 }
                 : null
         };

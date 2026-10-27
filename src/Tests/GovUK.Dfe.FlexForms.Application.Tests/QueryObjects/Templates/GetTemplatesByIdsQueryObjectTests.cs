@@ -47,24 +47,14 @@ public class GetTemplatesByIdsQueryObjectTests
     }
 
     [Fact]
-    public void Apply_ShouldIncludeTemplateVersions()
+    public void Apply_ShouldNotIncludeTemplateVersions()
     {
-        var userId = new UserId(Guid.NewGuid());
         var templateId = new TemplateId(Guid.NewGuid());
-        var template = new Template(templateId, "Alpha", DateTime.UtcNow, userId);
-        template.AddVersion(new TemplateVersion(
-            new TemplateVersionId(Guid.NewGuid()),
-            templateId,
-            "1.0.0",
-            "{}",
-            DateTime.UtcNow,
-            userId));
 
-        var queryObject = new GetTemplatesByIdsQueryObject(new[] { templateId });
-        var result = queryObject.Apply(new List<Template> { template }.AsQueryable().BuildMock()).Single();
+        var query = new GetTemplatesByIdsQueryObject(new[] { templateId })
+            .Apply(new List<Template>().AsQueryable());
 
-        result.TemplateVersions.Should().HaveCount(1);
-        result.TemplateVersions.Single().VersionNumber.Should().Be("1.0.0");
+        query.Expression.ToString().Should().NotContain("Include");
     }
 }
 

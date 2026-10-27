@@ -50,6 +50,61 @@ public class ApplicationListingQueryBuilderTests
         Assert.Equal(middle.ApplicationReference, pageTwo.Items.Single().ApplicationReference);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MapPagedResultAsync_ShouldMapTemplateNameLatestResponseAndSchemaOnlyWhenRequested(bool includeSchema)
+    {
+        var userId = new UserId(Guid.NewGuid());
+        var templateId = new TemplateId(Guid.NewGuid());
+        var template = new Template(templateId, "Transfer", DateTime.UtcNow, userId);
+        var templateVersion = new TemplateVersion(
+            new TemplateVersionId(Guid.NewGuid()), templateId, "1.1.114", "{\"pages\":[]}", DateTime.UtcNow, userId);
+        typeof(TemplateVersion).GetProperty(nameof(TemplateVersion.Template))!.SetValue(templateVersion, template);
+
+        var application = new Domain.Entities.Application(
+            new ApplicationId(Guid.NewGuid()),
+            "TRF-001",
+            templateVersion.Id!,
+            DateTime.UtcNow,
+            userId,
+            ApplicationStatus.Submitted,
+            lastModifiedOn: new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc),
+            lastModifiedBy: userId);
+        typeof(Domain.Entities.Application).GetProperty(nameof(Domain.Entities.Application.TemplateVersion))!
+            .SetValue(application, templateVersion);
+
+        var latest = new ApplicationResponse(
+            new ResponseId(Guid.NewGuid()), application.Id!, "{\"answer\":\"yes\"}", DateTime.UtcNow, userId, null, null);
+        var applicationRepository = Substitute.For<IApplicationRepository>();
+        applicationRepository
+            .GetLatestResponsesAsync(Arg.Any<IReadOnlyCollection<ApplicationId>>(), Arg.Any<CancellationToken>())
+            .Returns(new Dictionary<ApplicationId, ApplicationResponse> { [application.Id!] = latest });
+
+        var result = await ApplicationListingQueryBuilder.MapPagedResultAsync(
+            new List<Domain.Entities.Application> { application }.AsQueryable().BuildMock(),
+            includeSchema,
+            pageNumber: null,
+            pageSize: null,
+            applicationRepository,
+            CancellationToken.None);
+
+        var dto = Assert.Single(result.Items);
+        Assert.Equal("Transfer", dto.TemplateName);
+        Assert.Equal(new DateTime(2026, 10, 1, 0, 0, 0, DateTimeKind.Utc), dto.DateSubmitted);
+        Assert.Equal("{\"answer\":\"yes\"}", dto.LatestResponse!.ResponseBody);
+        if (includeSchema)
+        {
+            Assert.Equal(templateId.Value, dto.TemplateSchema!.TemplateId);
+            Assert.Equal("1.1.114", dto.TemplateSchema.VersionNumber);
+            Assert.Equal("{\"pages\":[]}", dto.TemplateSchema.JsonSchema);
+        }
+        else
+        {
+            Assert.Null(dto.TemplateSchema);
+        }
+    }
+
     private static Domain.Entities.Application CreateApplication(DateTime createdOn)
     {
         var fixture = new Fixture().Customize(new ApplicationCustomization { OverrideCreatedOn = createdOn });

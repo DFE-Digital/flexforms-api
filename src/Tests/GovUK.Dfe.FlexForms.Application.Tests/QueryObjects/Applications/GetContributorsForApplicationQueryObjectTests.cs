@@ -24,7 +24,7 @@ public class GetContributorsForApplicationQueryObjectTests
         var applicationId = new ApplicationId(Guid.NewGuid());
         var creatorId = new UserId(Guid.NewGuid());
         var templateVersionId = new TemplateVersionId(Guid.NewGuid());
-        var queryObject = new GetContributorsForApplicationQueryObject(applicationId);
+        var queryObject = new GetContributorsForApplicationQueryObject(applicationId, creatorId);
 
         var application = new ApplicationEntity(applicationId, "APP-001", templateVersionId, DateTime.UtcNow, creatorId);
 
@@ -66,7 +66,7 @@ public class GetContributorsForApplicationQueryObjectTests
     {
         // Arrange
         var applicationId = new ApplicationId(Guid.NewGuid());
-        var queryObject = new GetContributorsForApplicationQueryObject(applicationId);
+        var queryObject = new GetContributorsForApplicationQueryObject(applicationId, new UserId(Guid.NewGuid()));
         var users = new List<User>().AsQueryable();
 
         // Act
@@ -81,7 +81,7 @@ public class GetContributorsForApplicationQueryObjectTests
     {
         // Arrange
         var applicationId = new ApplicationId(Guid.NewGuid());
-        var queryObject = new GetContributorsForApplicationQueryObject(applicationId);
+        var queryObject = new GetContributorsForApplicationQueryObject(applicationId, new UserId(Guid.NewGuid()));
 
         var users = new List<User>
         {
@@ -106,7 +106,7 @@ public class GetContributorsForApplicationQueryObjectTests
         var applicationId = new ApplicationId(Guid.NewGuid());
         var creatorId = new UserId(Guid.NewGuid());
         var templateVersionId = new TemplateVersionId(Guid.NewGuid());
-        var queryObject = new GetContributorsForApplicationQueryObject(applicationId);
+        var queryObject = new GetContributorsForApplicationQueryObject(applicationId, creatorId);
 
         var application = new ApplicationEntity(applicationId, "APP-002", templateVersionId, DateTime.UtcNow, creatorId);
 
@@ -149,7 +149,7 @@ public class GetContributorsForApplicationQueryObjectTests
         var creatorId2 = new UserId(Guid.NewGuid());
         var templateVersionId1 = new TemplateVersionId(Guid.NewGuid());
         var templateVersionId2 = new TemplateVersionId(Guid.NewGuid());
-        var queryObject = new GetContributorsForApplicationQueryObject(applicationId1);
+        var queryObject = new GetContributorsForApplicationQueryObject(applicationId1, creatorId1);
 
         var application1 = new ApplicationEntity(applicationId1, "APP-003", templateVersionId1, DateTime.UtcNow, creatorId1);
         var application2 = new ApplicationEntity(applicationId2, "APP-004", templateVersionId2, DateTime.UtcNow, creatorId2);
@@ -194,7 +194,7 @@ public class GetContributorsForApplicationQueryObjectTests
         var applicationId = new ApplicationId(Guid.NewGuid());
         var creatorId = new UserId(Guid.NewGuid());
         var templateVersionId = new TemplateVersionId(Guid.NewGuid());
-        var queryObject = new GetContributorsForApplicationQueryObject(applicationId);
+        var queryObject = new GetContributorsForApplicationQueryObject(applicationId, creatorId);
 
         var application = new ApplicationEntity(applicationId, "APP-005", templateVersionId, DateTime.UtcNow, creatorId);
 
@@ -230,7 +230,7 @@ public class GetContributorsForApplicationQueryObjectTests
         var applicationId = new ApplicationId(Guid.NewGuid());
         var creatorId = new UserId(Guid.NewGuid());
         var templateVersionId = new TemplateVersionId(Guid.NewGuid());
-        var queryObject = new GetContributorsForApplicationQueryObject(applicationId);
+        var queryObject = new GetContributorsForApplicationQueryObject(applicationId, creatorId);
 
         var application = new ApplicationEntity(applicationId, "APP-006", templateVersionId, DateTime.UtcNow, creatorId);
 

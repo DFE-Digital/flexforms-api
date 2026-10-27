@@ -10,6 +10,7 @@ using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
+using GovUK.Dfe.FlexForms.Utils.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.JsonWebTokens;
@@ -71,6 +72,7 @@ public class UserPermissionClaimProvider(
         var cacheKey = TenantCacheKeyHelper.CreateTenantScopedKey(tenantContextAccessor, baseCacheKey);
         var methodName = nameof(UserPermissionClaimProvider);
 
+        using var timing = RequestTimings.Measure("permission claims");
         var permissionValues = await cacheService.GetOrAddAsync<List<string>>(
             cacheKey,
             async () =>

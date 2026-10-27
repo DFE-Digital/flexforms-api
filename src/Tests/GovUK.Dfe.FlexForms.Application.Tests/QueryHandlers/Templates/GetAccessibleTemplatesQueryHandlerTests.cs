@@ -99,4 +99,44 @@ public class GetAccessibleTemplatesQueryHandlerTests
         Assert.Equal(TemplateA.Value, result.Value!.First().TemplateId);
         Assert.True(result.Value!.First().IsLive);
     }
+
+    [Fact]
+    public async Task Handle_ShouldReturnMostRecentlyCreatedVersionNumber_AndNullWhenNoVersions()
+    {
+        var createdBy = new UserId(Guid.NewGuid());
+        var withVersions = new Template(TemplateA, "Alpha", DateTime.UtcNow, createdBy, isLive: true);
+        var now = DateTime.UtcNow;
+        withVersions.AddVersion(new TemplateVersion(new TemplateVersionId(Guid.NewGuid()), TemplateA, "1.0.9", "{}", now.AddDays(-2), createdBy));
+        withVersions.AddVersion(new TemplateVersion(new TemplateVersionId(Guid.NewGuid()), TemplateA, "1.0.10", "{}", now, createdBy));
+        withVersions.AddVersion(new TemplateVersion(new TemplateVersionId(Guid.NewGuid()), TemplateA, "1.0.2", "{}", now.AddDays(-5), createdBy));
+        var withoutVersions = new Template(TemplateB, "Beta", DateTime.UtcNow, createdBy, isLive: false);
+        var templates = new List<Template> { withVersions, withoutVersions }.AsQueryable().BuildMockDbSet();
+
+        var templateRepo = Substitute.For<IEaRepository<Template>>();
+        templateRepo.Query().Returns(templates);
+
+        var catalogue = Substitute.For<ITenantTemplateCatalogue>();
+        catalogue.GetTemplateIdsAsync(Arg.Any<CancellationToken>())
+            .Returns(new[] { TemplateA, TemplateB }.AsReadOnly());
+
+        var permissionChecker = Substitute.For<IPermissionCheckerService>();
+        permissionChecker.CanManageTemplates().Returns(true);
+
+        var handler = new GetAccessibleTemplatesQueryHandler(
+            templateRepo,
+            Substitute.For<IEaRepository<User>>(),
+            Substitute.For<IHttpContextAccessor>(),
+            catalogue,
+            Substitute.For<IUserAccessibleTemplateService>(),
+            permissionChecker);
+
+        var result = await handler.Handle(new GetAccessibleTemplatesQuery(), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        var alpha = Assert.Single(result.Value!, t => t.TemplateId == TemplateA.Value);
+        Assert.Equal("1.0.10", alpha.LatestVersionNumber);
+        Assert.Equal("Alpha", alpha.Name);
+        var beta = Assert.Single(result.Value!, t => t.TemplateId == TemplateB.Value);
+        Assert.Null(beta.LatestVersionNumber);
+    }
 }
