@@ -1,4 +1,6 @@
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Api.Tests.Messaging.Outbox;
+using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
 using GovUK.Dfe.FlexForms.Infrastructure.Repositories;
 using GovUK.Dfe.FlexForms.Tests.Common.Seeders;
@@ -34,6 +36,38 @@ public sealed class ApplicationRepositorySqlServerTests(SqlServerOutboxFixture s
         Assert.Equal(seededApplication, applicationId);
         Assert.Equal(new Guid(EaContextSeeder.ResponseId2), response.Id!.Value);
         Assert.Equal("Reviewed and approved", response.ResponseBody);
+    }
+
+    [Fact]
+    public async Task ContributorsQuery_ReturnsNonCreatorUsersWithAnApplicationPermission()
+    {
+        var connectionString = await sql.CreateDatabaseAsync();
+        await using var services = new ServiceCollection()
+            .AddSingleton<IConfiguration>(new ConfigurationBuilder().Build())
+            .AddDbContext<ExternalApplicationsContext>(o => o.UseSqlServer(connectionString))
+            .BuildServiceProvider();
+        await using var scope = services.CreateAsyncScope();
+        var db = scope.ServiceProvider.GetRequiredService<ExternalApplicationsContext>();
+        var applicationId = new ApplicationId(new Guid(EaContextSeeder.ApplicationId));
+        var creatorId = (await db.Applications.AsNoTracking().SingleAsync(a => a.Id == applicationId)).CreatedBy;
+
+        var expected = await db.Permissions.AsNoTracking()
+            .Where(p => p.ApplicationId == applicationId && p.ResourceType == ResourceType.Application && p.UserId != creatorId)
+            .Select(p => p.UserId)
+            .Distinct()
+            .ToListAsync();
+
+        var contributors = await new GetContributorsForApplicationQueryObject(applicationId, creatorId)
+            .Apply(db.Users.AsNoTracking())
+            .ToListAsync();
+        var detailed = await new GetContributorsForApplicationQueryObject(applicationId, creatorId, includePermissionDetails: true)
+            .Apply(db.Users.AsNoTracking())
+            .ToListAsync();
+
+        Assert.NotEmpty(expected);
+        Assert.Equal(expected.OrderBy(id => id.Value), contributors.Select(u => u.Id!).OrderBy(id => id.Value));
+        Assert.DoesNotContain(contributors, u => u.Id == creatorId);
+        Assert.All(detailed, u => Assert.Contains(u.Permissions, p => p.ApplicationId == applicationId));
     }
 
     [Fact]

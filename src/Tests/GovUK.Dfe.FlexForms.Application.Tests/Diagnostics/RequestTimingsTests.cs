@@ -40,6 +40,8 @@ public sealed class RequestTimingsTests : IDisposable
     [InlineData("UPDATE [ea].[Applications] SET [LastModifiedOn] = @p0 WHERE [ApplicationId] = @p1;", "sql UPDATE Applications")]
     [InlineData("DELETE FROM [ea].[Permissions] WHERE [PermissionId] = @p0;", "sql DELETE Permissions")]
     [InlineData("MERGE [ea].[Permissions] USING (VALUES (@p0)) AS i ([PermissionId]) ON 1=0", "sql MERGE Permissions")]
+    [InlineData("UPDATE [a] SET [a].[LastModifiedOn] = @p0 FROM [ea].[Applications] AS [a] WHERE [a].[ApplicationId] = @p1", "sql UPDATE Applications")]
+    [InlineData("SELECT [t].[Id] FROM [Templates] AS [t]", "sql SELECT Templates")]
     [InlineData("SELECT 1", "sql other")]
     public void StepName_NamesTheCommandByVerbAndFirstTable(string commandText, string expected)
     {

@@ -92,7 +92,10 @@ public sealed class GetContributorsForApplicationQueryHandler(
             // Get all contributors
             List<User> contributors;
             using (RequestTimings.Measure("contributors: load contributors"))
-                contributors = await (new GetContributorsForApplicationQueryObject(applicationId))
+                contributors = await (new GetContributorsForApplicationQueryObject(
+                        applicationId,
+                        application.CreatedBy,
+                        request.IncludePermissionDetails))
                     .Apply(userRepo.Query().AsNoTracking())
                     .ToListAsync(cancellationToken);
 

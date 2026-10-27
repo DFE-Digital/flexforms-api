@@ -1,4 +1,6 @@
 using GovUK.Dfe.FlexForms.Application.Applications.Queries;
+using GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
+using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
 using GovUK.Dfe.FlexForms.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
@@ -51,6 +53,36 @@ public sealed class ApplicationListingSqlTranslationTests(ITestOutputHelper outp
 
         Assert.Contains("NOT EXISTS", sql);
         Assert.Contains("[CreatedOn] > ", sql);
+    }
+
+    [Fact]
+    public void ContributorsQuery_ChecksOnePermissionExists_WithoutJoiningApplicationsOrLoadingPermissions()
+    {
+        var sql = new GetContributorsForApplicationQueryObject(
+                new ApplicationId(Guid.NewGuid()),
+                new UserId(Guid.NewGuid()))
+            .Apply(Db.Users.AsNoTracking())
+            .ToQueryString();
+        output.WriteLine(sql);
+
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(sql, "EXISTS"));
+        Assert.DoesNotContain("[Applications]", sql);
+        Assert.DoesNotContain("LEFT JOIN", sql);
+    }
+
+    [Fact]
+    public void ContributorsQuery_LoadsPermissionsAndRole_WhenDetailsRequested()
+    {
+        var sql = new GetContributorsForApplicationQueryObject(
+                new ApplicationId(Guid.NewGuid()),
+                new UserId(Guid.NewGuid()),
+                includePermissionDetails: true)
+            .Apply(Db.Users.AsNoTracking())
+            .ToQueryString();
+        output.WriteLine(sql);
+
+        Assert.Contains("[Permissions]", sql);
+        Assert.Contains("[Roles]", sql);
     }
 
     public void Dispose() => _services.Dispose();
