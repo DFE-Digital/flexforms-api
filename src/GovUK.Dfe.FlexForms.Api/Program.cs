@@ -368,6 +368,7 @@ namespace GovUK.Dfe.FlexForms.Api
             });
 
             app.UseCorrelationId();
+            app.UseMiddleware<RequestTimingMiddleware>();
             app.UseGlobalExceptionHandler(options =>
             {
                 options.IncludeDetails = builder.Environment.IsDevelopment();

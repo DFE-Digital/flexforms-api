@@ -96,6 +96,7 @@ namespace Microsoft.Extensions.DependencyInjection
                 options.UseSqlServer(connectionString, sql =>
                 {
                 });
+                options.AddInterceptors(RequestTimingCommandInterceptor.Instance);
             });
 
             return services;

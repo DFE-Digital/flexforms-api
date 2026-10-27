@@ -3,6 +3,7 @@ using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.FlexForms.Application.Common;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
+using GovUK.Dfe.FlexForms.Utils.Diagnostics;
 
 namespace GovUK.Dfe.FlexForms.Application.Services;
 
@@ -39,7 +40,7 @@ public sealed class UserCacheInvalidator(
             var emailListingPattern = TenantCacheKeyHelper.CreateTenantScopedKey(
                 tenantContextAccessor,
                 $"Applications_ForUser_{CacheKeyHelper.GenerateHashedCacheKey(normalizedEmail)}*");
-            await advancedRedisCacheService.RemoveByPatternAsync(emailListingPattern);
+            await RemovePatternAsync(emailListingPattern);
 
             // Drop cached OBO JWTs so the next API call re-exchanges with the current role.
             await InvalidateInternalTokensAsync(email.Trim());
@@ -59,7 +60,7 @@ public sealed class UserCacheInvalidator(
 
         // Admin/template listings are principal-scoped; clear tenant template lists so create/update
         // and permission changes are visible immediately.
-        await advancedRedisCacheService.RemoveByPatternAsync(
+        await RemovePatternAsync(
             TenantCacheKeyHelper.CreateTenantScopedKey(
                 tenantContextAccessor,
                 "Applications_ByTemplate_*"));
@@ -69,7 +70,7 @@ public sealed class UserCacheInvalidator(
             var externalIdListingPattern = TenantCacheKeyHelper.CreateTenantScopedKey(
                 tenantContextAccessor,
                 $"Applications_ForUserExternal_{CacheKeyHelper.GenerateHashedCacheKey(externalProviderId.Trim())}*");
-            await advancedRedisCacheService.RemoveByPatternAsync(externalIdListingPattern);
+            await RemovePatternAsync(externalIdListingPattern);
 
             await InvalidateInternalTokensAsync(externalProviderId.Trim());
         }
@@ -84,19 +85,19 @@ public sealed class UserCacheInvalidator(
         if (!string.IsNullOrWhiteSpace(email))
         {
             var normalizedEmail = email.Trim().ToLowerInvariant();
-            await advancedRedisCacheService.RemoveByPatternAsync(TenantCacheKeyHelper.CreateTenantScopedKey(
+            await RemovePatternAsync(TenantCacheKeyHelper.CreateTenantScopedKey(
                 tenantContextAccessor,
                 $"Applications_ForUser_{CacheKeyHelper.GenerateHashedCacheKey(normalizedEmail)}*"));
         }
 
-        await advancedRedisCacheService.RemoveByPatternAsync(
+        await RemovePatternAsync(
             TenantCacheKeyHelper.CreateTenantScopedKey(
                 tenantContextAccessor,
                 "Applications_ByTemplate_*"));
 
         if (!string.IsNullOrWhiteSpace(externalProviderId))
         {
-            await advancedRedisCacheService.RemoveByPatternAsync(TenantCacheKeyHelper.CreateTenantScopedKey(
+            await RemovePatternAsync(TenantCacheKeyHelper.CreateTenantScopedKey(
                 tenantContextAccessor,
                 $"Applications_ForUserExternal_{CacheKeyHelper.GenerateHashedCacheKey(externalProviderId.Trim())}*"));
         }
@@ -115,7 +116,7 @@ public sealed class UserCacheInvalidator(
         foreach (var suffix in patterns)
         {
             var pattern = TenantCacheKeyHelper.CreateTenantScopedKey(tenantContextAccessor, suffix);
-            await advancedRedisCacheService.RemoveByPatternAsync(pattern);
+            await RemovePatternAsync(pattern);
         }
     }
 
@@ -134,8 +135,20 @@ public sealed class UserCacheInvalidator(
         foreach (var suffix in patterns)
         {
             var pattern = TenantCacheKeyHelper.CreateTenantScopedKey(tenantContextAccessor, suffix);
-            await advancedRedisCacheService.RemoveByPatternAsync(pattern);
+            await RemovePatternAsync(pattern);
         }
+    }
+
+    private async Task RemovePatternAsync(string pattern)
+    {
+        using (RequestTimings.Measure("redis pattern removal"))
+            await advancedRedisCacheService.RemoveByPatternAsync(pattern);
+    }
+
+    private async Task RemoveKeyAsync(string key)
+    {
+        using (RequestTimings.Measure("redis key removal"))
+            await advancedRedisCacheService.RemoveAsync(key);
     }
 
     private async Task InvalidateInternalTokensAsync(string userKey)
@@ -145,17 +158,17 @@ public sealed class UserCacheInvalidator(
             ? $"t:{tenantId}:{InternalTokenKeyPrefix}{userKey}"
             : $"{InternalTokenKeyPrefix}{userKey}";
 
-        await advancedRedisCacheService.RemoveAsync(exactKey);
+        await RemoveKeyAsync(exactKey);
 
         // Also clear case variants and any legacy keys that embedded this identity.
-        await advancedRedisCacheService.RemoveByPatternAsync($"*{InternalTokenKeyPrefix}*{userKey}*");
+        await RemovePatternAsync($"*{InternalTokenKeyPrefix}*{userKey}*");
 
         if (!string.Equals(userKey, userKey.ToLowerInvariant(), StringComparison.Ordinal))
         {
             var lowerKey = tenantId.HasValue
                 ? $"t:{tenantId}:{InternalTokenKeyPrefix}{userKey.ToLowerInvariant()}"
                 : $"{InternalTokenKeyPrefix}{userKey.ToLowerInvariant()}";
-            await advancedRedisCacheService.RemoveAsync(lowerKey);
+            await RemoveKeyAsync(lowerKey);
         }
     }
 }
