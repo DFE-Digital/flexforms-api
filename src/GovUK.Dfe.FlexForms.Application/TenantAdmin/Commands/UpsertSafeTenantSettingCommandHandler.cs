@@ -93,15 +93,8 @@ public sealed class UpsertSafeTenantSettingCommandHandler(
 
         try
         {
-            var result = await settingsWriter.UpsertSettingAsync(
-                request.TenantId,
-                category,
-                target,
-                decodedSettingsJson,
-                isSecret: false,
-                cancellationToken);
-
-            // A pre-migration copy under the Web target would shadow the Shared row for the Web app.
+            // A pre-migration copy under the Web target would shadow the Shared row for the Web app,
+            // and the writer refuses to create a Shared row alongside it.
             if (!string.Equals(target, TenantSafeSettingCategories.DefaultTarget, StringComparison.OrdinalIgnoreCase))
             {
                 await settingsWriter.DeleteSettingAsync(
@@ -110,6 +103,14 @@ public sealed class UpsertSafeTenantSettingCommandHandler(
                     TenantSafeSettingCategories.DefaultTarget,
                     cancellationToken);
             }
+
+            var result = await settingsWriter.UpsertSettingAsync(
+                request.TenantId,
+                category,
+                target,
+                decodedSettingsJson,
+                isSecret: false,
+                cancellationToken);
 
             await auditWriter.AppendAsync(
                 request.TenantId,
@@ -134,6 +135,10 @@ public sealed class UpsertSafeTenantSettingCommandHandler(
         catch (KeyNotFoundException ex)
         {
             return Result<UpsertTenantSettingResponse>.NotFound(ex.Message);
+        }
+        catch (TenantSettingTargetConflictException ex)
+        {
+            return Result<UpsertTenantSettingResponse>.Validation(ex.Message);
         }
     }
 

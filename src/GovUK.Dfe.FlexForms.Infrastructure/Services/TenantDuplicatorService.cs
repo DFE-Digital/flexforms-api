@@ -190,8 +190,7 @@ public sealed class TenantDuplicatorService(
                 internalServiceAuthSecretKey,
                 serviceApiKeys);
 
-            internalAuthTargets.Add("Api");
-            internalAuthTargets.Add("Web");
+            internalAuthTargets = ResolveInternalServiceAuthTargets(internalAuthTargets);
 
             var storedInternalAuth = internalAuthIsSecret
                 ? encryptor.Encrypt(sharedInternalAuthJson)
@@ -217,6 +216,16 @@ public sealed class TenantDuplicatorService(
         ApplyDuplicatedTenantTestAuthenticationDefaults(newTenant, newTenantId, now);
         EnsureDuplicatedTenantEmptyTemplateBindings(newTenant, now);
         EnsureDuplicatedTenantLayoutServiceName(newTenant, serviceName, now);
+
+        var overlaps = TenantSettingTargetOverlap.FindOverlaps(
+            newTenant.Settings.Select(s => (s.Category, s.Target)));
+        if (overlaps.Count > 0)
+        {
+            throw new TenantSettingTargetConflictException(
+                $"Cannot duplicate tenant '{source.Name}': the new tenant would have settings under both Shared " +
+                $"and an app-specific target: {string.Join(", ", overlaps)}. Fix the source tenant so each " +
+                "category is either Shared or app-specific (Api/Web), then try again.");
+        }
 
         dbContext.Tenants.Add(newTenant);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -358,6 +367,24 @@ public sealed class TenantDuplicatorService(
         return root.ToJsonString(JsonWriteOptions);
     }
 
+    /// <summary>
+    /// Api and Web always receive the regenerated payload, unless the source keeps it under Shared,
+    /// in which case Shared alone serves both apps.
+    /// </summary>
+    internal static HashSet<string> ResolveInternalServiceAuthTargets(IEnumerable<string> sourceTargets)
+    {
+        var targets = new HashSet<string>(sourceTargets, StringComparer.OrdinalIgnoreCase);
+
+        if (targets.Any(TenantSettingTargetOverlap.IsShared))
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase) { TenantSettingTargetOverlap.SharedTarget };
+        }
+
+        targets.Add("Api");
+        targets.Add("Web");
+        return targets;
+    }
+
     internal static string GenerateSecretKey(int byteLength = 48) =>
         Convert.ToBase64String(RandomNumberGenerator.GetBytes(byteLength));
 
@@ -447,9 +474,14 @@ public sealed class TenantDuplicatorService(
         bool isSecret,
         DateTime now)
     {
+        // When the source keeps this category under Shared, overwrite that row rather than adding an
+        // app-specific sibling next to it (see TenantSettingTargetOverlap).
         var existing = tenant.Settings.FirstOrDefault(s =>
-            string.Equals(s.Category, category, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(s.Target, target, StringComparison.OrdinalIgnoreCase));
+                           string.Equals(s.Category, category, StringComparison.OrdinalIgnoreCase) &&
+                           string.Equals(s.Target, target, StringComparison.OrdinalIgnoreCase))
+                       ?? tenant.Settings.FirstOrDefault(s =>
+                           string.Equals(s.Category, category, StringComparison.OrdinalIgnoreCase) &&
+                           TenantSettingTargetOverlap.IsShared(s.Target));
 
         var stored = isSecret ? encryptor.Encrypt(plaintext) : plaintext;
 

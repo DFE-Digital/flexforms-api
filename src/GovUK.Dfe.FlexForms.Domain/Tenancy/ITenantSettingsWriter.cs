@@ -10,6 +10,8 @@ public interface ITenantSettingsWriter
     /// Inserts or updates a setting category for a tenant.
     /// If a row with the same (TenantId, Category, Target) exists it is updated; otherwise a new row is inserted.
     /// Secret settings are encrypted before storage.
+    /// Throws <see cref="TenantSettingTargetConflictException"/> when inserting would place the category
+    /// under both Shared and an app-specific target.
     /// </summary>
     Task<UpsertTenantSettingResult> UpsertSettingAsync(
         Guid tenantId,

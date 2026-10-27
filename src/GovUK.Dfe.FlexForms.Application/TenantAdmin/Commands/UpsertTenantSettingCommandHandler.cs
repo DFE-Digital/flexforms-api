@@ -92,6 +92,20 @@ public sealed class UpsertTenantSettingCommandHandler(
             string.Equals(s.Category, request.Category, StringComparison.OrdinalIgnoreCase)
             && string.Equals(s.Target, request.Target, StringComparison.OrdinalIgnoreCase));
 
+        if (existing is null && list is not null)
+        {
+            var conflicts = TenantSettingTargetOverlap.FindConflictingTargets(
+                request.Category,
+                request.Target,
+                list.Settings.Select(s => (s.Category, s.Target)));
+
+            if (conflicts.Count > 0)
+            {
+                return Result<UpsertTenantSettingResponse>.Validation(
+                    TenantSettingTargetOverlap.DescribeConflict(request.Category, request.Target, conflicts));
+            }
+        }
+
         if (IsUnauthorizedSecretFlagRemoval(existing, request.IsSecret, request.Category))
         {
             return Result<UpsertTenantSettingResponse>.Forbid(
@@ -175,6 +189,10 @@ public sealed class UpsertTenantSettingCommandHandler(
         catch (KeyNotFoundException ex)
         {
             return Result<UpsertTenantSettingResponse>.NotFound(ex.Message);
+        }
+        catch (TenantSettingTargetConflictException ex)
+        {
+            return Result<UpsertTenantSettingResponse>.Validation(ex.Message);
         }
     }
 
