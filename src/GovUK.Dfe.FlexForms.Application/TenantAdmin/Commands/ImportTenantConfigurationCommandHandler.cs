@@ -73,11 +73,19 @@ public sealed class ImportTenantConfigurationCommandHandler(
                 string.Join(" ", validationErrors));
         }
 
-        var result = await promotionService.ImportAsync(
-            request.TenantId,
-            request.Bundle,
-            ResolveActorEmail(),
-            cancellationToken);
+        ImportTenantConfigurationResultDto result;
+        try
+        {
+            result = await promotionService.ImportAsync(
+                request.TenantId,
+                request.Bundle,
+                ResolveActorEmail(),
+                cancellationToken);
+        }
+        catch (TenantSettingTargetConflictException ex)
+        {
+            return Result<ImportTenantConfigurationResultDto>.Validation(ex.Message);
+        }
 
         await tenantConfigProvider.RefreshAsync(cancellationToken);
 

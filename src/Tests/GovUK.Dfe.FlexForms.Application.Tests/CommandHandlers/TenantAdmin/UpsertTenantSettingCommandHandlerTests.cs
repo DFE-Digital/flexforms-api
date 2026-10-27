@@ -103,6 +103,28 @@ public class UpsertTenantSettingCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ShouldReject_WhenCategoryAlreadyExistsUnderShared()
+    {
+        var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        _permissionChecker.IsInteractiveTenantAdmin().Returns(true);
+        _tenantContext.CurrentTenant.Returns(CreateTenant(tenantId, "Transfers"));
+        _settingsQuery.ListSettingsAsync(tenantId, Arg.Any<CancellationToken>())
+            .Returns(new TenantSettingsList(
+                tenantId,
+                "Transfers",
+                [new TenantSettingRow(Guid.NewGuid(), "Layout", "Shared", "{}", false, DateTime.UtcNow)]));
+
+        var result = await _handler.Handle(
+            new UpsertTenantSettingCommand(tenantId, "Layout", "Api", ToBase64("{}"), false),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
+        Assert.Contains("Shared", result.Error);
+        await _writer.DidNotReceiveWithAnyArgs().UpsertSettingAsync(default, default!, default!, default!, default, default);
+    }
+
+    [Fact]
     public async Task Handle_ShouldForceSecret_WhenCategoryRequiresEncryption()
     {
         var tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");

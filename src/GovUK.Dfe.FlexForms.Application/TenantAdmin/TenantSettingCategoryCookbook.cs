@@ -121,10 +121,17 @@ public static class TenantSettingCategoryCookbook
 
         Entry(
             "FeatureManagement",
-            "Feature flags for the tenant.",
+            "Feature flags for the tenant (Microsoft.FeatureManagement format).",
             ["Api", "Web", "Shared"],
-            example: """{"MyFeature":true}""",
-            notes: ["May be an object, or a bare boolean for simple flags"],
+            example: """{"TemplateStudio":true}""",
+            notes:
+            [
+                "May be an object, or a bare boolean for simple flags",
+                "Each flag is true/false, or an object with EnabledFor feature filters",
+                "TemplateStudio (Web): shows Template Studio, its preview and the buttons that open it. Off unless set to true",
+                "Flags the tenant doesn't set fall back to the host appsettings",
+                "Takes effect on the next tenant configuration refresh"
+            ],
             requiresObject: false),
 
         Entry(

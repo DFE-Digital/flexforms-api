@@ -28,13 +28,37 @@ public class TenantSettingsWriterService(
             .FirstOrDefaultAsync(t => t.Id == tenantId, cancellationToken)
             ?? throw new KeyNotFoundException($"Tenant '{tenantId}' not found.");
 
-        var jsonToStore = isSecret ? encryptor.Encrypt(settingsJson) : settingsJson;
-
         var existing = await dbContext.TenantSettings
             .FirstOrDefaultAsync(s =>
                 s.TenantId == tenantId &&
                 s.Category == category &&
                 s.Target == target, cancellationToken);
+
+        if (existing is null)
+        {
+            var siblingTargets = await dbContext.TenantSettings
+                .AsNoTracking()
+                .Where(s => s.TenantId == tenantId && s.Category == category)
+                .Select(s => s.Target)
+                .ToListAsync(cancellationToken);
+
+            var conflicts = TenantSettingTargetOverlap.FindConflictingTargets(
+                category,
+                target,
+                siblingTargets.Select(t => (category, t)));
+
+            if (conflicts.Count > 0)
+            {
+                logger.LogWarning(
+                    "Rejected setting '{Category}' (Target={Target}) for tenant '{TenantName}' ({TenantId}): already exists under {ConflictingTargets}.",
+                    category, target, tenant.Name, tenantId, string.Join(", ", conflicts));
+
+                throw new TenantSettingTargetConflictException(
+                    TenantSettingTargetOverlap.DescribeConflict(category, target, conflicts));
+            }
+        }
+
+        var jsonToStore = isSecret ? encryptor.Encrypt(settingsJson) : settingsJson;
 
         bool wasCreated;
 

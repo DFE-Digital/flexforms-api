@@ -56,6 +56,8 @@ public sealed class TenantConfigurationPromotionService(
         var applied = 0;
         var skipped = 0;
 
+        await EnsureNoTargetOverlapsAsync(tenantId, bundle, cancellationToken);
+
         foreach (var item in bundle.Settings)
         {
             if (bundle.SkipSecretPlaceholders
@@ -89,6 +91,30 @@ public sealed class TenantConfigurationPromotionService(
         }
 
         return new ImportTenantConfigurationResultDto(applied, skipped, messages);
+    }
+
+    /// <summary>
+    /// Checked up front so a rejected bundle is not left half-applied.
+    /// </summary>
+    private async Task EnsureNoTargetOverlapsAsync(
+        Guid tenantId,
+        ImportTenantConfigurationDto bundle,
+        CancellationToken cancellationToken)
+    {
+        var existing = await settingsQuery.ListSettingsAsync(tenantId, cancellationToken);
+
+        var resulting = (existing?.Settings.Select(s => (s.Category, s.Target)) ?? [])
+            .Concat(bundle.Settings
+                .Where(item => !(bundle.SkipSecretPlaceholders && IsSecretPlaceholderJson(item.SettingsJson)))
+                .Select(item => (item.Category, item.Target)));
+
+        var overlaps = TenantSettingTargetOverlap.FindOverlaps(resulting);
+        if (overlaps.Count > 0)
+        {
+            throw new TenantSettingTargetConflictException(
+                "Import would leave settings under both Shared and an app-specific target: " +
+                $"{string.Join(", ", overlaps)}. A category must be either Shared or app-specific (Api/Web), not both.");
+        }
     }
 
     private static bool IsSecretPlaceholderJson(string json)
