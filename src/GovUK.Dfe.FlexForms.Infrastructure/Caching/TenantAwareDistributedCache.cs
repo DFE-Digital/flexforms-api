@@ -39,11 +39,14 @@ public class TenantAwareDistributedCache(
                 $"Cannot prefix cache key '{key}' because no tenant is on the current context.");
         }
 
-        if (key.StartsWith($"{TenantKeyPrefix}:", StringComparison.Ordinal)
-            && key.Length >= 39
-            && key[38] == ':'
-            && Guid.TryParse(key.AsSpan(2, 36), out _))
+        if (TryGetPrefixedTenantId(key, out var prefixedTenantId))
         {
+            if (prefixedTenantId != tenant.Id)
+            {
+                throw new InvalidOperationException(
+                    $"Cache key is scoped to tenant {prefixedTenantId}, not the current tenant {tenant.Id}.");
+            }
+
             return key;
         }
 
@@ -54,6 +57,17 @@ public class TenantAwareDistributedCache(
             ">>>>>>>>>> CACHE >>> Tenant prefix applied. Original: '{OriginalKey}', Prefixed: '{PrefixedKey}', TenantId: {TenantId}",
             key, prefixedKey, tenant.Id);
         return prefixedKey;
+    }
+
+    private static bool TryGetPrefixedTenantId(string key, out Guid tenantId)
+    {
+        const int guidLength = 36;
+        const int prefixLength = 2 + guidLength + 1;
+        tenantId = default;
+        return key.Length >= prefixLength
+               && key.StartsWith($"{TenantKeyPrefix}:", StringComparison.Ordinal)
+               && key[38] == ':'
+               && Guid.TryParse(key.AsSpan(2, guidLength), out tenantId);
     }
 
     /// <inheritdoc />

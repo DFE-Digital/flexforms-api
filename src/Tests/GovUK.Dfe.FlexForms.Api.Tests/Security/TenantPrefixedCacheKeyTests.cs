@@ -30,4 +30,18 @@ public class TenantPrefixedCacheKeyTests
 
         Assert.Equal(existing, TenantPrefixedCacheKey.Create(tenantId, existing));
     }
+
+    [Fact]
+    public void Create_ShouldThrow_WhenPrefixedForADifferentTenant()
+    {
+        var tenantId = Guid.NewGuid();
+        var otherTenantId = Guid.NewGuid();
+        var foreignKey = $"t:{otherTenantId}:obo_token_user";
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => TenantPrefixedCacheKey.Create(tenantId, foreignKey));
+
+        Assert.Contains(otherTenantId.ToString(), ex.Message);
+        Assert.Contains(tenantId.ToString(), ex.Message);
+    }
 }

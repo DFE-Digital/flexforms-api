@@ -133,6 +133,32 @@ public class SubmitUserFeedbackHandlerTests
     }
 
     [Theory]
+    [InlineData(typeof(BugReport))]
+    [InlineData(typeof(SupportRequest))]
+    public async Task Handle_does_not_send_user_message_when_caller_is_service_principal(Type userFeedbackType)
+    {
+        var supportEmailAddress = $"{_fixture.Create<string>()}@education.gov.uk";
+        SetupTenantContextWithSupportEmail(supportEmailAddress);
+        SetServicePrincipal();
+
+        var userEmailAddress = $"{_fixture.Create<string>()}@{_fixture.Create<string>()}.co.uk";
+        var eaTemplateId = _fixture.Create<TemplateId>();
+        var emailTemplateId = _fixture.Create<string>();
+        _emailTemplateResolver.ResolveEmailTemplateAsync(eaTemplateId, Arg.Any<string>()).Returns(emailTemplateId);
+
+        RegisterUserFeedbackRequests(eaTemplateId, userEmailAddress);
+        var request = (UserFeedbackRequest)_fixture.Create(userFeedbackType, new SpecimenContext(_fixture));
+        var cancellationToken = _fixture.Create<CancellationToken>();
+
+        var result = await _handler.Handle(new SubmitUserFeedbackCommand(request), cancellationToken);
+
+        Assert.True(result.IsSuccess);
+        await _emailService.DidNotReceive().SendEmailAsync(
+            Arg.Is<EmailMessage>(e => e.ToEmail == userEmailAddress),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
     [InlineData(typeof(BugReport), $"{nameof(BugReport)}User")]
     [InlineData(typeof(FeedbackOrSuggestion), $"{nameof(FeedbackOrSuggestion)}User")]
     public async Task Handle_does_not_send_user_message_if_email_address_is_not_provided(Type userFeedbackType,
@@ -232,6 +258,17 @@ public class SubmitUserFeedbackHandlerTests
             User = new ClaimsPrincipal(new ClaimsIdentity(
                 [new Claim(ClaimTypes.Email, "user@education.gov.uk")],
                 authenticationType: "Cookies"))
+        };
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+    }
+
+    private void SetServicePrincipal()
+    {
+        var httpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(TenantAuthClaimTypes.IsService, "true")],
+                authenticationType: "Bearer"))
         };
         _httpContextAccessor.HttpContext.Returns(httpContext);
     }

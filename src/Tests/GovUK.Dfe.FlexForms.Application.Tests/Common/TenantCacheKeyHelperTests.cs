@@ -61,6 +61,27 @@ public class TenantCacheKeyHelperTests
     }
 
     [Fact]
+    public void CreateTenantScopedKey_ShouldThrow_WhenPrefixedForADifferentTenant()
+    {
+        var currentTenantId = Guid.NewGuid();
+        var otherTenantId = Guid.NewGuid();
+        var tenantConfig = new TenantConfiguration(
+            currentTenantId, "TestTenant",
+            new ConfigurationBuilder().Build(),
+            Array.Empty<string>());
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        accessor.CurrentTenant.Returns(tenantConfig);
+
+        var foreignKey = $"t:{otherTenantId}:MyKey";
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => TenantCacheKeyHelper.CreateTenantScopedKey(accessor, foreignKey));
+
+        Assert.Contains(otherTenantId.ToString(), ex.Message);
+        Assert.Contains(currentTenantId.ToString(), ex.Message);
+    }
+
+    [Fact]
     public void CreateTenantScopedKey_ShouldProduceDifferentKeys_ForDifferentTenants()
     {
         // Arrange

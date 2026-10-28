@@ -10,6 +10,7 @@ using MediatR;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using System;
 
@@ -53,14 +54,16 @@ public sealed class SubmitUserFeedbackCommandHandler(
             _ => null
         };
 
+        var user = httpContextAccessor.HttpContext?.User;
         if (userEmailAddress is not null
-            && httpContextAccessor.HttpContext?.User.Identity?.IsAuthenticated == true)
+            && user?.Identity?.IsAuthenticated == true
+            && !PermissionClaimEvaluator.IsServicePrincipal(user))
         {
             await SendUserEmail(templateId, request.Request, userEmailAddress, cancellationToken);
         }
         else if (userEmailAddress is not null)
         {
-            logger.LogInformation("Skipping user confirmation email for anonymous feedback.");
+            logger.LogInformation("Skipping user confirmation email for anonymous or service-principal feedback.");
         }
 
         return Result<bool>.Success(true);

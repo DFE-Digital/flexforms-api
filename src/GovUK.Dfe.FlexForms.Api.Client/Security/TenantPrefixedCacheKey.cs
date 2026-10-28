@@ -22,19 +22,28 @@ public static class TenantPrefixedCacheKey
                 "Cannot create a tenant-scoped cache key because ApiClientSettings.TenantId is not set.");
         }
 
-        if (IsAlreadyPrefixed(key))
+        if (TryGetPrefixedTenantId(key, out var prefixedTenantId))
+        {
+            if (prefixedTenantId != tenantId.Value)
+            {
+                throw new InvalidOperationException(
+                    $"Cache key is scoped to tenant {prefixedTenantId}, not the current tenant {tenantId.Value}.");
+            }
+
             return key;
+        }
 
         return $"t:{tenantId}:{key}";
     }
 
-    internal static bool IsAlreadyPrefixed(string key)
+    internal static bool TryGetPrefixedTenantId(string key, out Guid tenantId)
     {
         const int guidLength = 36;
         const int prefixLength = 2 + guidLength + 1;
+        tenantId = default;
         return key.Length >= prefixLength
                && key.StartsWith("t:", StringComparison.Ordinal)
                && key[38] == ':'
-               && Guid.TryParse(key.AsSpan(2, guidLength), out _);
+               && Guid.TryParse(key.AsSpan(2, guidLength), out tenantId);
     }
 }
