@@ -1,9 +1,11 @@
 using GovUK.Dfe.FlexForms.Api.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using Microsoft.AspNetCore.Cors.Infrastructure;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using Xunit;
@@ -12,10 +14,12 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Tenancy;
 
 public class TenantCorsPolicyProviderTests
 {
-    private TenantCorsPolicyProvider CreateProvider()
+    private TenantCorsPolicyProvider CreateProvider(string environmentName = "Production")
     {
         var options = Options.Create(new CorsOptions());
-        return new TenantCorsPolicyProvider(options);
+        var environment = Substitute.For<IWebHostEnvironment>();
+        environment.EnvironmentName.Returns(environmentName);
+        return new TenantCorsPolicyProvider(options, environment);
     }
 
     private DefaultHttpContext CreateHttpContext(TenantConfiguration? tenant)
@@ -82,6 +86,24 @@ public class TenantCorsPolicyProviderTests
 
         // Assert
         Assert.Null(policy);
+    }
+
+    [Fact]
+    public async Task GetPolicyAsync_ShouldNotAllowOriginRegisteredToAnotherTenant()
+    {
+        var tenantB = new TenantConfiguration(
+            Guid.NewGuid(), "TenantB",
+            new ConfigurationBuilder().Build(),
+            ["https://b.example.com"]);
+
+        var context = CreateHttpContext(tenantB);
+        context.Request.Headers.Origin = "https://a.example.com";
+
+        var policy = await CreateProvider().GetPolicyAsync(context, "Frontend");
+
+        Assert.NotNull(policy);
+        Assert.DoesNotContain("https://a.example.com", policy!.Origins);
+        Assert.Contains("https://b.example.com", policy.Origins);
     }
 
     [Fact]

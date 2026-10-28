@@ -35,12 +35,15 @@ public class TenantAwareDistributedCache(
         
         if (tenant == null)
         {
-            _logger.LogWarning(
-                ">>>>>>>>>> CACHE >>> No tenant context available when accessing cache key '{Key}'. " +
-                "Using unprefixed key. TenantContextAccessor type: {Type}, HashCode: {HashCode}",
-                key,
-                _tenantContextAccessor.GetType().FullName,
-                _tenantContextAccessor.GetHashCode());
+            throw new InvalidOperationException(
+                $"Cannot prefix cache key '{key}' because no tenant is on the current context.");
+        }
+
+        if (key.StartsWith($"{TenantKeyPrefix}:", StringComparison.Ordinal)
+            && key.Length >= 39
+            && key[38] == ':'
+            && Guid.TryParse(key.AsSpan(2, 36), out _))
+        {
             return key;
         }
 

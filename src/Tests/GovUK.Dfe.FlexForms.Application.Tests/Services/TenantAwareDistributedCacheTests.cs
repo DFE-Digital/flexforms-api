@@ -45,16 +45,11 @@ public class TenantAwareDistributedCacheTests
     }
 
     [Fact]
-    public void GetTenantPrefixedKey_ShouldReturnUnprefixed_WhenNoTenantContext()
+    public void GetTenantPrefixedKey_ShouldThrow_WhenNoTenantContext()
     {
-        // Arrange
         _tenantContextAccessor.CurrentTenant.Returns((TenantConfiguration?)null);
 
-        // Act
-        var result = _cache.GetTenantPrefixedKey("myKey");
-
-        // Assert
-        Assert.Equal("myKey", result);
+        Assert.Throws<InvalidOperationException>(() => _cache.GetTenantPrefixedKey("myKey"));
     }
 
     [Fact]

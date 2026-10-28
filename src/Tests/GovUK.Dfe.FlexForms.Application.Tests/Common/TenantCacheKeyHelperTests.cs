@@ -27,27 +27,37 @@ public class TenantCacheKeyHelperTests
     }
 
     [Fact]
-    public void CreateTenantScopedKey_ShouldReturnBaseKey_WhenNoTenantContext()
+    public void CreateTenantScopedKey_ShouldThrow_WhenNoTenantContext()
     {
-        // Arrange
         var accessor = Substitute.For<ITenantContextAccessor>();
         accessor.CurrentTenant.Returns((TenantConfiguration?)null);
 
-        // Act
-        var result = TenantCacheKeyHelper.CreateTenantScopedKey(accessor, "MyKey");
-
-        // Assert
-        Assert.Equal("MyKey", result);
+        Assert.Throws<InvalidOperationException>(
+            () => TenantCacheKeyHelper.CreateTenantScopedKey(accessor, "MyKey"));
     }
 
     [Fact]
-    public void CreateTenantScopedKey_ShouldReturnBaseKey_WhenAccessorIsNull()
+    public void CreateTenantScopedKey_ShouldThrow_WhenAccessorIsNull()
     {
-        // Act
-        var result = TenantCacheKeyHelper.CreateTenantScopedKey(null, "MyKey");
+        Assert.Throws<InvalidOperationException>(
+            () => TenantCacheKeyHelper.CreateTenantScopedKey(null, "MyKey"));
+    }
 
-        // Assert
-        Assert.Equal("MyKey", result);
+    [Fact]
+    public void CreateTenantScopedKey_ShouldNotDoublePrefix_WhenKeyAlreadyTenantScoped()
+    {
+        var tenantId = Guid.NewGuid();
+        var tenantConfig = new TenantConfiguration(
+            tenantId, "TestTenant",
+            new ConfigurationBuilder().Build(),
+            Array.Empty<string>());
+        var accessor = Substitute.For<ITenantContextAccessor>();
+        accessor.CurrentTenant.Returns(tenantConfig);
+        var existing = $"t:{tenantId}:MyKey";
+
+        var result = TenantCacheKeyHelper.CreateTenantScopedKey(accessor, existing);
+
+        Assert.Equal(existing, result);
     }
 
     [Fact]

@@ -1,5 +1,6 @@
 using System.Diagnostics.CodeAnalysis;
 using Asp.Versioning;
+using GovUK.Dfe.FlexForms.Infrastructure.Security;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Reflection;
@@ -13,7 +14,7 @@ namespace GovUK.Dfe.FlexForms.Api.Controllers;
 public class DiagnosticsController(IHostEnvironment env) : ControllerBase
 {
     [HttpGet]
-    [Authorize]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
     public IActionResult Get()
     {
         var asm = typeof(Program).Assembly;

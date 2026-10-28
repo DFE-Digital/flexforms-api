@@ -12,6 +12,8 @@ public class HostConfigurationReaderTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["GlobalConfiguration:ApplicationInsights:ConnectionString"] = "InstrumentationKey=test",
+                ["GlobalConfiguration:Email:GovUkNotify:ApiKey"] = "must-not-export",
+                ["GlobalConfiguration:Email:GovUkNotify:BaseUrl"] = "https://api.notifications.service.gov.uk",
                 ["ConnectionStrings:Redis"] = "localhost:6379",
                 ["ConnectionStrings:TenantConfigDatabase"] = "must-not-export",
                 ["ConnectionStrings:ServiceBus"] = "must-not-export",
@@ -25,6 +27,8 @@ public class HostConfigurationReaderTests
 
         Assert.Equal("Web", snapshot.Target);
         Assert.Equal("InstrumentationKey=test", snapshot.Configuration["ApplicationInsights:ConnectionString"]);
+        Assert.Equal("https://api.notifications.service.gov.uk", snapshot.Configuration["Email:GovUkNotify:BaseUrl"]);
+        Assert.False(snapshot.Configuration.ContainsKey("Email:GovUkNotify:ApiKey"));
         Assert.Equal("localhost:6379", snapshot.Configuration["ConnectionStrings:Redis"]);
         Assert.Equal("Information", snapshot.Configuration["LogLevel:Default"]);
         Assert.False(snapshot.Configuration.ContainsKey("ConnectionStrings:TenantConfigDatabase"));

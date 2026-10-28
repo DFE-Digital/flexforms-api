@@ -5843,7 +5843,7 @@
         "tags": [
           "TenantConfig"
         ],
-        "summary": "Returns merged configuration for the specified tenant. For platform callers (shared Web container)\nthat resolve the tenant from the request hostname or X-Tenant-ID.",
+        "summary": "Returns merged configuration for the specified tenant. For platform callers (shared Web container)\nthat resolve the tenant from the request hostname or X-Tenant-ID.\nOnly target=Web is accepted, and connection strings are never returned.",
         "operationId": "TenantConfig_GetTenantConfigurationByTenantId",
         "parameters": [
           {

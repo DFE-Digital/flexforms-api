@@ -30,14 +30,7 @@ public class CachedInternalUserTokenStore(
     /// Format: t:{tenantId}:{key}
     /// </summary>
     private string GetTenantPrefixedKey(string key)
-    {
-        var tenantId = settingsProvider.GetSettings().TenantId;
-        if (tenantId.HasValue)
-        {
-            return $"t:{tenantId}:{key}";
-        }
-        return key;
-    }
+        => TenantPrefixedCacheKey.Create(settingsProvider.GetSettings().TenantId, key);
     /// <summary>
     /// Unified expiry buffer - consistent with TokenExpiryService
     /// </summary>
