@@ -7,8 +7,10 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Email.Interfaces;
 using GovUK.Dfe.CoreLibs.Email.Models;
 using MediatR;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using System;
 
@@ -22,7 +24,8 @@ public sealed class SubmitUserFeedbackCommandHandler(
     ILogger<SubmitUserFeedbackCommandHandler> logger,
     ITenantContextAccessor tenantContextAccessor,
     IEmailTemplateResolver emailTemplateResolver,
-    IEmailService emailService) : IRequestHandler<SubmitUserFeedbackCommand, Result<bool>>
+    IEmailService emailService,
+    IHttpContextAccessor httpContextAccessor) : IRequestHandler<SubmitUserFeedbackCommand, Result<bool>>
 {
     private const string ServiceSupportEmailAddressConfigurationKey = "Email:ServiceSupportEmailAddress";
 
@@ -51,9 +54,16 @@ public sealed class SubmitUserFeedbackCommandHandler(
             _ => null
         };
 
-        if (userEmailAddress is not null)
+        var user = httpContextAccessor.HttpContext?.User;
+        if (userEmailAddress is not null
+            && user?.Identity?.IsAuthenticated == true
+            && !PermissionClaimEvaluator.IsServicePrincipal(user))
         {
             await SendUserEmail(templateId, request.Request, userEmailAddress, cancellationToken);
+        }
+        else if (userEmailAddress is not null)
+        {
+            logger.LogInformation("Skipping user confirmation email for anonymous or service-principal feedback.");
         }
 
         return Result<bool>.Success(true);

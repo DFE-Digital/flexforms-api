@@ -11198,6 +11198,7 @@ namespace GovUK.Dfe.FlexForms.Api.Client
         /// <summary>
         /// Returns merged configuration for the specified tenant. For platform callers (shared Web container)
         /// <br/>that resolve the tenant from the request hostname or X-Tenant-ID.
+        /// <br/>Only target=Web is accepted, and connection strings are never returned.
         /// </summary>
         /// <returns>Tenant configuration.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>

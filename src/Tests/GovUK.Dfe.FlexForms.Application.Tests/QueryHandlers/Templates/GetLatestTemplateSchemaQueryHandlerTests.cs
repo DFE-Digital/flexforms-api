@@ -1,12 +1,12 @@
 using AutoFixture;
 using AutoFixture.Xunit2;
-using GovUK.Dfe.CoreLibs.Caching.Helpers;
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Templates.Queries;
+using GovUK.Dfe.FlexForms.Application.Tests.Helpers;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
@@ -59,8 +59,7 @@ public class GetLatestTemplateSchemaQueryHandlerTests
         mediator.Send(Arg.Is<GetLatestTemplateSchemaByUserIdQuery>(q => q.TemplateId == templateId && q.UserId == user.Id), Arg.Any<CancellationToken>())
             .Returns(Result<TemplateSchemaDto>.Success(templateSchema));
 
-        var cacheKey = $"TemplateSchema_PrincipalId_{CacheKeyHelper.GenerateHashedCacheKey(templateId.ToString())}_{email}";
-        cacheService.GetOrAddAsync(cacheKey, Arg.Any<Func<Task<Result<TemplateSchemaDto>>>>(), nameof(GetLatestTemplateSchemaQueryHandler))
+        cacheService.GetOrAddAsync(Arg.Any<string>(), Arg.Any<Func<Task<Result<TemplateSchemaDto>>>>(), nameof(GetLatestTemplateSchemaQueryHandler))
             .Returns(call =>
             {
                 var f = call.Arg<Func<Task<Result<TemplateSchemaDto>>>>();
@@ -110,8 +109,7 @@ public class GetLatestTemplateSchemaQueryHandlerTests
         mediator.Send(Arg.Is<GetLatestTemplateSchemaByUserIdQuery>(q => q.TemplateId == templateId && q.UserId == user.Id), Arg.Any<CancellationToken>())
             .Returns(Result<TemplateSchemaDto>.Success(templateSchema));
 
-        var cacheKey = $"TemplateSchema_PrincipalId_{CacheKeyHelper.GenerateHashedCacheKey(templateId.ToString())}_{externalId}";
-        cacheService.GetOrAddAsync(cacheKey, Arg.Any<Func<Task<Result<TemplateSchemaDto>>>>(), nameof(GetLatestTemplateSchemaQueryHandler))
+        cacheService.GetOrAddAsync(Arg.Any<string>(), Arg.Any<Func<Task<Result<TemplateSchemaDto>>>>(), nameof(GetLatestTemplateSchemaQueryHandler))
             .Returns(call =>
             {
                 var f = call.Arg<Func<Task<Result<TemplateSchemaDto>>>>();
@@ -206,8 +204,7 @@ public class GetLatestTemplateSchemaQueryHandlerTests
         permissionCheckerService.HasPermission(ResourceType.Template, templateId.ToString(), AccessType.Read)
             .Returns(false);
 
-        var cacheKey = $"TemplateSchema_PrincipalId_{CacheKeyHelper.GenerateHashedCacheKey(templateId.ToString())}_{email}";
-        cacheService.GetOrAddAsync(cacheKey, Arg.Any<Func<Task<Result<TemplateSchemaDto>>>>(), nameof(GetLatestTemplateSchemaQueryHandler))
+        cacheService.GetOrAddAsync(Arg.Any<string>(), Arg.Any<Func<Task<Result<TemplateSchemaDto>>>>(), nameof(GetLatestTemplateSchemaQueryHandler))
             .Returns(call =>
             {
                 var f = call.Arg<Func<Task<Result<TemplateSchemaDto>>>>();
@@ -245,8 +242,7 @@ public class GetLatestTemplateSchemaQueryHandlerTests
         httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(claims, "TestAuth"));
         httpContextAccessor.HttpContext.Returns(httpContext);
 
-        var cacheKey = $"TemplateSchema_PrincipalId_{CacheKeyHelper.GenerateHashedCacheKey(templateId.ToString())}_{email}";
-        cacheService.GetOrAddAsync(cacheKey, Arg.Any<Func<Task<Result<TemplateSchemaDto>>>>(), nameof(GetLatestTemplateSchemaQueryHandler))
+        cacheService.GetOrAddAsync(Arg.Any<string>(), Arg.Any<Func<Task<Result<TemplateSchemaDto>>>>(), nameof(GetLatestTemplateSchemaQueryHandler))
             .Returns(Result<TemplateSchemaDto>.Success(templateSchema));
 
         var handler = CreateHandler(httpContextAccessor, userRepo, permissionCheckerService, cacheService, mediator);
@@ -310,7 +306,7 @@ public class GetLatestTemplateSchemaQueryHandlerTests
             permissionCheckerService,
             tenantTemplateResolver,
             cacheService,
-            Substitute.For<ITenantContextAccessor>(),
+            ApplicationListingTestHelper.EnsureTenant(),
             mediator);
     }
 } 

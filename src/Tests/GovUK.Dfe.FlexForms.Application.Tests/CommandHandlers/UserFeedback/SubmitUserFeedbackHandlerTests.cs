@@ -9,9 +9,11 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Email.Interfaces;
 using GovUK.Dfe.CoreLibs.Email.Models;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
+using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
+using System.Security.Claims;
 using System.Collections.Generic;
 
 namespace GovUK.Dfe.FlexForms.Application.Tests.CommandHandlers.UserFeedback;
@@ -23,6 +25,7 @@ public class SubmitUserFeedbackHandlerTests
     private readonly ITenantContextAccessor _tenantContextAccessor;
     private readonly IEmailTemplateResolver _emailTemplateResolver;
     private readonly IEmailService _emailService;
+    private readonly IHttpContextAccessor _httpContextAccessor;
 
     private readonly SubmitUserFeedbackCommandHandler _handler;
 
@@ -43,8 +46,11 @@ public class SubmitUserFeedbackHandlerTests
 
         _fixture.Register(() => _fixture.Build<EmailResponse>().Without(r => r.RecipientResponses).Create());
 
+        _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
         _handler = new SubmitUserFeedbackCommandHandler(logger, _tenantContextAccessor, _emailTemplateResolver,
-            _emailService);
+            _emailService, _httpContextAccessor);
     }
 
     [Theory]
@@ -106,6 +112,7 @@ public class SubmitUserFeedbackHandlerTests
     [InlineData(typeof(SupportRequest), $"{nameof(SupportRequest)}User")]
     public async Task Handle_sends_message_to_user_provided_email_address(Type userFeedbackType, string emailType)
     {
+        SetAuthenticatedUser();
         var userEmailAddress = $"{_fixture.Create<string>()}@{_fixture.Create<string>()}.co.uk";
 
         var eaTemplateId = _fixture.Create<TemplateId>();
@@ -123,6 +130,32 @@ public class SubmitUserFeedbackHandlerTests
         await _emailTemplateResolver.Received().ResolveEmailTemplateAsync(eaTemplateId, emailType);
         var expectedEmail = GetExpectedEmail(request, userEmailAddress, emailTemplateId);
         await _emailService.Received().SendEmailAsync(Arg.Is(MatchFor(expectedEmail)), cancellationToken);
+    }
+
+    [Theory]
+    [InlineData(typeof(BugReport))]
+    [InlineData(typeof(SupportRequest))]
+    public async Task Handle_does_not_send_user_message_when_caller_is_service_principal(Type userFeedbackType)
+    {
+        var supportEmailAddress = $"{_fixture.Create<string>()}@education.gov.uk";
+        SetupTenantContextWithSupportEmail(supportEmailAddress);
+        SetServicePrincipal();
+
+        var userEmailAddress = $"{_fixture.Create<string>()}@{_fixture.Create<string>()}.co.uk";
+        var eaTemplateId = _fixture.Create<TemplateId>();
+        var emailTemplateId = _fixture.Create<string>();
+        _emailTemplateResolver.ResolveEmailTemplateAsync(eaTemplateId, Arg.Any<string>()).Returns(emailTemplateId);
+
+        RegisterUserFeedbackRequests(eaTemplateId, userEmailAddress);
+        var request = (UserFeedbackRequest)_fixture.Create(userFeedbackType, new SpecimenContext(_fixture));
+        var cancellationToken = _fixture.Create<CancellationToken>();
+
+        var result = await _handler.Handle(new SubmitUserFeedbackCommand(request), cancellationToken);
+
+        Assert.True(result.IsSuccess);
+        await _emailService.DidNotReceive().SendEmailAsync(
+            Arg.Is<EmailMessage>(e => e.ToEmail == userEmailAddress),
+            Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -217,6 +250,28 @@ public class SubmitUserFeedbackHandlerTests
         SatisfactionScore.VeryDissatisfied => "Very dissatisfied",
         _ => throw new ArgumentOutOfRangeException(nameof(score), score, null)
     };
+
+    private void SetAuthenticatedUser()
+    {
+        var httpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Email, "user@education.gov.uk")],
+                authenticationType: "Cookies"))
+        };
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+    }
+
+    private void SetServicePrincipal()
+    {
+        var httpContext = new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(TenantAuthClaimTypes.IsService, "true")],
+                authenticationType: "Bearer"))
+        };
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+    }
 
     private void SetupTenantContextWithSupportEmail(string? supportEmailAddress)
     {

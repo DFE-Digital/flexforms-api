@@ -6,6 +6,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Application.Tests.Helpers;
 using GovUK.Dfe.FlexForms.Application.Users.Queries;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
@@ -116,7 +117,7 @@ public class GetAllUserPermissionsQueryHandlerTests
         var handler = new GetAllUserPermissionsQueryHandler(
             userRepo,
             cacheService,
-            tenantContextAccessor,
+            ApplicationListingTestHelper.EnsureTenant(tenantContextAccessor),
             CreateActiveMembershipService(),
             CreateRolePermissionService(),
             CreateTenantPermissionFilter());
@@ -170,7 +171,7 @@ public class GetAllUserPermissionsQueryHandlerTests
         var handler = new GetAllUserPermissionsQueryHandler(
             userRepo,
             cacheService,
-            tenantContextAccessor,
+            ApplicationListingTestHelper.EnsureTenant(tenantContextAccessor),
             CreateActiveMembershipService(),
             CreateRolePermissionService(),
             CreateTenantPermissionFilter());
@@ -209,7 +210,7 @@ public class GetAllUserPermissionsQueryHandlerTests
         var handler = new GetAllUserPermissionsQueryHandler(
             userRepo,
             cacheService,
-            tenantContextAccessor,
+            ApplicationListingTestHelper.EnsureTenant(tenantContextAccessor),
             CreateActiveMembershipService(),
             CreateRolePermissionService(),
             CreateTenantPermissionFilter());
@@ -241,7 +242,7 @@ public class GetAllUserPermissionsQueryHandlerTests
         var handler = new GetAllUserPermissionsQueryHandler(
             userRepo,
             cacheService,
-            tenantContextAccessor,
+            ApplicationListingTestHelper.EnsureTenant(tenantContextAccessor),
             CreateActiveMembershipService(),
             CreateRolePermissionService(),
             CreateTenantPermissionFilter());

@@ -35,12 +35,18 @@ public class TenantAwareDistributedCache(
         
         if (tenant == null)
         {
-            _logger.LogWarning(
-                ">>>>>>>>>> CACHE >>> No tenant context available when accessing cache key '{Key}'. " +
-                "Using unprefixed key. TenantContextAccessor type: {Type}, HashCode: {HashCode}",
-                key,
-                _tenantContextAccessor.GetType().FullName,
-                _tenantContextAccessor.GetHashCode());
+            throw new InvalidOperationException(
+                $"Cannot prefix cache key '{key}' because no tenant is on the current context.");
+        }
+
+        if (TryGetPrefixedTenantId(key, out var prefixedTenantId))
+        {
+            if (prefixedTenantId != tenant.Id)
+            {
+                throw new InvalidOperationException(
+                    $"Cache key is scoped to tenant {prefixedTenantId}, not the current tenant {tenant.Id}.");
+            }
+
             return key;
         }
 
@@ -51,6 +57,17 @@ public class TenantAwareDistributedCache(
             ">>>>>>>>>> CACHE >>> Tenant prefix applied. Original: '{OriginalKey}', Prefixed: '{PrefixedKey}', TenantId: {TenantId}",
             key, prefixedKey, tenant.Id);
         return prefixedKey;
+    }
+
+    private static bool TryGetPrefixedTenantId(string key, out Guid tenantId)
+    {
+        const int guidLength = 36;
+        const int prefixLength = 2 + guidLength + 1;
+        tenantId = default;
+        return key.Length >= prefixLength
+               && key.StartsWith($"{TenantKeyPrefix}:", StringComparison.Ordinal)
+               && key[38] == ':'
+               && Guid.TryParse(key.AsSpan(2, guidLength), out tenantId);
     }
 
     /// <inheritdoc />

@@ -61,6 +61,7 @@ public class TenantConfigController(ISender sender) : ControllerBase
     /// <summary>
     /// Returns merged configuration for the specified tenant. For platform callers (shared Web container)
     /// that resolve the tenant from the request hostname or <c>X-Tenant-ID</c>.
+    /// Only <c>target=Web</c> is accepted, and connection strings are never returned.
     /// </summary>
     [HttpGet("tenants/{tenantId:guid}")]
     [Authorize(Policy = PlatformConstants.PlatformTenantConfigPolicy)]

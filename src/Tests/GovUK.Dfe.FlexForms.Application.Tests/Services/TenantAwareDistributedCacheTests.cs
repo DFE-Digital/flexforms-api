@@ -45,16 +45,37 @@ public class TenantAwareDistributedCacheTests
     }
 
     [Fact]
-    public void GetTenantPrefixedKey_ShouldReturnUnprefixed_WhenNoTenantContext()
+    public void GetTenantPrefixedKey_ShouldThrow_WhenNoTenantContext()
     {
-        // Arrange
         _tenantContextAccessor.CurrentTenant.Returns((TenantConfiguration?)null);
 
-        // Act
-        var result = _cache.GetTenantPrefixedKey("myKey");
+        Assert.Throws<InvalidOperationException>(() => _cache.GetTenantPrefixedKey("myKey"));
+    }
 
-        // Assert
-        Assert.Equal("myKey", result);
+    [Fact]
+    public void GetTenantPrefixedKey_ShouldNotDoublePrefix_WhenSameTenant()
+    {
+        var tenantId = Guid.NewGuid();
+        _tenantContextAccessor.CurrentTenant.Returns(CreateTenant(tenantId));
+        var existing = $"t:{tenantId}:myKey";
+
+        var result = _cache.GetTenantPrefixedKey(existing);
+
+        Assert.Equal(existing, result);
+    }
+
+    [Fact]
+    public void GetTenantPrefixedKey_ShouldThrow_WhenPrefixedForADifferentTenant()
+    {
+        var tenantId = Guid.NewGuid();
+        var otherTenantId = Guid.NewGuid();
+        _tenantContextAccessor.CurrentTenant.Returns(CreateTenant(tenantId));
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => _cache.GetTenantPrefixedKey($"t:{otherTenantId}:myKey"));
+
+        Assert.Contains(otherTenantId.ToString(), ex.Message);
+        Assert.Contains(tenantId.ToString(), ex.Message);
     }
 
     [Fact]

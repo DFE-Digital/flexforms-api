@@ -5,9 +5,13 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Services;
 
 /// <summary>
 /// Builds a flattened, Web-safe host configuration dictionary from root <c>appsettings</c>.
+/// Redis remains on the allow-list because the shared web process still binds
+/// <c>ConnectionStrings:Redis</c> from this payload at startup. Do not add other secrets.
 /// </summary>
 public sealed class HostConfigurationReader(IConfiguration configuration) : IHostConfigurationReader
 {
+    // TM-08: web bootstrap still reads ConnectionStrings:Redis from host-config.
+    // Remove Redis from this list only after web has its own Key Vault / managed-identity source.
     private static readonly HashSet<string> AllowedConnectionStringKeys =
         new(StringComparer.OrdinalIgnoreCase) { "Redis" };
 
@@ -52,10 +56,21 @@ public sealed class HostConfigurationReader(IConfiguration configuration) : IHos
                 var trimmedKey = child.Path.StartsWith(prefixToRemove, StringComparison.OrdinalIgnoreCase)
                     ? child.Path[prefixToRemove.Length..]
                     : child.Path;
-                result[trimmedKey] = child.Value;
+                if (!IsSecretKey(trimmedKey))
+                {
+                    result[trimmedKey] = child.Value;
+                }
             }
 
             FlattenSection(child, prefixToRemove, result);
         }
+    }
+
+    internal static bool IsSecretKey(string key)
+    {
+        return key.Contains("ApiKey", StringComparison.OrdinalIgnoreCase)
+               || key.Contains("Secret", StringComparison.OrdinalIgnoreCase)
+               || key.Contains("Password", StringComparison.OrdinalIgnoreCase)
+               || key.Contains("AccessKey", StringComparison.OrdinalIgnoreCase);
     }
 }

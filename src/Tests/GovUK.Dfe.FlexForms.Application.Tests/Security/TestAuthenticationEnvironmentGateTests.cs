@@ -10,12 +10,9 @@ public class TestAuthenticationEnvironmentGateTests
 {
     [Theory]
     [InlineData("Development")]
-    [InlineData("dev")]
-    [InlineData("Staging")]
+    [InlineData("Local")]
     [InlineData("Test")]
-    [InlineData(null)]
-    [InlineData("")]
-    public void IsAllowed_ReturnsTrue_OutsideProduction(string? environmentName)
+    public void IsAllowed_ReturnsTrue_OnAllowList(string environmentName)
     {
         Assert.True(TestAuthenticationEnvironmentGate.IsAllowed(environmentName));
     }
@@ -25,7 +22,12 @@ public class TestAuthenticationEnvironmentGateTests
     [InlineData("production")]
     [InlineData("Prod")]
     [InlineData("PROD")]
-    public void IsAllowed_ReturnsFalse_InProduction(string environmentName)
+    [InlineData("Staging")]
+    [InlineData("prd")]
+    [InlineData("Live")]
+    [InlineData(null)]
+    [InlineData("")]
+    public void IsAllowed_ReturnsFalse_OffAllowList(string? environmentName)
     {
         Assert.False(TestAuthenticationEnvironmentGate.IsAllowed(environmentName));
     }

@@ -13,8 +13,8 @@ public sealed record GetPlatformTenantConfigurationQuery(Guid TenantId, string T
 public sealed class GetPlatformTenantConfigurationQueryHandler(ITenantSettingsReader settingsReader)
     : IRequestHandler<GetPlatformTenantConfigurationQuery, Result<TenantConfigurationDto>>
 {
-    private static readonly HashSet<string> AllowedTargets =
-        new(StringComparer.OrdinalIgnoreCase) { "Web", "Api" };
+    // The platform identity is shared across tenants; the Api target holds decrypted connection strings.
+    private const string WebTarget = "Web";
 
     public async Task<Result<TenantConfigurationDto>> Handle(
         GetPlatformTenantConfigurationQuery request,
@@ -26,16 +26,15 @@ public sealed class GetPlatformTenantConfigurationQueryHandler(ITenantSettingsRe
         }
 
         if (string.IsNullOrWhiteSpace(request.Target) ||
-            !AllowedTargets.Contains(request.Target.Trim()))
+            !string.Equals(request.Target.Trim(), WebTarget, StringComparison.OrdinalIgnoreCase))
         {
             return Result<TenantConfigurationDto>.Validation(
-                $"Invalid target '{request.Target}'. Allowed values: Web, Api.");
+                $"Invalid target '{request.Target}'. Allowed values: {WebTarget}.");
         }
 
-        var normalizedTarget = request.Target.Trim();
         var snapshot = await settingsReader.GetConfigurationAsync(
             request.TenantId,
-            normalizedTarget,
+            WebTarget,
             cancellationToken);
 
         if (snapshot is null)
@@ -44,16 +43,14 @@ public sealed class GetPlatformTenantConfigurationQueryHandler(ITenantSettingsRe
                 $"Tenant '{request.TenantId}' is not active or no longer exists.");
         }
 
-        var configuration = normalizedTarget.Equals("Web", StringComparison.OrdinalIgnoreCase)
-            ? snapshot.Configuration
-                .Where(pair => !pair.Key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase))
-                .ToDictionary(pair => pair.Key, pair => pair.Value)
-            : snapshot.Configuration;
+        var configuration = snapshot.Configuration
+            .Where(pair => !pair.Key.StartsWith("ConnectionStrings:", StringComparison.OrdinalIgnoreCase))
+            .ToDictionary(pair => pair.Key, pair => pair.Value);
 
         return Result<TenantConfigurationDto>.Success(new TenantConfigurationDto(
             snapshot.TenantId,
             snapshot.TenantName,
-            normalizedTarget,
+            WebTarget,
             snapshot.LoadedAtUtc,
             configuration));
     }

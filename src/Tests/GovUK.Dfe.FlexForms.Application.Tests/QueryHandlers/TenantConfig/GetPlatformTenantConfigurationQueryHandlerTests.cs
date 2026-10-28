@@ -61,6 +61,27 @@ public class GetPlatformTenantConfigurationQueryHandlerTests
             result.Value.Configuration["ApplicationInsights:ConnectionString"]);
     }
 
+    [Theory]
+    [InlineData("Api")]
+    [InlineData("api")]
+    [InlineData("Prism")]
+    [InlineData("")]
+    public async Task Handle_ShouldRejectTarget_WhenTargetIsNotWeb(string target)
+    {
+        var tenantId = Guid.NewGuid();
+        var reader = Substitute.For<ITenantSettingsReader>();
+
+        var handler = new GetPlatformTenantConfigurationQueryHandler(reader);
+
+        var result = await handler.Handle(
+            new GetPlatformTenantConfigurationQuery(tenantId, target),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        await reader.DidNotReceiveWithAnyArgs()
+            .GetConfigurationAsync(default, default!, default);
+    }
+
     [Fact]
     public async Task Handle_ShouldReturnNotFound_WhenTenantMissing()
     {

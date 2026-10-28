@@ -64,9 +64,9 @@ public sealed class FileUploadedDomainEventHandler(
                 fileUrl, DateTimeOffset.UtcNow.AddHours(1), "r", cancellationToken);
             isAzureFileShare = true;
             logger.LogInformation(
-                "Generated Azure SAS for scan request from {Source}: {SasUri}",
+                "Generated Azure SAS for scan request from {Source} for {FilePath}",
                 tenantAzure is not null ? "tenant FileStorage:Azure" : "host IAzureSpecificOperations",
-                sasUri);
+                fileUrl);
         }
 
         var tenant = tenantContextAccessor.CurrentTenant 

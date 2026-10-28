@@ -318,7 +318,7 @@
     {
       "Controller": "DiagnosticsController",
       "Action": "Get",
-      "ExpectedSecurity": "Authorize"
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
     },
     {
       "Controller": "TenantAdminController",

@@ -81,6 +81,30 @@ public static class PermissionClaimEvaluator
     }
 
     /// <summary>
+    /// Returns true when the principal is a machine/service identity rather than an interactive user.
+    /// </summary>
+    public static bool IsServicePrincipal(ClaimsPrincipal? user)
+    {
+        if (user is null)
+            return false;
+
+        if (user.HasClaim(c =>
+                c.Type == TenantAuthClaimTypes.IsService
+                && string.Equals(c.Value, "true", StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+
+        var email = user.FindFirst(ClaimTypes.Email)?.Value
+            ?? user.FindFirst("email")?.Value;
+        if (!string.IsNullOrWhiteSpace(email))
+            return false;
+
+        return !string.IsNullOrEmpty(user.FindFirst("appid")?.Value)
+               || !string.IsNullOrEmpty(user.FindFirst("azp")?.Value);
+    }
+
+    /// <summary>
     /// Returns true when the user can read all applications in the current tenant
     /// (SuperAdmin, or an Application:Any:Read permission claim from a role/user grant).
     /// </summary>

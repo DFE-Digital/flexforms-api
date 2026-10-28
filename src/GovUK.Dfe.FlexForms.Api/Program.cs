@@ -25,14 +25,11 @@ using GovUK.Dfe.FlexForms.Api.Telemetry;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using Microsoft.ApplicationInsights.Channel;
 using GovUK.Dfe.FlexForms.Domain.Services;
-using GovUK.Dfe.FlexForms.Domain.Caching;
-using GovUK.Dfe.FlexForms.Infrastructure.Caching;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using GovUK.Dfe.FlexForms.Infrastructure.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Serilog.Events;
 using TelemetryConfiguration = Microsoft.ApplicationInsights.Extensibility.TelemetryConfiguration;
@@ -94,17 +91,8 @@ namespace GovUK.Dfe.FlexForms.Api
                 c.EnableAnnotations();
             });
 
-            
-            // Decorate IDistributedCache with tenant-aware wrapper
-            // This ensures all cache operations are automatically scoped to the current tenant
-            builder.Services.AddScoped<ITenantAwareDistributedCache>(sp =>
-            {
-                var innerCache = sp.GetRequiredService<IDistributedCache>();
-                var tenantAccessor = sp.GetRequiredService<ITenantContextAccessor>();
-                var logger = sp.GetRequiredService<ILogger<TenantAwareDistributedCache>>();
-                return new TenantAwareDistributedCache(innerCache, tenantAccessor, logger);
-            });
-
+            // ITenantAwareDistributedCache is not registered: production cache isolation is
+            // TenantCacheKeyHelper on ICacheService, which throws when no tenant is present.
             builder.Services.ConfigureOptions<SwaggerOptions>();
             builder.Services.AddFeatureManagement();
             builder.Services.AddHttpContextAccessor();
@@ -194,18 +182,18 @@ namespace GovUK.Dfe.FlexForms.Api
             builder.Services.AddCustomExceptionHandler<JsonExceptionHandler>();
             builder.Services.AddCustomExceptionHandler<ApplicationExceptionHandler>();
 
-            // Collect all frontend origins from all tenants for the default CORS policy
-            // TenantCorsPolicyProvider will handle per-tenant CORS dynamically
-            var allFrontendOrigins = allTenants
-                .SelectMany(t => t.FrontendOrigins)
-                .Distinct()
-                .ToArray();
-            
+            // Named policy is Development localhost only. TenantCorsPolicyProvider supplies
+            // per-tenant origins (and resolves preflights from Origin). Never union every tenant.
             builder.Services.AddCors(o => o.AddPolicy("Frontend", p =>
-                p.WithOrigins(allFrontendOrigins.Length > 0 ? allFrontendOrigins : new[] { "https://localhost:7020" })
-                    .AllowAnyHeader()
-                    .AllowAnyMethod()
-                    .AllowCredentials()));
+            {
+                if (builder.Environment.IsDevelopment())
+                {
+                    p.WithOrigins("https://localhost:7020")
+                        .AllowAnyHeader()
+                        .AllowAnyMethod()
+                        .AllowCredentials();
+                }
+            }));
 
             builder.Services.AddSingleton<ICorsPolicyProvider, TenantCorsPolicyProvider>();
 
@@ -294,11 +282,26 @@ namespace GovUK.Dfe.FlexForms.Api
 
             var forwardOptions = new ForwardedHeadersOptions
             {
-                ForwardedHeaders = ForwardedHeaders.All,
+                ForwardedHeaders = ForwardedHeaders.XForwardedFor
+                    | ForwardedHeaders.XForwardedProto
+                    | ForwardedHeaders.XForwardedHost,
                 RequireHeaderSymmetry = false
             };
-            forwardOptions.KnownNetworks.Clear();
-            forwardOptions.KnownProxies.Clear();
+            var knownProxies = app.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? [];
+            if (knownProxies.Length == 0)
+            {
+                // Ingress (App Gateway / Container Apps) must be the only path to this container.
+                forwardOptions.KnownNetworks.Clear();
+                forwardOptions.KnownProxies.Clear();
+            }
+            else
+            {
+                foreach (var proxy in knownProxies)
+                {
+                    if (System.Net.IPAddress.TryParse(proxy, out var ip))
+                        forwardOptions.KnownProxies.Add(ip);
+                }
+            }
             app.UseForwardedHeaders(forwardOptions);
 
             app.UseMiddleware<TenantResolutionMiddleware>();

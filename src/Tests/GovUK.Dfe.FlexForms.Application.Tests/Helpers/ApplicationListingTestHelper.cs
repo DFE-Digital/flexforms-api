@@ -8,6 +8,7 @@ using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
@@ -17,6 +18,17 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.Helpers;
 
 internal static class ApplicationListingTestHelper
 {
+    internal static TenantConfiguration CreateTestTenant(Guid? id = null) =>
+        new(id ?? Guid.NewGuid(), "TestTenant", new ConfigurationBuilder().Build(), Array.Empty<string>());
+
+    internal static ITenantContextAccessor EnsureTenant(ITenantContextAccessor? accessor = null)
+    {
+        accessor ??= Substitute.For<ITenantContextAccessor>();
+        if (accessor.CurrentTenant is null)
+            accessor.CurrentTenant.Returns(CreateTestTenant());
+        return accessor;
+    }
+
     internal static IUserAccessibleTemplateService CreateEmptyAccessibleTemplateService()
     {
         var service = Substitute.For<IUserAccessibleTemplateService>();
@@ -134,6 +146,7 @@ internal static class ApplicationListingTestHelper
         cache ??= Substitute.For<ICacheService<IRedisCacheType>>();
         ConfigurePassthroughCache(cache, nameof(GetApplicationsForUserQueryHandler));
         tenantTemplateCatalogue ??= CreateTemplateCatalogue();
+        tenantContextAccessor = EnsureTenant(tenantContextAccessor);
 
         return new GetApplicationsForUserQueryHandler(
             userRepo,
@@ -157,7 +170,7 @@ internal static class ApplicationListingTestHelper
     {
         cache ??= Substitute.For<ICacheService<IRedisCacheType>>();
         ConfigurePassthroughCache(cache, nameof(GetApplicationsForUserByExternalProviderIdQueryHandler));
-        tenantContextAccessor ??= Substitute.For<ITenantContextAccessor>();
+        tenantContextAccessor = EnsureTenant(tenantContextAccessor);
         tenantTemplateCatalogue ??= CreateTemplateCatalogue();
 
         return new GetApplicationsForUserByExternalProviderIdQueryHandler(
@@ -181,6 +194,7 @@ internal static class ApplicationListingTestHelper
     {
         cache ??= Substitute.For<ICacheService<IRedisCacheType>>();
         ConfigurePassthroughCache(cache, nameof(GetApplicationsByTemplateQueryHandler));
+        tenantContextAccessor = EnsureTenant(tenantContextAccessor);
 
         return new GetApplicationsByTemplateQueryHandler(
             httpContextAccessor,

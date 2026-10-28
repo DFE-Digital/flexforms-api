@@ -132,10 +132,11 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                 var userGlobalRoleName = dbUser.Role?.Name
                     ?? RoleNames.FromRoleId(dbUser.RoleId.Value);
 
-                if (RoleNames.IsPlatformSuperAdminUser(userGlobalRoleName, dbUser.RoleId.Value))
+                if (!useTestOrInternalAuth
+                    && RoleNames.IsPlatformSuperAdminUser(userGlobalRoleName, dbUser.RoleId.Value))
                 {
                     membershipRoleName = RoleNames.SuperAdmin;
-                    logger.LogInformation(
+                    logger.LogWarning(
                         "ExchangeToken: Platform SuperAdmin {Email} allowed without TenantMembership for tenant {TenantName} ({TenantId}).",
                         email,
                         currentTenant.Name,

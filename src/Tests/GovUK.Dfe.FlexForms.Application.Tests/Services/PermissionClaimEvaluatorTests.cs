@@ -287,6 +287,28 @@ public class PermissionClaimEvaluatorTests
         Assert.False(PermissionClaimEvaluator.IsInteractivePlatformAdmin(user));
     }
 
+    [Fact]
+    public void IsServicePrincipal_ReturnsTrue_ForIsServiceClaim()
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(TenantAuthClaimTypes.IsService, "true")
+        ], "Bearer"));
+
+        Assert.True(PermissionClaimEvaluator.IsServicePrincipal(user));
+    }
+
+    [Fact]
+    public void IsServicePrincipal_ReturnsFalse_ForInteractiveUser()
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+        [
+            new Claim(ClaimTypes.Email, "user@education.gov.uk")
+        ], "Cookies"));
+
+        Assert.False(PermissionClaimEvaluator.IsServicePrincipal(user));
+    }
+
     private static User CreateAdminUser()
     {
         var user = new User(
