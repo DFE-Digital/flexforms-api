@@ -121,6 +121,8 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
             // Shared EA DB: role for THIS tenant comes from TenantMembership, not global User.RoleId.
             // Exception: platform SuperAdmin (well-known global AdminRoleId / SuperAdmin name) may
             // exchange without a membership so operators are not locked out of FlexForms tenants.
+            // This is about the subject user, not the HTTP scheme: web always calls this endpoint
+            // with internal-service credentials (and Test Auth JWTs as the subject).
             var membership = await tenantMembershipService.GetActiveMembershipAsync(
                 currentTenant.Id,
                 dbUser.Id,
@@ -132,8 +134,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                 var userGlobalRoleName = dbUser.Role?.Name
                     ?? RoleNames.FromRoleId(dbUser.RoleId.Value);
 
-                if (!useTestOrInternalAuth
-                    && RoleNames.IsPlatformSuperAdminUser(userGlobalRoleName, dbUser.RoleId.Value))
+                if (RoleNames.IsPlatformSuperAdminUser(userGlobalRoleName, dbUser.RoleId.Value))
                 {
                     membershipRoleName = RoleNames.SuperAdmin;
                     logger.LogWarning(
