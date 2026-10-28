@@ -4,6 +4,7 @@ using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.TemplatePermissions.Queries;
+using GovUK.Dfe.FlexForms.Application.Tests.Helpers;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
@@ -26,7 +27,7 @@ public class GetTemplatePermissionsForUserByUserIdQueryHandlerTests
     {
         _userRepo = Substitute.For<IEaRepository<User>>();
         _cacheService = Substitute.For<ICacheService<IRedisCacheType>>();
-        _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
+        _tenantContextAccessor = ApplicationListingTestHelper.EnsureTenant();
 
         // Configure cache service to execute the factory directly (bypass caching)
         _cacheService.GetOrAddAsync(
