@@ -1,9 +1,12 @@
+using GovUK.Dfe.FlexForms.Api.Hubs;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.CoreLibs.Testing.Mocks.WebApplicationFactory;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations;
 using GovUK.Dfe.FlexForms.Tests.Common.Seeders;
 using Microsoft.AspNetCore.Http.Connections.Client;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.AspNetCore.SignalR.Client;
+using Microsoft.Extensions.DependencyInjection;
 using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Linq;
@@ -184,6 +187,56 @@ public class NotificationHubTests
 
         // Assert
         Assert.Equal(HubConnectionState.Connected, connection.State);
+
+        // Cleanup
+        await connection.DisposeAsync();
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task Hub_ShouldReceiveMessagesSentToTenantUserGroup_WhenUserConnects(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        HttpClient httpClient)
+    {
+        // Arrange
+        var userEmail = "tenant.group.user@example.com";
+        factory.TestClaims = new List<Claim>
+        {
+            new(ClaimTypes.Email, userEmail)
+        };
+
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "user-token");
+
+        var ticketReq = await httpClient.PostAsync("/auth/hub-ticket", content: null);
+        ticketReq.EnsureSuccessStatusCode();
+        var payload = JsonDocument.Parse(await ticketReq.Content.ReadAsStringAsync());
+        var redeemUrl = payload.RootElement.GetProperty("url").GetString();
+        var redeemResp = await httpClient.GetAsync(redeemUrl!);
+        Assert.Equal(System.Net.HttpStatusCode.NoContent, redeemResp.StatusCode);
+        var authCookies = (redeemResp.Headers.TryGetValues("Set-Cookie", out var cookieValues)
+                ? cookieValues.ToList()
+                : new List<string>())
+            .Select(c => c.Split(';')[0])
+            .ToList();
+
+        var connection = new HubConnectionBuilder()
+            .WithUrl("http://localhost/hubs/notifications", options => AddTenantAndCookiesToHubOptions(options, factory, authCookies))
+            .Build();
+
+        var received = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        connection.On<string>("test.message", message => received.TrySetResult(message));
+
+        await connection.StartAsync();
+
+        // Act
+        var hubContext = factory.Services.GetRequiredService<IHubContext<NotificationHub>>();
+        await hubContext.Clients.Group($"tenant:{TestTenantId}:user:{userEmail}").SendAsync("test.message", "hello");
+
+        // Assert
+        var completed = await Task.WhenAny(received.Task, Task.Delay(TimeSpan.FromSeconds(10)));
+        Assert.Same(received.Task, completed);
+        Assert.Equal("hello", await received.Task);
 
         // Cleanup
         await connection.DisposeAsync();

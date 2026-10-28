@@ -2,15 +2,21 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Encodings.Web;
+using System.Text.Json;
 
 namespace GovUK.Dfe.FlexForms.Tests.Common.Helpers;
 
 /// <summary>
-/// Mock cookie authentication handler that supports SignInAsync for SignalR hub authentication in tests
+/// Mock cookie authentication handler that supports SignInAsync for SignalR hub authentication in tests.
+/// Like the real cookie handler, the claims passed to SignInAsync round-trip through the cookie, so the hub
+/// sees the signed-in email and tenant claims.
 /// </summary>
 public class MockCookieAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>, IAuthenticationSignInHandler
 {
+    private const string CookieName = "test-auth-cookie";
+
     public MockCookieAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
@@ -22,30 +28,41 @@ public class MockCookieAuthenticationHandler : AuthenticationHandler<Authenticat
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        // Check if there's a cookie in the request
         var cookieHeader = Request.Headers["Cookie"].FirstOrDefault();
         if (string.IsNullOrEmpty(cookieHeader))
         {
-            // No cookie provided, return failure
             return Task.FromResult(AuthenticateResult.Fail("No authentication cookie provided"));
         }
 
-        // Check if the test authentication cookie is present
-        if (!cookieHeader.Contains("test-auth-cookie=authenticated"))
+        var cookieValue = cookieHeader
+            .Split(';', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Select(pair => pair.Split('=', 2))
+            .Where(parts => parts.Length == 2 && parts[0] == CookieName)
+            .Select(parts => parts[1])
+            .FirstOrDefault();
+
+        if (string.IsNullOrEmpty(cookieValue))
         {
             return Task.FromResult(AuthenticateResult.Fail("Invalid authentication cookie"));
         }
 
-        // For tests, we'll authenticate successfully if the test cookie is present
-        var claims = new List<Claim>
+        Dictionary<string, string>? storedClaims;
+        try
         {
-            new(ClaimTypes.Email, "test.user@example.com"),
-            new(ClaimTypes.Name, "Test User")
-        };
+            storedClaims = JsonSerializer.Deserialize<Dictionary<string, string>>(
+                Encoding.UTF8.GetString(Convert.FromBase64String(Uri.UnescapeDataString(cookieValue))));
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException)
+        {
+            return Task.FromResult(AuthenticateResult.Fail("Invalid authentication cookie"));
+        }
+
+        var claims = (storedClaims ?? new Dictionary<string, string>())
+            .Select(kvp => new Claim(kvp.Key, kvp.Value))
+            .ToList();
 
         var identity = new ClaimsIdentity(claims, Scheme.Name);
-        var principal = new ClaimsPrincipal(identity);
-        var ticket = new AuthenticationTicket(principal, Scheme.Name);
+        var ticket = new AuthenticationTicket(new ClaimsPrincipal(identity), Scheme.Name);
 
         return Task.FromResult(AuthenticateResult.Success(ticket));
     }
@@ -64,9 +81,14 @@ public class MockCookieAuthenticationHandler : AuthenticationHandler<Authenticat
 
     public Task SignInAsync(ClaimsPrincipal user, AuthenticationProperties? properties)
     {
-        // Mock implementation - set a simple authentication cookie for tests
-        var cookieValue = "test-auth-cookie=authenticated; Path=/; HttpOnly";
-        Response.Headers.Add("Set-Cookie", cookieValue);
+        var claims = user.Claims
+            .GroupBy(c => c.Type)
+            .ToDictionary(g => g.Key, g => g.First().Value);
+
+        var encoded = Uri.EscapeDataString(
+            Convert.ToBase64String(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(claims))));
+
+        Response.Headers.Add("Set-Cookie", $"{CookieName}={encoded}; Path=/; HttpOnly");
         return Task.CompletedTask;
     }
 
