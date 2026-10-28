@@ -210,7 +210,7 @@ namespace GovUK.Dfe.FlexForms.Api
             builder.Services.AddSingleton<ICorsPolicyProvider, TenantCorsPolicyProvider>();
 
             // Configure SignalR using the shared host configuration (single Azure SignalR Service for all tenants)
-            ConfigureSignalR(builder.Services, builder.Configuration, builder.Environment);
+            var usingAzureSignalR = ConfigureSignalR(builder.Services, builder.Configuration, builder.Environment);
 
             builder.Services.AddApplicationDependencyGroup(
                 builder.Configuration,
@@ -442,6 +442,17 @@ namespace GovUK.Dfe.FlexForms.Api
             ILogger<Program> logger = app.Services.GetRequiredService<ILogger<Program>>();
             logger.LogInformation("Logger is working...");
 
+            if (usingAzureSignalR)
+            {
+                logger.LogInformation("SignalR: using Azure SignalR Service");
+            }
+            else
+            {
+                logger.LogWarning(
+                    "SignalR: Azure SignalR Service is not configured (Azure:SignalR:ConnectionString / ConnectionStrings:AzureSignalR); " +
+                    "using in-process SignalR, which only works with a single API replica");
+            }
+
             try
             {
                 await app.RunAsync();
@@ -477,12 +488,14 @@ namespace GovUK.Dfe.FlexForms.Api
         /// NEW HUBS must:
         /// </para>
         /// <list type="number">
-        /// <item><description>Resolve <c>ITenantContextAccessor.CurrentTenant</c> at connect time.</description></item>
+        /// <item><description>Resolve the tenant from the <c>TenantAuthClaimTypes.TenantId</c> claim at connect time
+        /// (not from <c>HttpContext.RequestServices</c>, which is unavailable under Azure SignalR Service).</description></item>
         /// <item><description>Prefix every group name with <c>tenant:{currentTenantId}:</c>.</description></item>
         /// <item><description>Always publish via <c>IHubContext</c> to a <c>tenant:{currentTenantId}:...</c> group.</description></item>
         /// </list>
         /// </summary>
-        private static void ConfigureSignalR(
+        /// <returns><c>true</c> when Azure SignalR Service is configured; <c>false</c> for in-process SignalR.</returns>
+        private static bool ConfigureSignalR(
             IServiceCollection services,
             IConfiguration config,
             IWebHostEnvironment environment)
@@ -490,21 +503,41 @@ namespace GovUK.Dfe.FlexForms.Api
             // Connection string sources (root host config, in priority order):
             //   1. Azure:SignalR:ConnectionString  (Microsoft.Azure.SignalR SDK convention)
             //   2. ConnectionStrings:AzureSignalR  (.NET-standard fallback)
-            // Either populated wins. If neither is set, the API falls back to in-process SignalR
-            // which is fine for dev/local; production must provision a shared Azure SignalR Service.
-            var azureSignalRConn =
-                config["Azure:SignalR:ConnectionString"]
-                ?? config.GetConnectionString("AzureSignalR");
+            // Either populated wins. If neither is set, the API falls back to in-process SignalR,
+            // which only works with a single replica: connections and groups live in process memory,
+            // so negotiate/connect and IHubContext sends break as soon as the container scales out.
+            var azureSignalRConn = new[]
+                {
+                    config["Azure:SignalR:ConnectionString"],
+                    config.GetConnectionString("AzureSignalR"),
+                }
+                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value));
 
             var signalRBuilder = services.AddSignalR();
 
-            if (!string.IsNullOrWhiteSpace(azureSignalRConn))
-            {
-                signalRBuilder.AddAzureSignalR(azureSignalRConn);
-            }
-            // else: in-process SignalR (development/local). No additional registration required.
-
             services.AddScoped<GovUK.Dfe.FlexForms.Domain.Services.INotificationHubContext, GovUK.Dfe.FlexForms.Api.Services.NotificationHubContext>();
+
+            if (azureSignalRConn is null)
+            {
+                return false;
+            }
+
+            signalRBuilder.AddAzureSignalR(options =>
+            {
+                options.ConnectionString = azureSignalRConn;
+
+                // Hub names are prefixed with this value inside the service, so several environments or
+                // apps can share one Azure SignalR resource without receiving each other's messages.
+                options.ApplicationName = config["Azure:SignalR:ApplicationName"] is { Length: > 0 } applicationName
+                    ? applicationName
+                    : "flexforms";
+
+                // On scale-in / redeploy, move clients to another replica instead of dropping them.
+                options.GracefulShutdown.Mode = Microsoft.Azure.SignalR.GracefulShutdownMode.MigrateClients;
+                options.GracefulShutdown.Timeout = TimeSpan.FromSeconds(30);
+            });
+
+            return true;
         }
 
         /// <summary>

@@ -5,20 +5,22 @@ using System.Security.Claims;
 
 namespace GovUK.Dfe.FlexForms.Api.Hubs;
 
+/// <summary>
+/// Tenant is read from the <c>hubauth</c> cookie claims, never from <c>HttpContext.RequestServices</c>:
+/// under Azure SignalR Service the hub's HttpContext is synthesised (tenant middleware never runs on it),
+/// and the request scope may already be disposed when hub lifecycle methods execute.
+/// Group membership is removed automatically by SignalR when a connection closes.
+/// </summary>
 [Authorize(Policy = "Cookies.CanReadNotifications")]
 public class NotificationHub : Hub
 {
     public override async Task OnConnectedAsync()
     {
-        var httpContext = Context.GetHttpContext();
-        var tenantAccessor = httpContext?.RequestServices.GetService<ITenantContextAccessor>();
-        var tenantId = tenantAccessor?.CurrentTenant?.Id;
-        
         var userEmail = Context.User?.FindFirstValue(ClaimTypes.Email);
-        
-        if (!string.IsNullOrEmpty(userEmail) && tenantId.HasValue)
+        var tenantClaim = Context.User?.FindFirstValue(TenantAuthClaimTypes.TenantId);
+
+        if (!string.IsNullOrEmpty(userEmail) && Guid.TryParse(tenantClaim, out var tenantId))
         {
-            // Include tenant ID in group name for tenant isolation
             await Groups.AddToGroupAsync(Context.ConnectionId, $"tenant:{tenantId}:user:{userEmail}");
         }
         else if (!string.IsNullOrEmpty(userEmail))
@@ -26,27 +28,7 @@ public class NotificationHub : Hub
             // Fallback for cases without tenant (shouldn't happen in production)
             await Groups.AddToGroupAsync(Context.ConnectionId, $"user:{userEmail}");
         }
-        
-        await base.OnConnectedAsync();
-    }
 
-    public override async Task OnDisconnectedAsync(Exception? exception)
-    {
-        var httpContext = Context.GetHttpContext();
-        var tenantAccessor = httpContext?.RequestServices.GetService<ITenantContextAccessor>();
-        var tenantId = tenantAccessor?.CurrentTenant?.Id;
-        
-        var userEmail = Context.User?.FindFirstValue(ClaimTypes.Email);
-        
-        if (!string.IsNullOrEmpty(userEmail) && tenantId.HasValue)
-        {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"tenant:{tenantId}:user:{userEmail}");
-        }
-        else if (!string.IsNullOrEmpty(userEmail))
-        {
-            await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"user:{userEmail}");
-        }
-        
-        await base.OnDisconnectedAsync(exception);
+        await base.OnConnectedAsync();
     }
 }
