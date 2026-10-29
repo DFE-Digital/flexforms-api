@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.FlexForms.Domain.Common;
 
 namespace GovUK.Dfe.FlexForms.Domain.Services;
 
@@ -6,8 +7,14 @@ namespace GovUK.Dfe.FlexForms.Domain.Services;
 /// Merges role-default and user-specific permission grants into claim values.
 /// A user grant overrides the role grant only for the same
 /// <c>ResourceType</c> + <c>ResourceKey</c> + <c>AccessType</c>. Other role
-/// access types remain effective, so adding an application or template Read
-/// grant cannot accidentally remove role-derived Write or Manage access.
+/// access types remain effective, so adding a template Read grant cannot
+/// remove role-derived Write or Manage access.
+/// A direct Read grant on one application or its files, without the matching
+/// Write or Delete grant, suppresses the role's Write and Delete grants for
+/// that same application. That keeps a view-only contributor invite read-only
+/// when the assigned role also contains edit grants for that application.
+/// Tenant Admin and SuperAdmin still edit through their role, which is checked
+/// separately from these claims.
 /// Template (form) access is stored as <see cref="ResourceType.Template"/> user grants.
 /// </summary>
 public static class PermissionClaimMerger
@@ -27,7 +34,8 @@ public static class PermissionClaimMerger
         foreach (var grant in roleGrants)
         {
             var key = (grant.ResourceType, NormalizeKey(grant.ResourceKey), grant.AccessType);
-            if (userGrantsByAccessType.Contains(key))
+            if (userGrantsByAccessType.Contains(key)
+                || IsSuppressedByReadOnlyGrant(grant, userGrantsByAccessType))
                 continue;
 
             claims.Add(Format(grant.ResourceType, grant.ResourceKey, grant.AccessType));
@@ -37,6 +45,26 @@ public static class PermissionClaimMerger
             claims.Add(Format(grant.ResourceType, grant.ResourceKey, grant.AccessType));
 
         return claims.ToList();
+    }
+
+    private static bool IsSuppressedByReadOnlyGrant(
+        Grant grant,
+        HashSet<(ResourceType Type, string Key, AccessType AccessType)> userGrantsByAccessType)
+    {
+        if (grant.ResourceType is not (ResourceType.Application or ResourceType.ApplicationFiles))
+            return false;
+
+        if (grant.AccessType is not (AccessType.Write or AccessType.Delete))
+            return false;
+
+        var key = NormalizeKey(grant.ResourceKey);
+        if (string.Equals(key, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!userGrantsByAccessType.Contains((grant.ResourceType, key, AccessType.Read)))
+            return false;
+
+        return !userGrantsByAccessType.Contains((grant.ResourceType, key, grant.AccessType));
     }
 
     private static string NormalizeKey(string key) => key.Trim();

@@ -1,3 +1,4 @@
+using GovUK.Dfe.FlexForms.Application.Applications;
 using GovUK.Dfe.FlexForms.Application.Applications.Commands;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Domain.Common;
@@ -55,6 +56,15 @@ public class AddContributorCommandHandlerTests
                 ci.ArgAt<UserId>(1),
                 new RoleId(Guid.NewGuid()),
                 DateTime.UtcNow));
+        return service;
+    }
+
+    private static IRolePermissionService CreateRolePermissionService(
+        IReadOnlyList<RolePermission>? permissions = null)
+    {
+        var service = Substitute.For<IRolePermissionService>();
+        service.GetByRoleIdAsync(Arg.Any<RoleId>(), Arg.Any<CancellationToken>())
+            .Returns(permissions ?? Array.Empty<RolePermission>());
         return service;
     }
 
@@ -154,6 +164,7 @@ public class AddContributorCommandHandlerTests
             membershipService,
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -270,6 +281,7 @@ public class AddContributorCommandHandlerTests
             membershipService,
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -431,6 +443,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -596,6 +609,7 @@ public class AddContributorCommandHandlerTests
             membershipService,
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -655,6 +669,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -698,6 +713,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -746,6 +762,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -807,6 +824,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -877,6 +895,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -914,6 +933,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -957,6 +977,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -1017,6 +1038,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -1123,6 +1145,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -1231,6 +1254,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -1303,6 +1327,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -1408,6 +1433,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
             Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
             unitOfWork);
 
         // Act
@@ -1422,5 +1448,88 @@ public class AddContributorCommandHandlerTests
 
         await userRepo.Received(1).AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
         await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldReturnValidation_WhenReadOnlyInviteRoleGrantsApplicationWrite()
+    {
+        var command = new AddContributorCommand(Guid.NewGuid(), "Invited User", "invited@example.com");
+        var applicationRepo = Substitute.For<IEaRepository<Domain.Entities.Application>>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+        var permissionCheckerService = Substitute.For<IPermissionCheckerService>();
+        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var userFactory = Substitute.For<IUserFactory>();
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        var httpContext = new DefaultHttpContext();
+        var email = "owner@example.com";
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Email, email)],
+            "TestAuth"));
+        httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var owner = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(Guid.NewGuid()),
+            "Owner",
+            email,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var contributorRoleId = new RoleId(Guid.NewGuid());
+        var application = new Domain.Entities.Application(
+            new ApplicationId(command.ApplicationId),
+            "APP-001",
+            new TemplateVersionId(Guid.NewGuid()),
+            DateTime.UtcNow,
+            owner.Id!);
+        var templateVersion = new TemplateVersion(
+            new TemplateVersionId(Guid.NewGuid()),
+            new TemplateId(Guid.NewGuid()),
+            "1.0.0",
+            $$"""{"contributorRoleId":"{{contributorRoleId.Value}}"}""",
+            DateTime.UtcNow,
+            owner.Id!);
+        application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
+
+        var users = new[] { owner }.AsQueryable().BuildMockDbSet();
+        var applications = new[] { application }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        applicationRepo.Query().Returns(applications);
+        permissionCheckerService.IsApplicationOwner(application, owner.Id!.Value.ToString()).Returns(true);
+
+        var tenantRoleService = Substitute.For<ITenantRoleService>();
+        tenantRoleService
+            .GetByIdAsync(Arg.Any<Guid>(), Arg.Any<RoleId>(), Arg.Any<CancellationToken>())
+            .Returns(new Role(contributorRoleId, "Case Reader", TestTenantId));
+
+        var conflictingPermission = new RolePermission(
+            new RolePermissionId(Guid.NewGuid()),
+            contributorRoleId,
+            Guid.NewGuid().ToString(),
+            ResourceType.Application,
+            AccessType.Write,
+            DateTime.UtcNow);
+
+        var handler = new AddContributorCommandHandler(
+            applicationRepo,
+            userRepo,
+            httpContextAccessor,
+            permissionCheckerService,
+            userFactory,
+            Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
+            tenantRoleService,
+            CreateRolePermissionService([conflictingPermission]),
+            unitOfWork);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(ContributorInviteAccess.RoleGrantsEditAccess, result.Error);
+        await unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
 } 

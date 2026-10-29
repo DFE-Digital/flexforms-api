@@ -88,6 +88,44 @@ public class PermissionClaimMergerTests
     }
 
     [Fact]
+    public void Merge_SuppressesRoleApplicationWrite_WhenUserHasReadOnlyGrantOnSameApplication()
+    {
+        var applicationId = Guid.NewGuid().ToString();
+        var role = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.Application, applicationId, AccessType.Write)
+        };
+        var user = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.Application, applicationId, AccessType.Read)
+        };
+
+        var claims = PermissionClaimMerger.Merge(role, user);
+
+        Assert.DoesNotContain($"Application:{applicationId}:Write", claims, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains($"Application:{applicationId}:Read", claims, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Merge_SuppressesRoleApplicationFilesDelete_WhenUserHasReadOnlyFileGrant()
+    {
+        var applicationId = Guid.NewGuid().ToString();
+        var role = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.ApplicationFiles, applicationId, AccessType.Delete)
+        };
+        var user = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.ApplicationFiles, applicationId, AccessType.Read)
+        };
+
+        var claims = PermissionClaimMerger.Merge(role, user);
+
+        Assert.DoesNotContain($"ApplicationFiles:{applicationId}:Delete", claims, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains($"ApplicationFiles:{applicationId}:Read", claims, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Merge_IsCaseInsensitive_OnResourceKey()
     {
         var role = new[]

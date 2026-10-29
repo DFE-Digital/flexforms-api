@@ -1,5 +1,8 @@
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Application.Applications;
 using GovUK.Dfe.FlexForms.Domain.Common;
+using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 
 namespace GovUK.Dfe.FlexForms.Application.Tests.Applications;
 
@@ -62,5 +65,47 @@ public class ContributorInviteAccessTests
             ContributorInviteAccess.Decide(null, null));
 
         Assert.Equal(ContributorInviteAccess.RoleNotFound, error.Message);
+    }
+
+    [Fact]
+    public void EnsureRoleCompatibleWithReadOnlyInvite_AllowsReadGrants()
+    {
+        var roleId = new RoleId(Guid.NewGuid());
+        var permissions = new[]
+        {
+            new RolePermission(
+                new RolePermissionId(Guid.NewGuid()),
+                roleId,
+                "Any",
+                ResourceType.Application,
+                AccessType.Read,
+                DateTime.UtcNow)
+        };
+
+        var exception = Record.Exception(() =>
+            ContributorInviteAccess.EnsureRoleCompatibleWithReadOnlyInvite(permissions));
+
+        Assert.Null(exception);
+    }
+
+    [Fact]
+    public void EnsureRoleCompatibleWithReadOnlyInvite_RejectsApplicationWrite()
+    {
+        var roleId = new RoleId(Guid.NewGuid());
+        var permissions = new[]
+        {
+            new RolePermission(
+                new RolePermissionId(Guid.NewGuid()),
+                roleId,
+                Guid.NewGuid().ToString(),
+                ResourceType.Application,
+                AccessType.Write,
+                DateTime.UtcNow)
+        };
+
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            ContributorInviteAccess.EnsureRoleCompatibleWithReadOnlyInvite(permissions));
+
+        Assert.Equal(ContributorInviteAccess.RoleGrantsEditAccess, error.Message);
     }
 }

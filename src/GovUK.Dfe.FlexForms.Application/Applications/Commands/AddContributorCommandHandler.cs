@@ -40,6 +40,7 @@ public sealed class AddContributorCommandHandler(
     ITenantMembershipService tenantMembershipService,
     ITenantPermissionFilter tenantPermissionFilter,
     ITenantRoleService tenantRoleService,
+    IRolePermissionService rolePermissionService,
     IUnitOfWork unitOfWork) : IRequestHandler<AddContributorCommand, Result<UserDto>>
 {
     public async Task<Result<UserDto>> Handle(
@@ -297,8 +298,16 @@ public sealed class AddContributorCommandHandler(
         var role = await tenantRoleService.GetByIdAsync(tenantId, new RoleId(roleId), cancellationToken);
         try
         {
-            return Result<ContributorInviteDecision>.Success(
-                ContributorInviteAccess.Decide(role?.Id?.Value, role?.Name));
+            var decision = ContributorInviteAccess.Decide(role?.Id?.Value, role?.Name);
+            if (decision.ApplicationReadOnly)
+            {
+                var rolePermissions = await rolePermissionService.GetByRoleIdAsync(
+                    role!.Id!,
+                    cancellationToken);
+                ContributorInviteAccess.EnsureRoleCompatibleWithReadOnlyInvite(rolePermissions);
+            }
+
+            return Result<ContributorInviteDecision>.Success(decision);
         }
         catch (InvalidOperationException ex)
         {

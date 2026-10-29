@@ -1,5 +1,7 @@
 using System.Text.Json;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Domain.Common;
+using GovUK.Dfe.FlexForms.Domain.Entities;
 
 namespace GovUK.Dfe.FlexForms.Application.Applications;
 
@@ -11,6 +13,8 @@ public static class ContributorInviteAccess
     public const string RoleNotFound = "The contributor role on this template was not found.";
     public const string RoleNotAllowed = "That role cannot be given to invited contributors.";
     public const string RoleInvalid = "The contributor role on this template is invalid.";
+    public const string RoleGrantsEditAccess =
+        "That role grants edit access to applications and cannot be used for invited contributors.";
 
     public static bool TryReadRoleId(string? jsonSchema, out Guid roleId)
     {
@@ -63,6 +67,22 @@ public static class ContributorInviteAccess
         return new ContributorInviteDecision(
             ApplicationReadOnly: !isUser,
             MembershipRoleName: isUser ? RoleNames.User : roleName.Trim());
+    }
+
+    /// <summary>
+    /// Read-only contributor invites assign direct Read grants on the application. Role grants that
+    /// include Application or ApplicationFiles Write/Delete would still merge into claims unless blocked here.
+    /// </summary>
+    public static void EnsureRoleCompatibleWithReadOnlyInvite(IReadOnlyList<RolePermission> rolePermissions)
+    {
+        foreach (var permission in rolePermissions)
+        {
+            if (permission.ResourceType is ResourceType.Application or ResourceType.ApplicationFiles
+                && permission.AccessType is AccessType.Write or AccessType.Delete)
+            {
+                throw new InvalidOperationException(RoleGrantsEditAccess);
+            }
+        }
     }
 }
 
