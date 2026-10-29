@@ -165,6 +165,9 @@ internal static class ApplicationListingQueryBuilder
             ApplicationReference = a.ApplicationReference,
             TemplateVersionId = a.TemplateVersionId,
             CreatedOn = a.CreatedOn,
+            CreatedByUserId = a.CreatedBy,
+            CreatedByName = a.CreatedByUser != null ? a.CreatedByUser.Name : null,
+            CreatedByEmail = a.CreatedByUser != null ? a.CreatedByUser.Email : null,
             Status = a.Status,
             LastModifiedOn = a.LastModifiedOn,
             HasTemplateVersion = a.TemplateVersion != null,
@@ -185,6 +188,9 @@ internal static class ApplicationListingQueryBuilder
         public string ApplicationReference { get; init; } = string.Empty;
         public TemplateVersionId TemplateVersionId { get; init; } = null!;
         public DateTime CreatedOn { get; init; }
+        public UserId CreatedByUserId { get; init; } = null!;
+        public string? CreatedByName { get; init; }
+        public string? CreatedByEmail { get; init; }
         public ApplicationStatus? Status { get; init; }
         public DateTime? LastModifiedOn { get; init; }
         public bool HasTemplateVersion { get; init; }
@@ -220,6 +226,12 @@ internal static class ApplicationListingQueryBuilder
             ApplicationReference = a.ApplicationReference,
             TemplateVersionId = a.TemplateVersionId.Value,
             DateCreated = a.CreatedOn,
+            CreatedBy = new UserDto
+            {
+                UserId = a.CreatedByUserId.Value,
+                Name = a.CreatedByName ?? string.Empty,
+                Email = a.CreatedByEmail ?? string.Empty
+            },
             DateSubmitted = a.Status == ApplicationStatus.Submitted ? a.LastModifiedOn : null,
             Status = a.Status,
             TemplateName = a.TemplateName ?? string.Empty,

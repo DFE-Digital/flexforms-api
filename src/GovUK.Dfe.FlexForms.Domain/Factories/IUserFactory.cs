@@ -17,7 +17,8 @@ public interface IUserFactory
         string applicationReference,
         TemplateId templateId,
         DateTime? createdOn = null,
-        Guid? tenantId = null);
+        Guid? tenantId = null,
+        bool applicationReadOnly = false);
 
     User CreateUser(
         UserId id,

@@ -169,6 +169,32 @@ public class ApplicationsController(ISender sender) : ControllerBase
     }
 
     /// <summary>
+    /// Transfers lead-applicant ownership to another user in this tenant.
+    /// </summary>
+    [HttpPut("{applicationId}/owner")]
+    [SwaggerResponse(200, "Lead applicant updated.", typeof(ChangeApplicationOwnerResponse))]
+    [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
+    [SwaggerResponse(401, "Unauthorized - no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "User does not have permission to change the lead applicant", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "Application or user not found", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
+    [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
+    public async Task<IActionResult> ChangeApplicationOwnerAsync(
+        [FromRoute] Guid applicationId,
+        [FromBody] ChangeApplicationOwnerRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new ChangeApplicationOwnerCommand(applicationId, request.Email);
+        var result = await sender.Send(command, cancellationToken);
+
+        return new ObjectResult(result)
+        {
+            StatusCode = StatusCodes.Status200OK
+        };
+    }
+
+    /// <summary>
     /// Soft deletes an application, changing its status to Deleted.
     /// </summary>
     [HttpDelete("{applicationId}")]

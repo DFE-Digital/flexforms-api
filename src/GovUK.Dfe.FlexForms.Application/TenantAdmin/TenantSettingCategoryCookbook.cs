@@ -223,6 +223,35 @@ public static class TenantSettingCategoryCookbook
             requiresObject: true),
 
         Entry(
+            "Contributors",
+            "Default wording for the contributors section and invite page (delegated to Tenant Admins).",
+            ["Web"],
+            example: """{"SectionHeading":"Contributors","InviteButtonText":"Invite contributors","PageHeading":"Invite contributors"}""",
+            notes:
+            [
+                "Non-secret",
+                "Also editable via Organisation Settings",
+                "Text fields are optional; leave blank to use the built-in sentences",
+                "A template can override each field in Template Studio",
+                "Placeholders: {singular}, {plural}, {template_name}, {contributor_email}"
+            ],
+            requiresObject: true),
+
+        Entry(
+            "TaskList",
+            "Default labels for the review and view buttons on the task list (delegated to Tenant Admins).",
+            ["Web"],
+            example: """{"ReviewButtonText":"Review {singular}","ViewButtonText":"View {singular}"}""",
+            notes:
+            [
+                "Non-secret",
+                "Also editable via Organisation Settings",
+                "Text fields are optional; leave blank to use Review {singular} and View {singular}",
+                "A template can override each field in Template Studio"
+            ],
+            requiresObject: true),
+
+        Entry(
             "ApplicationSubmittedPage",
             "Per-template confirmation page title and markdown body after submit (delegated to Tenant Admins).",
             ["Web"],

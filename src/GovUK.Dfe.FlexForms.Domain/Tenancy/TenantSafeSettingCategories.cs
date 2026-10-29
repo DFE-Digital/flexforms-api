@@ -10,6 +10,8 @@ public static class TenantSafeSettingCategories
     public const string NotificationBanner = "NotificationBanner";
     public const string Dashboard = "Dashboard";
     public const string ApplicationPreview = "ApplicationPreview";
+    public const string Contributors = "Contributors";
+    public const string TaskList = "TaskList";
     public const string ApplicationSubmittedPage = "ApplicationSubmittedPage";
     public const string EventMappings = "EventMappings";
     public const string EmailPlaceholderMappings = "EmailPlaceholderMappings";
@@ -42,6 +44,8 @@ public static class TenantSafeSettingCategories
         NotificationBanner,
         Dashboard,
         ApplicationPreview,
+        Contributors,
+        TaskList,
         ApplicationSubmittedPage,
         EventMappings,
         EmailPlaceholderMappings,

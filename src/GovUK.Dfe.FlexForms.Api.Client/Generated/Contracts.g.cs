@@ -102,6 +102,14 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
+        /// Transfers lead-applicant ownership to another user in this tenant.
+        /// </summary>
+        /// <returns>Lead applicant updated.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<ChangeApplicationOwnerResponse> ChangeApplicationOwnerAsync(System.Guid applicationId, ChangeApplicationOwnerRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
         /// Soft deletes an application, changing its status to Deleted.
         /// </summary>
         /// <returns>Application deleted successfully.</returns>

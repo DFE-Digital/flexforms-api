@@ -39,6 +39,7 @@ public sealed class AddContributorCommandHandler(
     ITenantContextAccessor tenantContextAccessor,
     ITenantMembershipService tenantMembershipService,
     ITenantPermissionFilter tenantPermissionFilter,
+    ITenantRoleService tenantRoleService,
     IUnitOfWork unitOfWork) : IRequestHandler<AddContributorCommand, Result<UserDto>>
 {
     public async Task<Result<UserDto>> Handle(
@@ -101,6 +102,10 @@ public sealed class AddContributorCommandHandler(
                 return Result<UserDto>.NotFound("Application not found");
             }
 
+            var invite = await ResolveInviteAccessAsync(application, currentTenant.Id, cancellationToken);
+            if (!invite.IsSuccess)
+                return Result<UserDto>.Validation(invite.Error!);
+
             // Load permissions so idempotent grants work (including Template form access).
             var existingContributor = await (new GetUserWithAllPermissionsByEmailQueryObject(request.Email))
                 .Apply(userRepo.Query())
@@ -114,6 +119,7 @@ public sealed class AddContributorCommandHandler(
                     application,
                     dbUser,
                     currentTenant.Id,
+                    invite.Value!,
                     cancellationToken);
             }
 
@@ -131,7 +137,8 @@ public sealed class AddContributorCommandHandler(
                 application.ApplicationReference,
                 application.TemplateVersion!.TemplateId,
                 now,
-                currentTenant.Id);
+                currentTenant.Id,
+                invite.Value!.ApplicationReadOnly);
 
             await userRepo.AddAsync(contributor, cancellationToken);
 
@@ -139,6 +146,7 @@ public sealed class AddContributorCommandHandler(
             await EnsureMembershipForCurrentTenantAsync(
                 currentTenant.Id,
                 contributor.Id!,
+                invite.Value!.MembershipRoleName,
                 cancellationToken);
 
             await unitOfWork.CommitAsync(cancellationToken);
@@ -173,8 +181,16 @@ public sealed class AddContributorCommandHandler(
         Domain.Entities.Application application,
         User dbUser,
         Guid tenantId,
+        ContributorInviteDecision invite,
         CancellationToken cancellationToken)
     {
+        var applicationAccess = invite.ApplicationReadOnly
+            ? new[] { AccessType.Read }
+            : new[] { AccessType.Read, AccessType.Write };
+        var fileAccess = invite.ApplicationReadOnly
+            ? new[] { AccessType.Read }
+            : new[] { AccessType.Read, AccessType.Write, AccessType.Delete };
+
         // Ensure self-service endpoints (e.g. GetMyPermissions) work for invited contributors
         userFactory.AddPermissionToUser(
             existingContributor,
@@ -190,7 +206,7 @@ public sealed class AddContributorCommandHandler(
             existingContributor,
             applicationId.Value.ToString(),
             ResourceType.Application,
-            new[] { AccessType.Read, AccessType.Write },
+            applicationAccess,
             dbUser.Id!,
             applicationId,
             DateTime.UtcNow);
@@ -200,7 +216,7 @@ public sealed class AddContributorCommandHandler(
             existingContributor,
             applicationId.Value.ToString(),
             ResourceType.ApplicationFiles,
-            new[] { AccessType.Read, AccessType.Write, AccessType.Delete },
+            fileAccess,
             dbUser.Id!,
             applicationId,
             DateTime.UtcNow);
@@ -231,7 +247,7 @@ public sealed class AddContributorCommandHandler(
             application.ApplicationReference,
             application.TemplateVersion!.TemplateId,
             existingContributor,
-            new[] { AccessType.Read, AccessType.Write },
+            applicationAccess,
             dbUser.Id!,
             DateTime.UtcNow));
 
@@ -239,6 +255,7 @@ public sealed class AddContributorCommandHandler(
         await EnsureMembershipForCurrentTenantAsync(
             tenantId,
             existingContributor.Id!,
+            invite.MembershipRoleName,
             cancellationToken);
 
         await unitOfWork.CommitAsync(cancellationToken);
@@ -262,6 +279,26 @@ public sealed class AddContributorCommandHandler(
         });
     }
 
+    private async Task<Result<ContributorInviteDecision>> ResolveInviteAccessAsync(
+        Domain.Entities.Application application,
+        Guid tenantId,
+        CancellationToken cancellationToken)
+    {
+        if (!ContributorInviteAccess.TryReadRoleId(application.TemplateVersion?.JsonSchema, out var roleId))
+            return Result<ContributorInviteDecision>.Success(new ContributorInviteDecision(false, RoleNames.User));
+
+        var role = await tenantRoleService.GetByIdAsync(tenantId, new RoleId(roleId), cancellationToken);
+        try
+        {
+            return Result<ContributorInviteDecision>.Success(
+                ContributorInviteAccess.Decide(role?.Id?.Value, role?.Name));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return Result<ContributorInviteDecision>.Validation(ex.Message);
+        }
+    }
+
     /// <summary>
     /// Ensures an active TenantMembership exists so the invitee can exchange tokens on this tenant.
     /// Does not demote an existing higher role — only creates membership when none is active.
@@ -269,6 +306,7 @@ public sealed class AddContributorCommandHandler(
     private async Task EnsureMembershipForCurrentTenantAsync(
         Guid tenantId,
         UserId userId,
+        string roleName,
         CancellationToken cancellationToken)
     {
         var existing = await tenantMembershipService.GetActiveMembershipAsync(
@@ -281,7 +319,7 @@ public sealed class AddContributorCommandHandler(
         await tenantMembershipService.UpsertMembershipAsync(
             tenantId,
             userId,
-            RoleNames.User,
+            roleName,
             cancellationToken);
     }
 

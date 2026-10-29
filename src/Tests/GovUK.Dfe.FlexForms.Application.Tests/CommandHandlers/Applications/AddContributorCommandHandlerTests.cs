@@ -139,7 +139,8 @@ public class AddContributorCommandHandlerTests
             application.ApplicationReference,
             templateVersion.TemplateId,
             Arg.Any<DateTime>(),
-            Arg.Any<Guid?>())
+            Arg.Any<Guid?>(),
+            Arg.Any<bool>())
             .Returns(contributor);
 
         var handler = new AddContributorCommandHandler(
@@ -152,6 +153,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             membershipService,
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -267,6 +269,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             membershipService,
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -427,6 +430,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -591,6 +595,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             membershipService,
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         var result = await handler.Handle(command, CancellationToken.None);
@@ -649,6 +654,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -691,6 +697,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -738,6 +745,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -798,6 +806,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -867,6 +876,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -903,6 +913,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -945,6 +956,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -1004,6 +1016,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -1095,7 +1108,8 @@ public class AddContributorCommandHandlerTests
             application.ApplicationReference,
             templateVersion.TemplateId,
             Arg.Any<DateTime>(),
-            Arg.Any<Guid?>())
+            Arg.Any<Guid?>(),
+            Arg.Any<bool>())
             .Returns(contributor);
 
         var handler = new AddContributorCommandHandler(
@@ -1108,6 +1122,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -1201,7 +1216,8 @@ public class AddContributorCommandHandlerTests
             application.ApplicationReference,
             templateVersion.TemplateId,
             Arg.Any<DateTime>(),
-            Arg.Any<Guid?>())
+            Arg.Any<Guid?>(),
+            Arg.Any<bool>())
             .Returns(contributor);
 
         var handler = new AddContributorCommandHandler(
@@ -1214,6 +1230,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -1285,6 +1302,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
@@ -1375,7 +1393,8 @@ public class AddContributorCommandHandlerTests
             application.ApplicationReference,
             templateVersion.TemplateId,
             Arg.Any<DateTime>(),
-            Arg.Any<Guid?>())
+            Arg.Any<Guid?>(),
+            Arg.Any<bool>())
             .Returns(contributor);
 
         var handler = new AddContributorCommandHandler(
@@ -1388,6 +1407,7 @@ public class AddContributorCommandHandlerTests
             CreateContributorTenantContext(),
             CreateContributorMembershipService(),
             CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
             unitOfWork);
 
         // Act
