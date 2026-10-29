@@ -21,7 +21,8 @@ public class UserFactory : IUserFactory
         string applicationReference,
         TemplateId templateId,
         DateTime? createdOn = null,
-        Guid? tenantId = null)
+        Guid? tenantId = null,
+        bool applicationReadOnly = false)
     {
         if (id == null)
             throw new ArgumentException("Id cannot be null", nameof(id));
@@ -48,6 +49,12 @@ public class UserFactory : IUserFactory
             throw new ArgumentException("TemplateId cannot be null", nameof(templateId));
 
         var when = createdOn ?? DateTime.UtcNow;
+        var applicationAccess = applicationReadOnly
+            ? new[] { AccessType.Read }
+            : new[] { AccessType.Read, AccessType.Write };
+        var fileAccess = applicationReadOnly
+            ? new[] { AccessType.Read }
+            : new[] { AccessType.Read, AccessType.Write, AccessType.Delete };
         
         var contributor = new User(
             id,
@@ -76,7 +83,7 @@ public class UserFactory : IUserFactory
             contributor,
             applicationId.Value.ToString(),
             ResourceType.Application,
-            new[] { AccessType.Read, AccessType.Write },
+            applicationAccess,
             createdBy,
             applicationId,
             when);
@@ -86,7 +93,7 @@ public class UserFactory : IUserFactory
             contributor,
             applicationId.Value.ToString(),
             ResourceType.ApplicationFiles,
-            new[] { AccessType.Read, AccessType.Write, AccessType.Delete },
+            fileAccess,
             createdBy,
             applicationId,
             when);

@@ -127,6 +127,11 @@
     },
     {
       "Controller": "ApplicationsController",
+      "Action": "ChangeApplicationOwnerAsync",
+      "ExpectedSecurity": "Authorize: Policy=TenantAdminUser"
+    },
+    {
+      "Controller": "ApplicationsController",
       "Action": "GetApplicationsByTemplateAsync",
       "ExpectedSecurity": "Authorize: Policy=CanReadAnyApplication"
     },

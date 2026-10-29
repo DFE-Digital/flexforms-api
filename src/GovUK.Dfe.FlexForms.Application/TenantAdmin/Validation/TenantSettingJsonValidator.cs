@@ -114,6 +114,8 @@ public static class TenantSettingJsonValidator
             "NotificationBanner" => true,
             "Dashboard" => true,
             "ApplicationPreview" => true,
+            "Contributors" => true,
+            "TaskList" => true,
             "ApplicationSubmittedPage" => true,
             "EventMappings" => true,
             "EmailPlaceholderMappings" => true,
@@ -256,6 +258,25 @@ public static class TenantSettingJsonValidator
                 RequireOptionalString(root, "SubmitButtonText", errors);
                 if (root.TryGetProperty("HideSubmitSection", out _) && GetBool(root, "HideSubmitSection") is null)
                     errors.Add("HideSubmitSection must be true or false.");
+                break;
+
+            case "Contributors":
+                RequireOptionalString(root, "SectionHeading", errors);
+                RequireOptionalString(root, "SectionBody", errors);
+                RequireOptionalString(root, "InviteButtonText", errors);
+                RequireOptionalString(root, "PageHeading", errors);
+                RequireOptionalString(root, "Intro", errors);
+                RequireOptionalString(root, "SignInText", errors);
+                RequireOptionalString(root, "OnceJoinedText", errors);
+                RequireOptionalString(root, "AddLaterText", errors);
+                RequireOptionalString(root, "AddButtonText", errors);
+                RequireOptionalString(root, "ProceedButtonText", errors);
+                RequireOptionalString(root, "CurrentHeading", errors);
+                break;
+
+            case "TaskList":
+                RequireOptionalString(root, "ReviewButtonText", errors);
+                RequireOptionalString(root, "ViewButtonText", errors);
                 break;
 
             case "ApplicationSubmittedPage":

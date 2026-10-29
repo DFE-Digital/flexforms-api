@@ -22,7 +22,7 @@
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 		<PackageReference Include="Azure.Identity" Version="1.21.0" />
-		<PackageReference Include="GovUK.Dfe.CoreLibs.Contracts" Version="1.0.112" />
+		<PackageReference Include="GovUK.Dfe.CoreLibs.Contracts" Version="1.0.113" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Http" Version="1.0.13" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.32" />
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />

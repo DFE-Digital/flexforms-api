@@ -175,4 +175,33 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
             userFullName,
             deletedOn));
     }
+
+    /// <summary>
+    /// Moves lead-applicant ownership. Permission rows are updated by the caller.
+    /// </summary>
+    public void ChangeOwner(UserId newOwner, DateTime changedOn, UserId changedBy)
+    {
+        if (newOwner == null)
+            throw new ArgumentNullException(nameof(newOwner));
+        if (changedBy == null)
+            throw new ArgumentNullException(nameof(changedBy));
+
+        if (Status == ApplicationStatus.Deleted || DeletedOn is not null)
+            throw new InvalidOperationException("Application has already been deleted");
+
+        if (CreatedBy == newOwner)
+            throw new InvalidOperationException("User is already the lead applicant");
+
+        CreatedBy = newOwner;
+        // LastModifiedOn is the submission timestamp for submitted applications in the
+        // listing projection. Preserve it so an ownership change does not make an old
+        // submission look newly submitted.
+        if (Status != ApplicationStatus.Submitted)
+        {
+            LastModifiedOn = changedOn;
+            LastModifiedBy = changedBy;
+        }
+
+        SourceRevision++;
+    }
 }

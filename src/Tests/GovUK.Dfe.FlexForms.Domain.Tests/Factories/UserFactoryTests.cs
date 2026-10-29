@@ -39,6 +39,44 @@ public class UserFactoryTests
 
     [Theory]
     [CustomAutoData(typeof(UserCustomization))]
+    public void CreateContributor_Should_GrantReadOnlyApplicationAccess_WhenApplicationReadOnlyIsTrue(
+        UserId id,
+        RoleId roleId,
+        string name,
+        string email,
+        UserId createdBy,
+        ApplicationId applicationId,
+        TemplateId templateId,
+        DateTime createdOn)
+    {
+        var user = _factory.CreateContributor(
+            id,
+            roleId,
+            name,
+            email,
+            createdBy,
+            applicationId,
+            "APP-REF-001",
+            templateId,
+            createdOn,
+            applicationReadOnly: true);
+
+        var appKey = applicationId.Value.ToString();
+        var applicationPermissions = user.Permissions
+            .Where(p => p.ResourceType == ResourceType.Application && p.ResourceKey == appKey)
+            .Select(p => p.AccessType)
+            .ToList();
+        Assert.Equal([AccessType.Read], applicationPermissions);
+
+        var filePermissions = user.Permissions
+            .Where(p => p.ResourceType == ResourceType.ApplicationFiles && p.ResourceKey == appKey)
+            .Select(p => p.AccessType)
+            .ToList();
+        Assert.Equal([AccessType.Read], filePermissions);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(UserCustomization))]
     public void CreateContributor_Should_Use_Current_DateTime_When_CreatedOn_Is_Null(
         UserId id,
         RoleId roleId,
