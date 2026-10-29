@@ -3,9 +3,7 @@ using GovUK.Dfe.CoreLibs.FileStorage.Interfaces;
 using GovUK.Dfe.CoreLibs.FileStorage.Services;
 using GovUK.Dfe.CoreLibs.FileStorage.Settings;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace GovUK.Dfe.FlexForms.Application.Services;
@@ -15,7 +13,7 @@ namespace GovUK.Dfe.FlexForms.Application.Services;
 /// Host GlobalConfiguration Azure values are not used for these clients.
 /// </summary>
 public sealed class TenantAzureFileStorageFactory(
-    IHttpContextAccessor httpContextAccessor,
+    ITenantContextAccessor tenantContextAccessor,
     ILogger<TenantAzureFileStorageFactory> logger) : ITenantAzureFileStorageFactory
 {
     private readonly ConcurrentDictionary<string, AzureFileStorageService> _cache = new(StringComparer.Ordinal);
@@ -86,14 +84,8 @@ public sealed class TenantAzureFileStorageFactory(
     }
 
     private TenantConfiguration GetCurrentTenant()
-    {
-        var requestServices = httpContextAccessor.HttpContext?.RequestServices
-            ?? throw new InvalidOperationException("No HttpContext available for tenant Azure file storage.");
-
-        var tenantContextAccessor = requestServices.GetRequiredService<ITenantContextAccessor>();
-        return tenantContextAccessor.CurrentTenant
-            ?? throw new InvalidOperationException("No tenant context available for Azure file storage.");
-    }
+        => tenantContextAccessor.CurrentTenant
+           ?? throw new InvalidOperationException("No tenant context available for Azure file storage.");
 
     private static bool UsesTenantAzureClient(string? provider) =>
         string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase)

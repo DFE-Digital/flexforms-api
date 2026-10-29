@@ -27,17 +27,20 @@ namespace GovUK.Dfe.FlexForms.Application.Services
     public class TenantAwareFileStorageService : ITenantAwareFileStorageService
     {
         private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly ITenantContextAccessor _tenantContextAccessor;
         private readonly ITenantAzureFileStorageFactory _tenantAzureFactory;
         private readonly ITenantDiskFileStorageFactory _tenantDiskFactory;
         private readonly ILogger<TenantAwareFileStorageService> _logger;
 
         public TenantAwareFileStorageService(
             IHttpContextAccessor httpContextAccessor,
+            ITenantContextAccessor tenantContextAccessor,
             ITenantAzureFileStorageFactory tenantAzureFactory,
             ITenantDiskFileStorageFactory tenantDiskFactory,
             ILogger<TenantAwareFileStorageService> logger)
         {
             _httpContextAccessor = httpContextAccessor;
+            _tenantContextAccessor = tenantContextAccessor;
             _tenantAzureFactory = tenantAzureFactory;
             _tenantDiskFactory = tenantDiskFactory;
             _logger = logger;
@@ -163,13 +166,8 @@ namespace GovUK.Dfe.FlexForms.Application.Services
         /// </summary>
         private (string Provider, LocalFileStorageOptions? LocalOptions) ResolveRequiredTenantStorage()
         {
-            var requestServices = _httpContextAccessor.HttpContext?.RequestServices
-                ?? throw new InvalidOperationException("No HttpContext available for file storage operation");
-
-            var tenantContextAccessor = requestServices.GetService<ITenantContextAccessor>()
-                ?? throw new InvalidOperationException("ITenantContextAccessor is not available for file storage operation");
-
-            var tenant = tenantContextAccessor.CurrentTenant
+            // Background consumers (scan results) have no HttpContext; tenant is on the consume scope.
+            var tenant = _tenantContextAccessor.CurrentTenant
                 ?? throw new InvalidOperationException("No tenant context available for file storage operation");
 
             var provider = tenant.Settings.GetValue<string>("FileStorage:Provider");

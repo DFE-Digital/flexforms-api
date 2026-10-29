@@ -2,9 +2,7 @@ using GovUK.Dfe.CoreLibs.FileStorage.Interfaces;
 using GovUK.Dfe.CoreLibs.FileStorage.Services;
 using GovUK.Dfe.CoreLibs.FileStorage.Settings;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
-using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Collections.Concurrent;
 
@@ -25,7 +23,7 @@ public interface ITenantDiskFileStorageFactory
 }
 
 public sealed class TenantDiskFileStorageFactory(
-    IHttpContextAccessor httpContextAccessor,
+    ITenantContextAccessor tenantContextAccessor,
     ILogger<TenantDiskFileStorageFactory> logger) : ITenantDiskFileStorageFactory
 {
     private readonly ConcurrentDictionary<string, LocalFileStorageService> _cache = new(StringComparer.Ordinal);
@@ -98,12 +96,6 @@ public sealed class TenantDiskFileStorageFactory(
     }
 
     private TenantConfiguration GetCurrentTenant()
-    {
-        var requestServices = httpContextAccessor.HttpContext?.RequestServices
-            ?? throw new InvalidOperationException("No HttpContext available for tenant disk file storage.");
-
-        var tenantContextAccessor = requestServices.GetRequiredService<ITenantContextAccessor>();
-        return tenantContextAccessor.CurrentTenant
-            ?? throw new InvalidOperationException("No tenant context available for disk file storage.");
-    }
+        => tenantContextAccessor.CurrentTenant
+           ?? throw new InvalidOperationException("No tenant context available for disk file storage.");
 }

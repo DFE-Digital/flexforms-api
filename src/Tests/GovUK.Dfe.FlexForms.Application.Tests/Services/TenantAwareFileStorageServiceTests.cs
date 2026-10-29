@@ -44,7 +44,7 @@ public class TenantAwareFileStorageServiceTests
         _tenantDiskFactory.GetRequiredDiskFileStorage().Returns(_tenantDiskStorage);
 
         _service = new TenantAwareFileStorageService(
-            _httpContextAccessor, _tenantAzureFactory, _tenantDiskFactory, _logger);
+            _httpContextAccessor, _tenantContextAccessor, _tenantAzureFactory, _tenantDiskFactory, _logger);
     }
 
     private static TenantConfiguration CreateTenantWithLocalFileStorage(string baseDirectory)
@@ -191,12 +191,26 @@ public class TenantAwareFileStorageServiceTests
     }
 
     [Fact]
-    public async Task UploadAsync_ShouldThrowInvalidOperationException_WhenNoHttpContext()
+    public async Task DeleteAsync_ShouldCallTenantDiskFactory_WhenHttpContextIsMissing()
+    {
+        var tenant = CreateTenantWithLocalFileStorage("/uploads/tenantA");
+        _tenantContextAccessor.CurrentTenant.Returns(tenant);
+        _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+
+        await _service.DeleteAsync("infected/path");
+
+        await _tenantDiskStorage.Received(1).DeleteAsync("infected/path", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task UploadAsync_ShouldThrow_WhenNoHttpContextAndNoTenant()
     {
         _httpContextAccessor.HttpContext.Returns((HttpContext?)null);
+        _tenantContextAccessor.CurrentTenant.Returns((TenantConfiguration?)null);
         var stream = new MemoryStream();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _service.UploadAsync("test/path", stream, "file.txt"));
+        Assert.Contains("No tenant context", ex.Message, StringComparison.Ordinal);
     }
 }
