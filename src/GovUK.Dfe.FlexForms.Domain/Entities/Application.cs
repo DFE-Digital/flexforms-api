@@ -193,8 +193,15 @@ public sealed class Application : BaseAggregateRoot, IEntity<ApplicationId>
             throw new InvalidOperationException("User is already the lead applicant");
 
         CreatedBy = newOwner;
-        LastModifiedOn = changedOn;
-        LastModifiedBy = changedBy;
+        // LastModifiedOn is the submission timestamp for submitted applications in the
+        // listing projection. Preserve it so an ownership change does not make an old
+        // submission look newly submitted.
+        if (Status != ApplicationStatus.Submitted)
+        {
+            LastModifiedOn = changedOn;
+            LastModifiedBy = changedBy;
+        }
+
         SourceRevision++;
     }
 }

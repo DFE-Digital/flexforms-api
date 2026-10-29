@@ -63,7 +63,7 @@ public class ChangeApplicationOwnerCommandHandlerTests
             CancellationToken.None);
 
         Assert.True(result.IsSuccess);
-        Assert.False(result.Value!.TemplateReadGranted);
+        Assert.True(result.Value!.TemplateReadGranted);
         Assert.Equal(next.Id, application.CreatedBy);
         Assert.Contains(next.Permissions, p =>
             p.ResourceType == ResourceType.Application
@@ -77,6 +77,8 @@ public class ChangeApplicationOwnerCommandHandlerTests
             p.ResourceType == ResourceType.Template && p.AccessType == AccessType.Write);
         Assert.Contains(next.Permissions, p =>
             p.ResourceType == ResourceType.Template && p.AccessType == AccessType.Write);
+        Assert.Contains(next.Permissions, p =>
+            p.ResourceType == ResourceType.Template && p.AccessType == AccessType.Read);
     }
 
     [Fact]
@@ -229,6 +231,10 @@ public class ChangeApplicationOwnerCommandHandlerTests
         membership.GetActiveMembershipAsync(Arg.Any<Guid>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>())
             .Returns(activeMembership);
 
+        var rolePermissions = Substitute.For<IRolePermissionService>();
+        rolePermissions.GetByRoleIdAsync(Arg.Any<RoleId>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<RolePermission>());
+
         return new ChangeApplicationOwnerCommandHandler(
             applicationRepo,
             userRepo,
@@ -237,6 +243,7 @@ public class ChangeApplicationOwnerCommandHandlerTests
             tenantTemplates,
             tenantContext,
             membership,
+            rolePermissions,
             _userFactory,
             Substitute.For<IUserCacheInvalidator>(),
             Substitute.For<IProjectionEventPublisher>(),

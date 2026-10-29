@@ -87,6 +87,28 @@ public class ApplicationTests
         Assert.Equal(lastModifiedBy, application.LastModifiedBy);
     }
 
+    [Fact]
+    public void ChangeOwner_PreservesTheSubmissionTimestamp_ForASubmittedApplication()
+    {
+        var originalOwner = new UserId(Guid.NewGuid());
+        var newOwner = new UserId(Guid.NewGuid());
+        var submittedOn = DateTime.UtcNow.AddDays(-2);
+        var application = new Entities.Application(
+            new ApplicationId(Guid.NewGuid()),
+            "APP-100",
+            new TemplateVersionId(Guid.NewGuid()),
+            DateTime.UtcNow.AddDays(-3),
+            originalOwner,
+            ApplicationStatus.Submitted,
+            submittedOn,
+            originalOwner);
+
+        application.ChangeOwner(newOwner, DateTime.UtcNow, new UserId(Guid.NewGuid()));
+
+        Assert.Equal(newOwner, application.CreatedBy);
+        Assert.Equal(submittedOn, application.LastModifiedOn);
+    }
+
     [Theory]
     [CustomAutoData(typeof(ApplicationCustomization))]
     public void UpdateLastModified_ShouldThrowArgumentNullException_WhenLastModifiedByIsNull(

@@ -284,8 +284,15 @@ public sealed class AddContributorCommandHandler(
         Guid tenantId,
         CancellationToken cancellationToken)
     {
-        if (!ContributorInviteAccess.TryReadRoleId(application.TemplateVersion?.JsonSchema, out var roleId))
+        var selection = ContributorInviteAccess.ReadRoleId(
+            application.TemplateVersion?.JsonSchema,
+            out var roleId);
+
+        if (selection == ContributorRoleSelection.NotSelected)
             return Result<ContributorInviteDecision>.Success(new ContributorInviteDecision(false, RoleNames.User));
+
+        if (selection == ContributorRoleSelection.Invalid)
+            return Result<ContributorInviteDecision>.Validation(ContributorInviteAccess.RoleInvalid);
 
         var role = await tenantRoleService.GetByIdAsync(tenantId, new RoleId(roleId), cancellationToken);
         try

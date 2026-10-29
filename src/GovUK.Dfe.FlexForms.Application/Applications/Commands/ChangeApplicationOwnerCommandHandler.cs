@@ -32,6 +32,7 @@ public sealed class ChangeApplicationOwnerCommandHandler(
     ITenantTemplateResolver tenantTemplateResolver,
     ITenantContextAccessor tenantContextAccessor,
     ITenantMembershipService tenantMembershipService,
+    IRolePermissionService rolePermissionService,
     IUserFactory userFactory,
     IUserCacheInvalidator userCacheInvalidator,
     IProjectionEventPublisher projectionEventPublisher,
@@ -107,11 +108,13 @@ public sealed class ChangeApplicationOwnerCommandHandler(
                 .Apply(userRepo.Query())
                 .FirstOrDefaultAsync(cancellationToken);
 
-            var templateReadGranted = GrantOwnerAccess(
+            var templateReadGranted = await GrantOwnerAccessAsync(
                 newOwner,
                 application.Id,
                 templateId,
-                actor.Id!);
+                actor.Id!,
+                membership.RoleId,
+                cancellationToken);
 
             if (previousOwner?.Id is not null && previousOwner.Id != newOwner.Id)
                 RemoveApplicationPermissions(previousOwner, application.Id);
@@ -184,11 +187,13 @@ public sealed class ChangeApplicationOwnerCommandHandler(
         }
     }
 
-    private bool GrantOwnerAccess(
+    private async Task<bool> GrantOwnerAccessAsync(
         User user,
         ApplicationId applicationId,
         TemplateId templateId,
-        UserId grantedBy)
+        UserId grantedBy,
+        RoleId membershipRoleId,
+        CancellationToken cancellationToken)
     {
         var now = DateTime.UtcNow;
         var resourceKey = applicationId.Value.ToString();
@@ -211,13 +216,30 @@ public sealed class ChangeApplicationOwnerCommandHandler(
             applicationId,
             now);
 
-        if (HasTemplateAccess(user, templateId))
+        var rolePermissions = await rolePermissionService.GetByRoleIdAsync(
+            membershipRoleId,
+            cancellationToken);
+
+        if (HasTemplateReadAccess(user.Permissions, templateId)
+            || HasTemplateReadAccess(rolePermissions, templateId))
             return false;
+
+        // A direct grant overrides a role grant for the same resource key in
+        // PermissionClaimMerger. Carry over role Write/Manage when adding the
+        // needed Read permission so this cannot reduce the user's access.
+        var templateKey = templateId.Value.ToString();
+        var accessTypes = rolePermissions
+            .Where(p => p.ResourceType == ResourceType.Template
+                && string.Equals(p.ResourceKey, templateKey, StringComparison.OrdinalIgnoreCase))
+            .Select(p => p.AccessType)
+            .Append(AccessType.Read)
+            .Distinct()
+            .ToArray();
 
         userFactory.AddTemplatePermissionToUser(
             user,
-            templateId.Value.ToString(),
-            [AccessType.Read],
+            templateKey,
+            accessTypes,
             grantedBy,
             now);
 
@@ -234,12 +256,26 @@ public sealed class ChangeApplicationOwnerCommandHandler(
             userFactory.RemovePermissionFromUser(user, permission);
     }
 
-    private static bool HasTemplateAccess(User user, TemplateId templateId)
+    private static bool HasTemplateReadAccess(
+        IEnumerable<Permission> permissions,
+        TemplateId templateId)
     {
         var key = templateId.Value.ToString();
-        return user.Permissions.Any(p =>
+        return permissions.Any(p =>
             p.ResourceType == ResourceType.Template
-            && p.AccessType is AccessType.Read or AccessType.Write or AccessType.Manage
+            && p.AccessType == AccessType.Read
+            && (string.Equals(p.ResourceKey, key, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(p.ResourceKey, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase)));
+    }
+
+    private static bool HasTemplateReadAccess(
+        IEnumerable<RolePermission> permissions,
+        TemplateId templateId)
+    {
+        var key = templateId.Value.ToString();
+        return permissions.Any(p =>
+            p.ResourceType == ResourceType.Template
+            && p.AccessType == AccessType.Read
             && (string.Equals(p.ResourceKey, key, StringComparison.OrdinalIgnoreCase)
                 || string.Equals(p.ResourceKey, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase)));
     }
