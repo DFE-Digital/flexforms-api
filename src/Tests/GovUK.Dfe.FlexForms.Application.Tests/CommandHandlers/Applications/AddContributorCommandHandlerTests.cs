@@ -68,6 +68,43 @@ public class AddContributorCommandHandlerTests
         return service;
     }
 
+    private static IReadOnlyList<RolePermission> CaseworkerStyleReadOnlyRolePermissions(RoleId roleId) =>
+    [
+        new RolePermission(
+            new RolePermissionId(Guid.NewGuid()),
+            roleId,
+            PermissionConstants.AnyResourceKey,
+            ResourceType.Application,
+            AccessType.Read,
+            DateTime.UtcNow),
+        new RolePermission(
+            new RolePermissionId(Guid.NewGuid()),
+            roleId,
+            PermissionConstants.AnyResourceKey,
+            ResourceType.ApplicationFiles,
+            AccessType.Read,
+            DateTime.UtcNow),
+    ];
+
+    private static void AssertApplicationInviteIsReadOnly(User user, ApplicationId applicationId)
+    {
+        var appKey = applicationId.Value.ToString();
+        var applicationPermissions = user.Permissions
+            .Where(p => p.ResourceType == ResourceType.Application && p.ResourceKey == appKey)
+            .Select(p => p.AccessType)
+            .ToList();
+        Assert.Contains(AccessType.Read, applicationPermissions);
+        Assert.DoesNotContain(AccessType.Write, applicationPermissions);
+
+        var filePermissions = user.Permissions
+            .Where(p => p.ResourceType == ResourceType.ApplicationFiles && p.ResourceKey == appKey)
+            .Select(p => p.AccessType)
+            .ToList();
+        Assert.Contains(AccessType.Read, filePermissions);
+        Assert.DoesNotContain(AccessType.Write, filePermissions);
+        Assert.DoesNotContain(AccessType.Delete, filePermissions);
+    }
+
     [Theory]
     [CustomAutoData(typeof(ApplicationCustomization))]
     public async Task Handle_ShouldAddNewContributor_WhenValidRequest(
@@ -1448,6 +1485,194 @@ public class AddContributorCommandHandlerTests
 
         await userRepo.Received(1).AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
         await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldGrantReadOnlyAccessAndCaseworkerMembership_WhenTemplateSelectsCustomRole()
+    {
+        const string caseworkerRoleName = "Caseworker";
+        var command = new AddContributorCommand(Guid.NewGuid(), "Invited User", "invited@example.com");
+        var applicationRepo = Substitute.For<IEaRepository<Domain.Entities.Application>>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+        var permissionCheckerService = Substitute.For<IPermissionCheckerService>();
+        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var realUserFactory = new UserFactory();
+        var membershipService = CreateContributorMembershipService();
+        var contributorRoleId = new RoleId(Guid.NewGuid());
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        var ownerEmail = "owner@example.com";
+        httpContextAccessor.HttpContext.Returns(new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Email, ownerEmail)],
+                "TestAuth"))
+        });
+
+        var owner = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(Guid.NewGuid()),
+            "Owner",
+            ownerEmail,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var applicationId = new ApplicationId(command.ApplicationId);
+        var application = new Domain.Entities.Application(
+            applicationId,
+            "APP-001",
+            new TemplateVersionId(Guid.NewGuid()),
+            DateTime.UtcNow,
+            owner.Id!);
+        var templateVersion = new TemplateVersion(
+            new TemplateVersionId(Guid.NewGuid()),
+            new TemplateId(Guid.NewGuid()),
+            "1.0.0",
+            $$"""{"contributorRoleId":"{{contributorRoleId.Value}}"}""",
+            DateTime.UtcNow,
+            owner.Id!);
+        application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
+
+        var users = new[] { owner }.AsQueryable().BuildMockDbSet();
+        var applications = new[] { application }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        applicationRepo.Query().Returns(applications);
+        permissionCheckerService.IsApplicationOwner(application, owner.Id!.Value.ToString()).Returns(true);
+
+        User? addedContributor = null;
+        userRepo.AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                addedContributor = ci.Arg<User>();
+                return addedContributor;
+            });
+
+        var tenantRoleService = Substitute.For<ITenantRoleService>();
+        tenantRoleService
+            .GetByIdAsync(Arg.Any<Guid>(), Arg.Any<RoleId>(), Arg.Any<CancellationToken>())
+            .Returns(new Role(contributorRoleId, caseworkerRoleName, TestTenantId));
+
+        var handler = new AddContributorCommandHandler(
+            applicationRepo,
+            userRepo,
+            httpContextAccessor,
+            permissionCheckerService,
+            realUserFactory,
+            Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            membershipService,
+            CreateTenantPermissionFilter(),
+            tenantRoleService,
+            CreateRolePermissionService(CaseworkerStyleReadOnlyRolePermissions(contributorRoleId)),
+            unitOfWork);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.NotNull(addedContributor);
+        AssertApplicationInviteIsReadOnly(addedContributor, applicationId);
+        await membershipService.Received(1).UpsertMembershipAsync(
+            TestTenantId,
+            addedContributor.Id!,
+            caseworkerRoleName,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldGrantReadOnlyAccessToExistingUser_WhenTemplateSelectsCustomRole()
+    {
+        const string caseworkerRoleName = "Caseworker";
+        var command = new AddContributorCommand(Guid.NewGuid(), "Invited User", "invited@example.com");
+        var applicationRepo = Substitute.For<IEaRepository<Domain.Entities.Application>>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+        var permissionCheckerService = Substitute.For<IPermissionCheckerService>();
+        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var realUserFactory = new UserFactory();
+        var membershipService = CreateContributorMembershipService();
+        var contributorRoleId = new RoleId(Guid.NewGuid());
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        var ownerEmail = "owner@example.com";
+        httpContextAccessor.HttpContext.Returns(new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Email, ownerEmail)],
+                "TestAuth"))
+        });
+
+        var owner = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(Guid.NewGuid()),
+            "Owner",
+            ownerEmail,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var existingUser = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.UserRoleId),
+            command.Name,
+            command.Email,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var applicationId = new ApplicationId(command.ApplicationId);
+        var application = new Domain.Entities.Application(
+            applicationId,
+            "APP-001",
+            new TemplateVersionId(Guid.NewGuid()),
+            DateTime.UtcNow,
+            owner.Id!);
+        var templateVersion = new TemplateVersion(
+            new TemplateVersionId(Guid.NewGuid()),
+            new TemplateId(Guid.NewGuid()),
+            "1.0.0",
+            $$"""{"contributorRoleId":"{{contributorRoleId.Value}}"}""",
+            DateTime.UtcNow,
+            owner.Id!);
+        application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
+
+        var users = new[] { owner, existingUser }.AsQueryable().BuildMockDbSet();
+        var applications = new[] { application }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        applicationRepo.Query().Returns(applications);
+        permissionCheckerService.IsApplicationOwner(application, owner.Id!.Value.ToString()).Returns(true);
+
+        var tenantRoleService = Substitute.For<ITenantRoleService>();
+        tenantRoleService
+            .GetByIdAsync(Arg.Any<Guid>(), Arg.Any<RoleId>(), Arg.Any<CancellationToken>())
+            .Returns(new Role(contributorRoleId, caseworkerRoleName, TestTenantId));
+
+        var handler = new AddContributorCommandHandler(
+            applicationRepo,
+            userRepo,
+            httpContextAccessor,
+            permissionCheckerService,
+            realUserFactory,
+            Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            membershipService,
+            CreateTenantPermissionFilter(),
+            tenantRoleService,
+            CreateRolePermissionService(CaseworkerStyleReadOnlyRolePermissions(contributorRoleId)),
+            unitOfWork);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        AssertApplicationInviteIsReadOnly(existingUser, applicationId);
+        await membershipService.Received(1).UpsertMembershipAsync(
+            TestTenantId,
+            existingUser.Id!,
+            caseworkerRoleName,
+            Arg.Any<CancellationToken>());
+        await userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
