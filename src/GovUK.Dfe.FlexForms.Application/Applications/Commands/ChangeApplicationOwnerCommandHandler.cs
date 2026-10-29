@@ -224,22 +224,12 @@ public sealed class ChangeApplicationOwnerCommandHandler(
             || HasTemplateReadAccess(rolePermissions, templateId))
             return false;
 
-        // A direct grant overrides a role grant for the same resource key in
-        // PermissionClaimMerger. Carry over role Write/Manage when adding the
-        // needed Read permission so this cannot reduce the user's access.
         var templateKey = templateId.Value.ToString();
-        var accessTypes = rolePermissions
-            .Where(p => p.ResourceType == ResourceType.Template
-                && string.Equals(p.ResourceKey, templateKey, StringComparison.OrdinalIgnoreCase))
-            .Select(p => p.AccessType)
-            .Append(AccessType.Read)
-            .Distinct()
-            .ToArray();
 
         userFactory.AddTemplatePermissionToUser(
             user,
             templateKey,
-            accessTypes,
+            [AccessType.Read],
             grantedBy,
             now);
 

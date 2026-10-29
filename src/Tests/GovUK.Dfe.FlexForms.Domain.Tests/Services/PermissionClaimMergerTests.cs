@@ -19,7 +19,7 @@ public class PermissionClaimMergerTests
     }
 
     [Fact]
-    public void Merge_OmitsRoleGrants_WhenUserOverridesSameTypeAndKey()
+    public void Merge_KeepsDifferentRoleAccessTypes_WhenUserAddsAGrantForTheSameKey()
     {
         var role = new[]
         {
@@ -33,9 +33,27 @@ public class PermissionClaimMergerTests
 
         var claims = PermissionClaimMerger.Merge(role, user);
 
-        Assert.DoesNotContain("Application:Any:Read", claims);
-        Assert.DoesNotContain("Application:Any:Write", claims);
+        Assert.Contains("Application:Any:Read", claims);
+        Assert.Contains("Application:Any:Write", claims);
         Assert.Contains("Application:Any:Delete", claims);
+    }
+
+    [Fact]
+    public void Merge_DeduplicatesTheSameRoleAndUserGrant()
+    {
+        var role = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.Template, "form-1", AccessType.Read)
+        };
+        var user = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.Template, "FORM-1", AccessType.Read)
+        };
+
+        var claims = PermissionClaimMerger.Merge(role, user);
+
+        Assert.Single(claims);
+        Assert.Contains("Template:FORM-1:Read", claims, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -53,7 +71,7 @@ public class PermissionClaimMergerTests
 
         var claims = PermissionClaimMerger.Merge(role, user);
 
-        Assert.DoesNotContain("Application:Any:Read", claims);
+        Assert.Contains("Application:Any:Read", claims);
         Assert.Contains("Application:Any:Write", claims);
         Assert.Contains("Template:t1:Read", claims);
     }
@@ -83,7 +101,8 @@ public class PermissionClaimMergerTests
 
         var claims = PermissionClaimMerger.Merge(role, user);
 
-        Assert.Single(claims);
+        Assert.Equal(2, claims.Count);
+        Assert.Contains("User:Alice@Example.com:Read", claims, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("User:alice@example.com:Write", claims, StringComparer.OrdinalIgnoreCase);
     }
 }

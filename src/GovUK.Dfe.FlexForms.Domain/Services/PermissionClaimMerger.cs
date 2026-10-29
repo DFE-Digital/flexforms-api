@@ -4,8 +4,10 @@ namespace GovUK.Dfe.FlexForms.Domain.Services;
 
 /// <summary>
 /// Merges role-default and user-specific permission grants into claim values.
-/// When a user has any grant for a given <c>ResourceType</c> + <c>ResourceKey</c>,
-/// role grants for that same key are omitted (user overrides role).
+/// A user grant overrides the role grant only for the same
+/// <c>ResourceType</c> + <c>ResourceKey</c> + <c>AccessType</c>. Other role
+/// access types remain effective, so adding an application or template Read
+/// grant cannot accidentally remove role-derived Write or Manage access.
 /// Template (form) access is stored as <see cref="ResourceType.Template"/> user grants.
 /// </summary>
 public static class PermissionClaimMerger
@@ -16,16 +18,16 @@ public static class PermissionClaimMerger
         IEnumerable<Grant> roleGrants,
         IEnumerable<Grant> userGrants)
     {
-        var userKeys = new HashSet<(ResourceType Type, string Key)>(
-            userGrants.Select(g => (g.ResourceType, NormalizeKey(g.ResourceKey))),
-            TypeKeyComparer.Instance);
+        var userGrantsByAccessType = new HashSet<(ResourceType Type, string Key, AccessType AccessType)>(
+            userGrants.Select(g => (g.ResourceType, NormalizeKey(g.ResourceKey), g.AccessType)),
+            TypeKeyAccessComparer.Instance);
 
         var claims = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var grant in roleGrants)
         {
-            var key = (grant.ResourceType, NormalizeKey(grant.ResourceKey));
-            if (userKeys.Contains(key))
+            var key = (grant.ResourceType, NormalizeKey(grant.ResourceKey), grant.AccessType);
+            if (userGrantsByAccessType.Contains(key))
                 continue;
 
             claims.Add(Format(grant.ResourceType, grant.ResourceKey, grant.AccessType));
@@ -42,15 +44,19 @@ public static class PermissionClaimMerger
     private static string Format(ResourceType resourceType, string resourceKey, AccessType accessType) =>
         $"{resourceType}:{resourceKey.Trim()}:{accessType}";
 
-    private sealed class TypeKeyComparer : IEqualityComparer<(ResourceType Type, string Key)>
+    private sealed class TypeKeyAccessComparer : IEqualityComparer<(ResourceType Type, string Key, AccessType AccessType)>
     {
-        public static readonly TypeKeyComparer Instance = new();
+        public static readonly TypeKeyAccessComparer Instance = new();
 
-        public bool Equals((ResourceType Type, string Key) x, (ResourceType Type, string Key) y) =>
+        public bool Equals((ResourceType Type, string Key, AccessType AccessType) x, (ResourceType Type, string Key, AccessType AccessType) y) =>
             x.Type == y.Type
+            && x.AccessType == y.AccessType
             && string.Equals(x.Key, y.Key, StringComparison.OrdinalIgnoreCase);
 
-        public int GetHashCode((ResourceType Type, string Key) obj) =>
-            HashCode.Combine(obj.Type, StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Key));
+        public int GetHashCode((ResourceType Type, string Key, AccessType AccessType) obj) =>
+            HashCode.Combine(
+                obj.Type,
+                obj.AccessType,
+                StringComparer.OrdinalIgnoreCase.GetHashCode(obj.Key));
     }
 }
