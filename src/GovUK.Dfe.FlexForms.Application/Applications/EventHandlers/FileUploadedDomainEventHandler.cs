@@ -41,9 +41,12 @@ public sealed class FileUploadedDomainEventHandler(
         // FileURL is the Azure File Share path: {applicationReference}/{hashedFileName}
         var fileUrl = $"{file.Path}/{fileName}";
 
+        var tenant = tenantContextAccessor.CurrentTenant
+            ?? throw new InvalidOperationException("Tenant context is required to publish file upload events.");
+
         // Prefer tenant Azure credentials (TenantConfig) for SAS. Fall back to host DI only when
         // the tenant is not Azure-backed (e.g. Local host Hybrid registration).
-        var tenantAzure = tenantAzureFileStorageFactory.GetAzureOperationsOrNull();
+        var tenantAzure = tenantAzureFileStorageFactory.GetAzureOperationsOrNull(tenant);
         IAzureSpecificOperations? azureOps = tenantAzure;
         azureOps ??= azureSpecificOperations.FirstOrDefault();
 
@@ -68,9 +71,6 @@ public sealed class FileUploadedDomainEventHandler(
                 tenantAzure is not null ? "tenant FileStorage:Azure" : "host IAzureSpecificOperations",
                 fileUrl);
         }
-
-        var tenant = tenantContextAccessor.CurrentTenant 
-            ?? throw new InvalidOperationException("Tenant context is required to publish file upload events.");
 
         var templateId = await TryResolveTemplateIdAsync(file.ApplicationId, cancellationToken);
         var userId = file.UploadedBy.Value.ToString();

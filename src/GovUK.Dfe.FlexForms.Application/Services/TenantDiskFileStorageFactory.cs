@@ -13,24 +13,26 @@ namespace GovUK.Dfe.FlexForms.Application.Services;
 /// <c>FileStorage:Local</c> (e.g. Container Apps mount at <c>/uploads</c>).
 /// Does not use host GlobalConfiguration BaseDirectory — that path often resolves to
 /// <c>/app/uploads</c> and fails in the CoreLibs constructor before any override runs.
+/// Singleton-safe: callers pass the tenant; this type does not consume scoped
+/// <see cref="ITenantContextAccessor"/>.
 /// </summary>
 public interface ITenantDiskFileStorageFactory
 {
     /// <summary>
-    /// Local disk service for the current tenant (Local or Hybrid Provider).
+    /// Local disk service for the given tenant (Local or Hybrid Provider).
     /// </summary>
-    IFileStorageService GetRequiredDiskFileStorage();
+    IFileStorageService GetRequiredDiskFileStorage(TenantConfiguration tenant);
 }
 
 public sealed class TenantDiskFileStorageFactory(
-    ITenantContextAccessor tenantContextAccessor,
     ILogger<TenantDiskFileStorageFactory> logger) : ITenantDiskFileStorageFactory
 {
     private readonly ConcurrentDictionary<string, LocalFileStorageService> _cache = new(StringComparer.Ordinal);
 
-    public IFileStorageService GetRequiredDiskFileStorage()
+    public IFileStorageService GetRequiredDiskFileStorage(TenantConfiguration tenant)
     {
-        var tenant = GetCurrentTenant();
+        ArgumentNullException.ThrowIfNull(tenant);
+
         var provider = tenant.Settings.GetValue<string>("FileStorage:Provider")
             ?? throw new InvalidOperationException(
                 $"Tenant '{tenant.Name}' has no FileStorage:Provider configured.");
@@ -94,8 +96,4 @@ public sealed class TenantDiskFileStorageFactory(
             return new LocalFileStorageService(options);
         });
     }
-
-    private TenantConfiguration GetCurrentTenant()
-        => tenantContextAccessor.CurrentTenant
-           ?? throw new InvalidOperationException("No tenant context available for disk file storage.");
 }

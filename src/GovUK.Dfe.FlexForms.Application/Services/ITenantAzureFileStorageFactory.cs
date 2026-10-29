@@ -1,25 +1,27 @@
 using GovUK.Dfe.CoreLibs.FileStorage.Interfaces;
+using GovUK.Dfe.FlexForms.Domain.Tenancy;
 
 namespace GovUK.Dfe.FlexForms.Application.Services;
 
 /// <summary>
-/// Builds Azure File Share clients from the current tenant's <c>FileStorage:Azure</c> settings
-/// (not host GlobalConfiguration).
+/// Builds Azure File Share clients from a tenant's <c>FileStorage:Azure</c> settings
+/// (not host GlobalConfiguration). Singleton-safe: callers pass the tenant; this type
+/// does not consume scoped <see cref="ITenantContextAccessor"/>.
 /// </summary>
 public interface ITenantAzureFileStorageFactory
 {
     /// <summary>
-    /// Azure file storage for the current tenant when Provider is Azure or Hybrid; otherwise null.
+    /// Azure file storage when Provider is Azure or Hybrid; otherwise null.
     /// </summary>
-    IFileStorageService? GetAzureFileStorageOrNull();
+    IFileStorageService? GetAzureFileStorageOrNull(TenantConfiguration tenant);
 
     /// <summary>
-    /// Azure SAS operations for the current tenant when Provider is Azure or Hybrid; otherwise null.
+    /// Azure SAS operations when Provider is Azure or Hybrid; otherwise null.
     /// </summary>
-    IAzureSpecificOperations? GetAzureOperationsOrNull();
+    IAzureSpecificOperations? GetAzureOperationsOrNull(TenantConfiguration tenant);
 
     /// <summary>
-    /// Required Azure file storage for the current tenant (Provider must be Azure).
+    /// Required Azure file storage (Provider must be Azure).
     /// </summary>
-    IFileStorageService GetRequiredAzureFileStorage();
+    IFileStorageService GetRequiredAzureFileStorage(TenantConfiguration tenant);
 }

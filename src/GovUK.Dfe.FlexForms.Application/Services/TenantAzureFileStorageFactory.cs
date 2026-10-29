@@ -13,18 +13,18 @@ namespace GovUK.Dfe.FlexForms.Application.Services;
 /// Host GlobalConfiguration Azure values are not used for these clients.
 /// </summary>
 public sealed class TenantAzureFileStorageFactory(
-    ITenantContextAccessor tenantContextAccessor,
     ILogger<TenantAzureFileStorageFactory> logger) : ITenantAzureFileStorageFactory
 {
     private readonly ConcurrentDictionary<string, AzureFileStorageService> _cache = new(StringComparer.Ordinal);
 
-    public IFileStorageService? GetAzureFileStorageOrNull() => GetOrCreateOptional();
+    public IFileStorageService? GetAzureFileStorageOrNull(TenantConfiguration tenant) => GetOrCreateOptional(tenant);
 
-    public IAzureSpecificOperations? GetAzureOperationsOrNull() => GetOrCreateOptional();
+    public IAzureSpecificOperations? GetAzureOperationsOrNull(TenantConfiguration tenant) => GetOrCreateOptional(tenant);
 
-    public IFileStorageService GetRequiredAzureFileStorage()
+    public IFileStorageService GetRequiredAzureFileStorage(TenantConfiguration tenant)
     {
-        var tenant = GetCurrentTenant();
+        ArgumentNullException.ThrowIfNull(tenant);
+
         var provider = tenant.Settings.GetValue<string>("FileStorage:Provider")
             ?? throw new InvalidOperationException(
                 $"Tenant '{tenant.Name}' has no FileStorage:Provider configured.");
@@ -38,9 +38,10 @@ public sealed class TenantAzureFileStorageFactory(
         return GetOrCreate(tenant, provider);
     }
 
-    private AzureFileStorageService? GetOrCreateOptional()
+    private AzureFileStorageService? GetOrCreateOptional(TenantConfiguration tenant)
     {
-        var tenant = GetCurrentTenant();
+        ArgumentNullException.ThrowIfNull(tenant);
+
         var provider = tenant.Settings.GetValue<string>("FileStorage:Provider");
         if (!UsesTenantAzureClient(provider))
         {
@@ -82,10 +83,6 @@ public sealed class TenantAzureFileStorageFactory(
             return new AzureFileStorageService(options);
         });
     }
-
-    private TenantConfiguration GetCurrentTenant()
-        => tenantContextAccessor.CurrentTenant
-           ?? throw new InvalidOperationException("No tenant context available for Azure file storage.");
 
     private static bool UsesTenantAzureClient(string? provider) =>
         string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase)

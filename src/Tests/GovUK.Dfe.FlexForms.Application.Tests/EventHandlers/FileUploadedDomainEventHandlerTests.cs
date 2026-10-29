@@ -47,7 +47,7 @@ public class FileUploadedDomainEventHandlerTests
 
         _applicationRepository.Query().Returns(Array.Empty<Domain.Entities.Application>().AsQueryable());
         _userRepository.Query().Returns(Array.Empty<User>().AsQueryable());
-        _tenantAzureFactory.GetAzureOperationsOrNull().Returns((IAzureSpecificOperations?)null);
+        _tenantAzureFactory.GetAzureOperationsOrNull(Arg.Any<TenantConfiguration>()).Returns((IAzureSpecificOperations?)null);
 
         _handler = new FileUploadedDomainEventHandler(
             _logger,

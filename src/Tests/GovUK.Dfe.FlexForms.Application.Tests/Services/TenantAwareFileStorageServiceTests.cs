@@ -40,8 +40,8 @@ public class TenantAwareFileStorageServiceTests
         var httpContext = new DefaultHttpContext { RequestServices = serviceProvider };
         _httpContextAccessor.HttpContext.Returns(httpContext);
 
-        _tenantAzureFactory.GetRequiredAzureFileStorage().Returns(_tenantAzureStorage);
-        _tenantDiskFactory.GetRequiredDiskFileStorage().Returns(_tenantDiskStorage);
+        _tenantAzureFactory.GetRequiredAzureFileStorage(Arg.Any<TenantConfiguration>()).Returns(_tenantAzureStorage);
+        _tenantDiskFactory.GetRequiredDiskFileStorage(Arg.Any<TenantConfiguration>()).Returns(_tenantDiskStorage);
 
         _service = new TenantAwareFileStorageService(
             _httpContextAccessor, _tenantContextAccessor, _tenantAzureFactory, _tenantDiskFactory, _logger);
@@ -105,7 +105,7 @@ public class TenantAwareFileStorageServiceTests
 
         await _tenantDiskStorage.Received(1).UploadAsync(
             "test/path", stream, "file.txt", Arg.Any<CancellationToken>());
-        _tenantAzureFactory.DidNotReceive().GetRequiredAzureFileStorage();
+        _tenantAzureFactory.DidNotReceive().GetRequiredAzureFileStorage(Arg.Any<TenantConfiguration>());
         await _innerFileStorageService.DidNotReceiveWithAnyArgs()
             .UploadAsync(default!, default!, default, default, default);
     }
@@ -121,7 +121,7 @@ public class TenantAwareFileStorageServiceTests
 
         await _tenantDiskStorage.Received(1).UploadAsync(
             "test/path", stream, "file.pdf", Arg.Any<CancellationToken>());
-        _tenantAzureFactory.DidNotReceive().GetRequiredAzureFileStorage();
+        _tenantAzureFactory.DidNotReceive().GetRequiredAzureFileStorage(Arg.Any<TenantConfiguration>());
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class TenantAwareFileStorageServiceTests
 
         await _tenantAzureStorage.Received(1).UploadAsync(
             "test/path", stream, "file.pdf", Arg.Any<CancellationToken>());
-        _tenantDiskFactory.DidNotReceive().GetRequiredDiskFileStorage();
+        _tenantDiskFactory.DidNotReceive().GetRequiredDiskFileStorage(Arg.Any<TenantConfiguration>());
     }
 
     [Fact]
@@ -176,7 +176,7 @@ public class TenantAwareFileStorageServiceTests
             _service.UploadAsync("test/path", stream, "file.exe"));
 
         Assert.Contains("not allowed", ex.Message, StringComparison.OrdinalIgnoreCase);
-        _tenantAzureFactory.DidNotReceive().GetRequiredAzureFileStorage();
+        _tenantAzureFactory.DidNotReceive().GetRequiredAzureFileStorage(Arg.Any<TenantConfiguration>());
     }
 
     [Fact]

@@ -50,17 +50,17 @@ namespace GovUK.Dfe.FlexForms.Application.Services
 
         public Task UploadAsync(string path, Stream content, string? originalFileName = null, CancellationToken cancellationToken = default)
         {
-            var (provider, localOptions) = ResolveRequiredTenantStorage();
+            var (tenant, provider, localOptions) = ResolveRequiredTenantStorage();
 
             if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
                 ValidateAgainstTenantLocalRules(originalFileName, content, localOptions);
-                var azure = _tenantAzureFactory.GetRequiredAzureFileStorage();
+                var azure = _tenantAzureFactory.GetRequiredAzureFileStorage(tenant);
                 _logger.LogDebug("Uploading to tenant Azure File Share: path={Path}", path);
                 return azure.UploadAsync(path, content, originalFileName, cancellationToken);
             }
 
-            var disk = _tenantDiskFactory.GetRequiredDiskFileStorage();
+            var disk = _tenantDiskFactory.GetRequiredDiskFileStorage(tenant);
             _logger.LogDebug(
                 "Uploading to tenant disk (Provider={Provider}): path={Path}, baseDirectory={BaseDirectory}",
                 provider, path, localOptions?.BaseDirectory);
@@ -69,38 +69,38 @@ namespace GovUK.Dfe.FlexForms.Application.Services
 
         public Task DeleteAsync(string path, CancellationToken cancellationToken = default)
         {
-            var (provider, _) = ResolveRequiredTenantStorage();
+            var (tenant, provider, _) = ResolveRequiredTenantStorage();
 
             if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
-                return _tenantAzureFactory.GetRequiredAzureFileStorage().DeleteAsync(path, cancellationToken);
+                return _tenantAzureFactory.GetRequiredAzureFileStorage(tenant).DeleteAsync(path, cancellationToken);
             }
 
-            return _tenantDiskFactory.GetRequiredDiskFileStorage().DeleteAsync(path, cancellationToken);
+            return _tenantDiskFactory.GetRequiredDiskFileStorage(tenant).DeleteAsync(path, cancellationToken);
         }
 
         public Task<Stream> DownloadAsync(string path, CancellationToken cancellationToken = default)
         {
-            var (provider, _) = ResolveRequiredTenantStorage();
+            var (tenant, provider, _) = ResolveRequiredTenantStorage();
 
             if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
-                return _tenantAzureFactory.GetRequiredAzureFileStorage().DownloadAsync(path, cancellationToken);
+                return _tenantAzureFactory.GetRequiredAzureFileStorage(tenant).DownloadAsync(path, cancellationToken);
             }
 
-            return _tenantDiskFactory.GetRequiredDiskFileStorage().DownloadAsync(path, cancellationToken);
+            return _tenantDiskFactory.GetRequiredDiskFileStorage(tenant).DownloadAsync(path, cancellationToken);
         }
 
         public Task<bool> ExistsAsync(string path, CancellationToken cancellationToken = default)
         {
-            var (provider, _) = ResolveRequiredTenantStorage();
+            var (tenant, provider, _) = ResolveRequiredTenantStorage();
 
             if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
-                return _tenantAzureFactory.GetRequiredAzureFileStorage().ExistsAsync(path, cancellationToken);
+                return _tenantAzureFactory.GetRequiredAzureFileStorage(tenant).ExistsAsync(path, cancellationToken);
             }
 
-            return _tenantDiskFactory.GetRequiredDiskFileStorage().ExistsAsync(path, cancellationToken);
+            return _tenantDiskFactory.GetRequiredDiskFileStorage(tenant).ExistsAsync(path, cancellationToken);
         }
 
         #endregion
@@ -164,7 +164,7 @@ namespace GovUK.Dfe.FlexForms.Application.Services
         /// For Azure, LocalOptions may still carry AllowedExtensions / MaxFileSize from the tenant Local section.
         /// For Local/Hybrid, LocalOptions is required for disk BaseDirectory.
         /// </summary>
-        private (string Provider, LocalFileStorageOptions? LocalOptions) ResolveRequiredTenantStorage()
+        private (TenantConfiguration Tenant, string Provider, LocalFileStorageOptions? LocalOptions) ResolveRequiredTenantStorage()
         {
             // Background consumers (scan results) have no HttpContext; tenant is on the consume scope.
             var tenant = _tenantContextAccessor.CurrentTenant
@@ -181,7 +181,7 @@ namespace GovUK.Dfe.FlexForms.Application.Services
             if (string.Equals(provider, "Azure", StringComparison.OrdinalIgnoreCase))
             {
                 var optionalLocal = TryBuildLocalOptions(tenant);
-                return (provider, optionalLocal);
+                return (tenant, provider, optionalLocal);
             }
 
             if (string.Equals(provider, "Local", StringComparison.OrdinalIgnoreCase)
@@ -199,7 +199,7 @@ namespace GovUK.Dfe.FlexForms.Application.Services
                         $"Tenant '{tenant.Name}' FileStorage Provider is {provider} but FileStorage:Local:BaseDirectory is missing.");
                 }
 
-                return (provider, BuildLocalOptions(tenant, baseDirectory));
+                return (tenant, provider, BuildLocalOptions(tenant, baseDirectory));
             }
 
             throw new InvalidOperationException(
