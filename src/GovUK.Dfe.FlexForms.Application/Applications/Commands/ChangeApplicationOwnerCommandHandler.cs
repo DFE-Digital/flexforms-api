@@ -239,7 +239,8 @@ public sealed class ChangeApplicationOwnerCommandHandler(
     private void RemoveApplicationPermissions(User user, ApplicationId applicationId)
     {
         var scoped = user.Permissions
-            .Where(p => p.ApplicationId == applicationId)
+            .Where(p => p.ApplicationId == applicationId
+                        && p.ResourceType is not ResourceType.Notifications)
             .ToList();
 
         foreach (var permission in scoped)

@@ -82,6 +82,43 @@ public class ChangeApplicationOwnerCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_PreservesTenantNotificationGrants_WhenPreviousOwnerWasAlsoAContributor()
+    {
+        var templateId = new TemplateId(Guid.NewGuid());
+        var actor = UserNamed("Admin", "admin@education.gov.uk");
+        var previous = UserNamed("Old Owner", "old.owner@education.gov.uk");
+        var next = UserNamed("New Owner", "new.owner@education.gov.uk");
+        var application = ApplicationOwnedBy(previous, templateId, ApplicationStatus.InProgress);
+
+        _userFactory.AddPermissionToUser(
+            previous,
+            application.Id!.Value.ToString(),
+            ResourceType.Application,
+            [AccessType.Read, AccessType.Write],
+            actor.Id!,
+            application.Id);
+        _userFactory.AddPermissionToUser(
+            previous,
+            TenantScopedIdentityKey.Combine(_tenantId, previous.Email),
+            ResourceType.Notifications,
+            [AccessType.Read, AccessType.Write, AccessType.Delete],
+            actor.Id!,
+            application.Id);
+
+        var handler = CreateHandler(application, [previous, next], actor, member: true);
+        var result = await handler.Handle(
+            new ChangeApplicationOwnerCommand(application.Id.Value, next.Email),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.DoesNotContain(previous.Permissions, p => p.ApplicationId == application.Id && p.ResourceType == ResourceType.Application);
+        Assert.Contains(previous.Permissions, p =>
+            p.ResourceType == ResourceType.Notifications
+            && p.ApplicationId == application.Id
+            && p.AccessType == AccessType.Write);
+    }
+
+    [Fact]
     public async Task Handle_GrantsTemplateRead_WhenNewOwnerHasNoTemplateAccess()
     {
         var templateId = new TemplateId(Guid.NewGuid());

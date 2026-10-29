@@ -30,6 +30,9 @@ public static class ContributorInviteAccess
         try
         {
             using var document = JsonDocument.Parse(jsonSchema);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+                return ContributorRoleSelection.Invalid;
+
             if (!document.RootElement.TryGetProperty("contributorRoleId", out var property))
                 return ContributorRoleSelection.NotSelected;
 

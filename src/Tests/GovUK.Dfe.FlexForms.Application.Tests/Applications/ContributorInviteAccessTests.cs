@@ -19,6 +19,18 @@ public class ContributorInviteAccessTests
     }
 
     [Theory]
+    [InlineData("[]")]
+    [InlineData("""["contributorRoleId"]""")]
+    [InlineData("42")]
+    [InlineData("null")]
+    public void ReadRoleId_IsInvalid_WhenTheSchemaRootIsNotAnObject(string schema)
+    {
+        Assert.Equal(
+            ContributorRoleSelection.Invalid,
+            ContributorInviteAccess.ReadRoleId(schema, out _));
+    }
+
+    [Theory]
     [InlineData("""{"contributorRoleId":"not-a-guid"}""")]
     [InlineData("""{"contributorRoleId":42}""")]
     public void ReadRoleId_IsInvalid_WhenTheTemplateConfiguresAnInvalidRole(string schema)
