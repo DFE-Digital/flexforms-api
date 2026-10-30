@@ -107,8 +107,12 @@ public static class TenantSettingCategoryCookbook
             "InternalServiceAuth",
             "Service-to-service JWT credentials and optional API keys.",
             ["Api", "Web", "Shared"],
-            example: """{"SecretKey":"...","Issuer":"...","Audience":"...","ServiceApiKeys":[]}""",
-            notes: ["Forced secret category"],
+            example: """{"SecretKey":"...","Issuer":"...","Audience":"...","TokenLifetimeMinutes":10,"WebEdgeEnabled":true,"Services":[{"Email":"service@example.com","ApiKey":"..."}]}""",
+            notes:
+            [
+                "Forced secret category",
+                "Web target: WebEdgeEnabled (bool) opts this tenant into header auth on the public web edge in Production. Off unless true. Host InternalServiceAuth:WebEdgeEnabled=false is a platform kill-switch"
+            ],
             requiresObject: true),
 
         Entry(
