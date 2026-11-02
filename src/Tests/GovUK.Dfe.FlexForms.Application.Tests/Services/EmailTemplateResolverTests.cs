@@ -1,8 +1,12 @@
 using GovUK.Dfe.FlexForms.Application.Services;
+using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using MockQueryable;
+using MockQueryable.NSubstitute;
 using NSubstitute;
 using Xunit;
 
@@ -39,7 +43,7 @@ public class EmailTemplateResolverTests
 
         _tenantContextAccessor.CurrentTenant.Returns(tenantConfig);
 
-        _resolver = new EmailTemplateResolver(_tenantContextAccessor, _logger);
+        _resolver = new EmailTemplateResolver(_tenantContextAccessor, EmptyVersions(), _logger);
     }
 
     [Fact]
@@ -143,7 +147,7 @@ public class EmailTemplateResolverTests
 
         var accessor = Substitute.For<ITenantContextAccessor>();
         accessor.CurrentTenant.Returns(tenant);
-        var resolver = new EmailTemplateResolver(accessor, _logger);
+        var resolver = new EmailTemplateResolver(accessor, EmptyVersions(), _logger);
 
         var result = await resolver.ResolveEmailTemplateAsync(
             new TemplateId(Guid.Parse("9A4E9C58-9135-468C-B154-7B966F7ACFB7")),
@@ -172,7 +176,7 @@ public class EmailTemplateResolverTests
 
         var accessor = Substitute.For<ITenantContextAccessor>();
         accessor.CurrentTenant.Returns(tenant);
-        var resolver = new EmailTemplateResolver(accessor, _logger);
+        var resolver = new EmailTemplateResolver(accessor, EmptyVersions(), _logger);
 
         var result = await resolver.ResolveEmailTemplateAsync(
             new TemplateId(Guid.Parse("9A4E9C58-9135-468C-B154-7B966F7ACFB7")),
@@ -278,7 +282,7 @@ public class EmailTemplateResolverTests
     {
         var accessor = Substitute.For<ITenantContextAccessor>();
         accessor.CurrentTenant.Returns((TenantConfiguration?)null);
-        var resolver = new EmailTemplateResolver(accessor, _logger);
+        var resolver = new EmailTemplateResolver(accessor, EmptyVersions(), _logger);
 
         var templateId = new TemplateId(Guid.Parse("9A4E9C58-9135-468C-B154-7B966F7ACFB7"));
 
@@ -306,7 +310,7 @@ public class EmailTemplateResolverTests
         var accessor = Substitute.For<ITenantContextAccessor>();
         accessor.CurrentTenant.Returns(tenantB);
 
-        var resolver = new EmailTemplateResolver(accessor, _logger);
+        var resolver = new EmailTemplateResolver(accessor, EmptyVersions(), _logger);
         var templateId = new TemplateId(Guid.Parse("9A4E9C58-9135-468C-B154-7B966F7ACFB7"));
 
         var result = await resolver.ResolveEmailTemplateAsync(templateId, "ApplicationSubmitted");
@@ -378,10 +382,54 @@ public class EmailTemplateResolverTests
     {
         var accessor = Substitute.For<ITenantContextAccessor>();
         accessor.CurrentTenant.Returns((TenantConfiguration?)null);
-        var resolver = new EmailTemplateResolver(accessor, _logger);
+        var resolver = new EmailTemplateResolver(accessor, EmptyVersions(), _logger);
 
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => resolver.ResolveTenantEmailTemplateAsync("TestAuthPasswordEmail"));
+    }
+
+    [Fact]
+    public async Task ResolveEmailTemplateAsync_PrefersFormTemplateJson_OverTenantSetting()
+    {
+        var templateId = new TemplateId(Guid.Parse("9A4E9C58-9135-468C-B154-7B966F7ACFB7"));
+        var resolver = new EmailTemplateResolver(
+            _tenantContextAccessor,
+            VersionsWith(templateId, """{"emailTemplates":{"ApplicationSubmitted":"11111111-1111-1111-1111-111111111111"}}"""),
+            _logger);
+
+        var result = await resolver.ResolveEmailTemplateAsync(templateId, "ApplicationSubmitted");
+
+        Assert.Equal("11111111-1111-1111-1111-111111111111", result);
+    }
+
+    [Fact]
+    public async Task ResolveEmailTemplateAsync_UsesTenantSetting_WhenFormTemplateKeyIsBlank()
+    {
+        var templateId = new TemplateId(Guid.Parse("9A4E9C58-9135-468C-B154-7B966F7ACFB7"));
+        var resolver = new EmailTemplateResolver(
+            _tenantContextAccessor,
+            VersionsWith(templateId, """{"emailTemplates":{"ApplicationSubmitted":"","ContributorInvited":"22222222-2222-2222-2222-222222222222"}}"""),
+            _logger);
+
+        var submitted = await resolver.ResolveEmailTemplateAsync(templateId, "ApplicationSubmitted");
+        var invited = await resolver.ResolveEmailTemplateAsync(templateId, "ContributorInvited");
+
+        Assert.Equal("a4188604-0053-4d77-9ad2-720f6fbbdf0a", submitted);
+        Assert.Equal("22222222-2222-2222-2222-222222222222", invited);
+    }
+
+    [Fact]
+    public async Task ResolveEmailTemplateAsync_UsesFormTemplateJson_WhenHostMappingIsMissing()
+    {
+        var templateId = new TemplateId(Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"));
+        var resolver = new EmailTemplateResolver(
+            _tenantContextAccessor,
+            VersionsWith(templateId, """{"emailTemplates":{"BugReportInternal":"33333333-3333-3333-3333-333333333333"}}"""),
+            _logger);
+
+        var result = await resolver.ResolveEmailTemplateAsync(templateId, "BugReportInternal");
+
+        Assert.Equal("33333333-3333-3333-3333-333333333333", result);
     }
 
     private EmailTemplateResolver CreateResolver(string tenantName, Dictionary<string, string?> settings)
@@ -395,6 +443,28 @@ public class EmailTemplateResolverTests
         var accessor = Substitute.For<ITenantContextAccessor>();
         accessor.CurrentTenant.Returns(tenant);
 
-        return new EmailTemplateResolver(accessor, _logger);
+        return new EmailTemplateResolver(accessor, EmptyVersions(), _logger);
+    }
+
+    private static IEaRepository<TemplateVersion> EmptyVersions()
+    {
+        var repo = Substitute.For<IEaRepository<TemplateVersion>>();
+        repo.Query().Returns(new List<TemplateVersion>().AsQueryable().BuildMock());
+        return repo;
+    }
+
+    private static IEaRepository<TemplateVersion> VersionsWith(TemplateId templateId, string jsonSchema)
+    {
+        var version = new TemplateVersion(
+            new TemplateVersionId(Guid.NewGuid()),
+            templateId,
+            "1",
+            jsonSchema,
+            DateTime.UtcNow,
+            new UserId(Guid.NewGuid()));
+
+        var repo = Substitute.For<IEaRepository<TemplateVersion>>();
+        repo.Query().Returns(new List<TemplateVersion> { version }.AsQueryable().BuildMock());
+        return repo;
     }
 }

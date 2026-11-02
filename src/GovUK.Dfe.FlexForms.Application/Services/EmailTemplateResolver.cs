@@ -1,21 +1,39 @@
+using System.Text.Json;
 using GovUK.Dfe.FlexForms.Application.Common.Models;
+using GovUK.Dfe.FlexForms.Application.Templates.QueryObjects;
+using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace GovUK.Dfe.FlexForms.Application.Services;
 
 /// <summary>
-/// Resolves GOV.UK Notify template IDs from the current tenant's settings.
-/// Product / form keys come only from configuration — never from hardcoded service names.
+/// Resolves GOV.UK Notify template IDs from the form template JSON first, then the tenant's
+/// EmailTemplates setting. Product / form keys come only from configuration — never from
+/// hardcoded service names.
 /// </summary>
 public class EmailTemplateResolver(
     ITenantContextAccessor tenantContextAccessor,
+    IEaRepository<TemplateVersion> templateVersionRepository,
     ILogger<EmailTemplateResolver> logger) : IEmailTemplateResolver
 {
-    public Task<string?> ResolveEmailTemplateAsync(TemplateId templateId, string emailType)
+    public async Task<string?> ResolveEmailTemplateAsync(TemplateId templateId, string emailType)
     {
+        var fromTemplate = await TryGetFromTemplateJsonAsync(templateId, emailType);
+        if (!string.IsNullOrWhiteSpace(fromTemplate))
+        {
+            logger.LogDebug(
+                "Resolved email template {NotifyTemplateId} from form template JSON for template {TemplateId} and email type {EmailType}",
+                fromTemplate,
+                templateId.Value,
+                emailType);
+            return fromTemplate;
+        }
+
         var tenant = tenantContextAccessor.CurrentTenant
             ?? throw new InvalidOperationException("No tenant context available for email template resolution.");
 
@@ -30,7 +48,7 @@ public class EmailTemplateResolver(
                 "Ensure ApplicationTemplates:HostMappings includes this form template GUID, " +
                 "or that EmailTemplates has a single product key / a key matching the tenant name.",
                 templateId.Value);
-            return Task.FromResult<string?>(null);
+            return null;
         }
 
         var emailTemplateId = emailTemplatesConfig.GetTemplateId(applicationType, emailType);
@@ -41,7 +59,7 @@ public class EmailTemplateResolver(
                 "Could not find email template for application type {ApplicationType} and email type {EmailType}",
                 applicationType,
                 emailType);
-            return Task.FromResult<string?>(null);
+            return null;
         }
 
         logger.LogDebug(
@@ -50,7 +68,7 @@ public class EmailTemplateResolver(
             applicationType,
             emailType);
 
-        return Task.FromResult<string?>(emailTemplateId);
+        return emailTemplateId;
     }
 
     public Task<string?> ResolveTenantEmailTemplateAsync(string emailType)
@@ -95,6 +113,65 @@ public class EmailTemplateResolver(
         var (appTemplatesConfig, emailTemplatesConfig) = GetTenantConfigs(tenant);
         var applicationType = ResolveApplicationType(templateId.Value, tenant, appTemplatesConfig, emailTemplatesConfig);
         return Task.FromResult(applicationType);
+    }
+
+    private async Task<string?> TryGetFromTemplateJsonAsync(TemplateId templateId, string emailType)
+    {
+        try
+        {
+            var latest = await new GetLatestTemplateVersionForTemplateQueryObject(templateId)
+                .Apply(templateVersionRepository.Query().AsNoTracking())
+                .FirstOrDefaultAsync();
+
+            if (latest is null || string.IsNullOrWhiteSpace(latest.JsonSchema))
+                return null;
+
+            using var doc = JsonDocument.Parse(latest.JsonSchema);
+            if (!TryGetPropertyIgnoreCase(doc.RootElement, "emailTemplates", out var map)
+                || map.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            foreach (var property in map.EnumerateObject())
+            {
+                if (!string.Equals(property.Name, emailType, StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                if (property.Value.ValueKind != JsonValueKind.String)
+                    return null;
+
+                var value = property.Value.GetString();
+                return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(
+                ex,
+                "Could not read emailTemplates from form template {TemplateId}",
+                templateId.Value);
+        }
+
+        return null;
+    }
+
+    private static bool TryGetPropertyIgnoreCase(JsonElement root, string name, out JsonElement property)
+    {
+        if (root.TryGetProperty(name, out property))
+            return true;
+
+        foreach (var candidate in root.EnumerateObject())
+        {
+            if (string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase))
+            {
+                property = candidate.Value;
+                return true;
+            }
+        }
+
+        property = default;
+        return false;
     }
 
     private static (ApplicationTemplatesConfiguration appTemplates, EmailTemplatesConfiguration emailTemplates)

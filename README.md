@@ -839,7 +839,7 @@ Same store and SignalR path as file-delete / malware banners. Context **must** b
 
 ## Email placeholder mappings (Notify personalisation)
 
-Application emails are sent via **GOV.UK Notify**. The API resolves a Notify template GUID from `EmailTemplates`, then sends an `EmailMessage` with a **personalisation** dictionary. Bodies live in Notify (`((placeholders))`); FlexForms only supplies values.
+Application emails are sent via **GOV.UK Notify**. The API resolves a Notify template GUID from the form template JSON (`emailTemplates`) when that key is set, otherwise from tenant `EmailTemplates`, then sends an `EmailMessage` with a **personalisation** dictionary. Bodies live in Notify (`((placeholders))`); FlexForms only supplies values.
 
 ### Baseline keys (always sent)
 

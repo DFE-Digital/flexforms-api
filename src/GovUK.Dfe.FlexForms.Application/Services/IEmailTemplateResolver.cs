@@ -8,7 +8,8 @@ namespace GovUK.Dfe.FlexForms.Application.Services;
 public interface IEmailTemplateResolver
 {
     /// <summary>
-    /// Resolves the email template ID for a given application template and email type
+    /// Resolves the email template ID for a given application template and email type.
+    /// A value on the form template JSON (<c>emailTemplates</c>) wins, then tenant EmailTemplates.
     /// </summary>
     /// <param name="templateId">The template ID from the application</param>
     /// <param name="emailType">The type of email (e.g., "ApplicationSubmitted")</param>
