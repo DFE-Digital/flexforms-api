@@ -5,6 +5,7 @@ using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -42,6 +43,13 @@ public sealed class SetTemplateLiveCommandHandler(
             if (!await tenantTemplateResolver.IsTemplateInCurrentTenantAsync(templateId, cancellationToken))
             {
                 return Result<TemplateDto>.Forbid("Template does not belong to the current tenant");
+            }
+
+            var templateKey = request.TemplateId.ToString();
+            if (!permissionCheckerService.HasPermission(ResourceType.Template, templateKey, AccessType.Read)
+                && !permissionCheckerService.HasPermission(ResourceType.Template, templateKey, AccessType.Write))
+            {
+                return Result<TemplateDto>.Forbid("User does not have access to this template");
             }
 
             var template = await new GetTemplateByIdQueryObject(templateId)
