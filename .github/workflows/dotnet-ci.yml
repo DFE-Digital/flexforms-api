@@ -10,7 +10,18 @@ permissions:
   packages: read
 
 jobs:
+  knowledge-check:
+    name: Knowledge base check
+    uses: ./.github/workflows/knowledge-check.yml
+    permissions:
+      contents: read
+      pull-requests: read
+    with:
+      code-paths: '^src/'
+      ignored-paths: '^src/(Tests|Benchmarks)/'
+
   test:
     name: Build and Test
+    needs: [ knowledge-check ]
     uses: ./.github/workflows/test-solution.yml
     secrets: inherit
