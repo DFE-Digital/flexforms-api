@@ -5,6 +5,7 @@ using GovUK.Dfe.FlexForms.Application.Templates.Commands;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using Microsoft.AspNetCore.Http;
 using MockQueryable;
@@ -28,6 +29,7 @@ public class UpdateCustomApplicationStatusCommandHandlerTests
     private readonly IEaRepository<User> _userRepo = Substitute.For<IEaRepository<User>>();
     private readonly IHttpContextAccessor _httpContextAccessor = Substitute.For<IHttpContextAccessor>();
     private readonly IUnitOfWork _unitOfWork = Substitute.For<IUnitOfWork>();
+    private readonly IPermissionCheckerService _permissionChecker = Substitute.For<IPermissionCheckerService>();
     private readonly UpdateCustomApplicationStatusCommandHandler _handler;
 
     private readonly User _testUser;
@@ -59,12 +61,35 @@ public class UpdateCustomApplicationStatusCommandHandlerTests
         var httpContext = new DefaultHttpContext { User = claimsPrincipal };
         _httpContextAccessor.HttpContext.Returns(httpContext);
 
+        _permissionChecker.HasPermission(ResourceType.Template, _testTemplateId.ToString(), AccessType.Write)
+            .Returns(true);
+
         _handler = new UpdateCustomApplicationStatusCommandHandler(
             _customStatusRepo,
             _userRepo,
             _httpContextAccessor,
             AllowAllTenantTemplates(),
+            _permissionChecker,
             _unitOfWork);
+    }
+
+    [Theory]
+    [CustomAutoData]
+    public async Task Handle_ReturnsForbid_WhenUserHasNoAccessToTemplate(string label)
+    {
+        _permissionChecker.HasPermission(ResourceType.Template, _testTemplateId.ToString(), AccessType.Write)
+            .Returns(false);
+        _permissionChecker.HasPermission(ResourceType.Template, _testTemplateId.ToString(), AccessType.Read)
+            .Returns(false);
+
+        var command = new UpdateCustomApplicationStatusCommand(_testTemplateId, ApplicationStatus.Submitted, label);
+
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("User does not have access to this template", result.Error);
+        await _customStatusRepo.DidNotReceive().AddAsync(Arg.Any<CustomApplicationStatus>(), Arg.Any<CancellationToken>());
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
     }
     [Theory]
     [CustomAutoData]
@@ -120,6 +145,7 @@ public class UpdateCustomApplicationStatusCommandHandlerTests
             _userRepo,
             httpContextAccessor,
             AllowAllTenantTemplates(),
+            _permissionChecker,
             _unitOfWork);
 
         var command = new UpdateCustomApplicationStatusCommand(_testTemplateId, ApplicationStatus.Submitted, label);
@@ -152,6 +178,7 @@ public class UpdateCustomApplicationStatusCommandHandlerTests
             userRepo,
             _httpContextAccessor,
             AllowAllTenantTemplates(),
+            _permissionChecker,
             _unitOfWork);
 
         var command = new UpdateCustomApplicationStatusCommand(_testTemplateId, ApplicationStatus.Submitted, label);

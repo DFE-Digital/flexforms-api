@@ -6,17 +6,16 @@ namespace GovUK.Dfe.FlexForms.Domain.Tests.Services;
 
 public class RoleTemplatesTests
 {
-    [Theory]
-    [InlineData(AccessType.Write)]
-    [InlineData(AccessType.Manage)]
-    public void TemplateManager_GrantsTenantWideTemplateAccess(AccessType accessType)
+    [Fact]
+    public void TemplateManager_GrantsTenantWideManageOnly()
     {
         var template = RoleTemplates.Get(RoleTemplates.TemplateManagerKey);
 
         Assert.NotNull(template);
-        Assert.Contains(
-            new RoleTemplates.Grant(ResourceType.Template, PermissionConstants.AnyResourceKey, accessType),
-            template!.Grants);
+        var grant = Assert.Single(template!.Grants);
+        Assert.Equal(
+            new RoleTemplates.Grant(ResourceType.Template, PermissionConstants.AnyResourceKey, AccessType.Manage),
+            grant);
     }
 
     [Fact]

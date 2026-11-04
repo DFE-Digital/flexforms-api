@@ -3,6 +3,7 @@ using GovUK.Dfe.FlexForms.Application.Templates.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
@@ -28,6 +29,7 @@ namespace GovUK.Dfe.FlexForms.Application.Templates.Commands
         IEaRepository<User> userRepo,
         IHttpContextAccessor httpContextAccessor,
         ITenantTemplateResolver tenantTemplateResolver,
+        IPermissionCheckerService permissionCheckerService,
         IUnitOfWork unitOfWork)
         : IRequestHandler<UpdateCustomApplicationStatusCommand, Result<CustomApplicationStatusDto>>
     {
@@ -66,6 +68,14 @@ namespace GovUK.Dfe.FlexForms.Application.Templates.Commands
                 if (!await tenantTemplateResolver.IsTemplateInCurrentTenantAsync(templateId, cancellationToken))
                 {
                     return Result<CustomApplicationStatusDto>.NotFound("Template not found");
+                }
+
+                // Template Manage lets a user see every template; changing one needs access to it.
+                var templateKey = request.TemplateId.ToString();
+                if (!permissionCheckerService.HasPermission(ResourceType.Template, templateKey, AccessType.Read)
+                    && !permissionCheckerService.HasPermission(ResourceType.Template, templateKey, AccessType.Write))
+                {
+                    return Result<CustomApplicationStatusDto>.Forbid("User does not have access to this template");
                 }
 
                 var createdByUserId = dbUser.Id;
