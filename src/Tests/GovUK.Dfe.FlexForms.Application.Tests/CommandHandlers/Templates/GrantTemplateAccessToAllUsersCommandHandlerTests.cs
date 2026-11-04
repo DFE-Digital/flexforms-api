@@ -78,6 +78,26 @@ public class GrantTemplateAccessToAllUsersCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ShouldForbid_WhenTemplateManagerHasNoAccessToTheTemplate()
+    {
+        var tenantId = Guid.NewGuid();
+        var manager = CreateUser("Manager", "manager@education.gov.uk", new RoleId(Guid.NewGuid()));
+        SetupCaller(tenantId, manager);
+        _permissionChecker.HasPermission(ResourceType.Template, Arg.Any<string>(), AccessType.Write).Returns(false);
+        _permissionChecker.HasPermission(ResourceType.Template, Arg.Any<string>(), AccessType.Read).Returns(false);
+        _catalogue.ContainsAsync(Arg.Any<TemplateId>(), Arg.Any<CancellationToken>()).Returns(true);
+
+        var result = await _handler.Handle(
+            new GrantTemplateAccessToAllUsersCommand(Guid.NewGuid()),
+            CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("User does not have access to this template", result.Error);
+        _userFactory.DidNotReceiveWithAnyArgs().EnsureUserHasTemplatePermission(default!, default!, default!, default);
+        await _unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Handle_ShouldGrantMissingUsers_AndSkipThoseWithAccess()
     {
         var tenantId = Guid.NewGuid();
@@ -276,6 +296,7 @@ public class GrantTemplateAccessToAllUsersCommandHandlerTests
     private void SetupCaller(Guid tenantId, User admin, params TemplateId[] catalogueTemplateIds)
     {
         _permissionChecker.CanManageTemplates().Returns(true);
+        _permissionChecker.HasPermission(ResourceType.Template, Arg.Any<string>(), AccessType.Write).Returns(true);
         _tenantContextAccessor.CurrentTenant.Returns(new TenantConfiguration(
             tenantId,
             "Transfers",

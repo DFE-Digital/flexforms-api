@@ -46,6 +46,7 @@ Per-template checks for non-admins (**Verified**):
 | Save a template version | Template Write on that template (exact; `Any` is not honoured) |
 | Save a custom status label | Template Read or Write (exact or `Any`) — `UpdateCustomApplicationStatusCommandHandler` |
 | Make a template live / not live | Template Read or Write (exact or `Any`) — `SetTemplateLiveCommandHandler` |
+| Grant a template to all users | Template Read or Write (exact or `Any`) — `GrantTemplateAccessToAllUsersCommandHandler`. Without it a manager could grant themselves a template they were not given. |
 
 `GET /v1/Roles` stays **Admin/SuperAdmin only**. Template Studio does not call it for template managers (Web hides the contributor-role picker instead).
 

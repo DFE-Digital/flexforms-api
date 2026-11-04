@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using FluentValidation;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.TenantMemberships.QueryObjects;
@@ -63,6 +64,12 @@ public sealed class GrantTemplateAccessToAllUsersCommandHandler(
         if (!await tenantTemplateCatalogue.ContainsAsync(templateId, cancellationToken))
             return Result<GrantTemplateAccessToAllUsersResponse>.NotFound(
                 $"Template '{command.TemplateId}' was not found in the current tenant");
+
+        // Otherwise a template manager could grant everyone, including themselves, a template they were not given.
+        var templateKey = command.TemplateId.ToString();
+        if (!permissionCheckerService.HasPermission(ResourceType.Template, templateKey, AccessType.Read)
+            && !permissionCheckerService.HasPermission(ResourceType.Template, templateKey, AccessType.Write))
+            return Result<GrantTemplateAccessToAllUsersResponse>.Forbid("User does not have access to this template");
 
         var tenantTemplateIds = (await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken))
             .Select(id => id.Value)
