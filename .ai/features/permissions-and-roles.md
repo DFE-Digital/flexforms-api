@@ -34,9 +34,21 @@ Role presets (`Domain/Services/RoleTemplates.cs`) are copied into `RolePermissio
 | Preset | Grants |
 |--------|--------|
 | Caseworker | `Application:Any:Read`, `ApplicationFiles:Any:Read` |
-| TemplateManager | `Template:Any:Write`, `Template:Any:Manage` |
+| TemplateManager | `Template:Any:Manage` |
 
-**Historical:** TemplateManager originally granted only `Template:Any:Manage`, so template managers could not start applications on other people's forms. `Template:Any:Write` was added; roles created before that need it added by hand.
+Template managers see every template (`GetAccessibleTemplatesQueryHandler` returns the full catalogue for `CanManageTemplates`) but only **work in** templates they have been given: a `Template:{id}:Read`/`Write` user grant from User Manager, or one they created (`CreateTemplateCommandHandler` grants the author Read + Write). This is intentional — the preset deliberately has no `Template:Any:Write`. Web greys out the rest (flexforms-web `.ai/features/admin-and-studio.md`).
+
+Per-template checks for non-admins (**Verified**):
+
+| Action | Needs |
+|--------|-------|
+| Start an application | Template Write (exact or `Any`) |
+| Save a template version | Template Write on that template (exact; `Any` is not honoured) |
+| Save a custom status label | Template Read or Write (exact or `Any`) — `UpdateCustomApplicationStatusCommandHandler` |
+| Make a template live / not live | Template Read or Write (exact or `Any`) — `SetTemplateLiveCommandHandler` |
+| Grant a template to all users | Template Read or Write (exact or `Any`) — `GrantTemplateAccessToAllUsersCommandHandler`. Without it a manager could grant themselves a template they were not given. |
+
+`GET /v1/Roles` stays **Admin/SuperAdmin only**. Template Studio does not call it for template managers (Web hides the contributor-role picker instead).
 
 ## 7. Edge cases
 

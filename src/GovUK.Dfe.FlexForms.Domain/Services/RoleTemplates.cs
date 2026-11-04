@@ -34,9 +34,8 @@ public static class RoleTemplates
         new Template(
             TemplateManagerKey,
             "TemplateManager",
-            "Read, write and manage all templates.",
+            "Manage all templates. Work in the templates you are given access to.",
             [
-                new Grant(ResourceType.Template, PermissionConstants.AnyResourceKey, AccessType.Write),
                 new Grant(ResourceType.Template, PermissionConstants.AnyResourceKey, AccessType.Manage),
             ])
     ];
