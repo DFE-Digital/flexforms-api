@@ -21,7 +21,7 @@ public sealed class Template : BaseAggregateRoot, IEntity<TemplateId>
 
     /// <summary>
     /// When <c>true</c>, end users with permission can access this template.
-    /// Admins can always access templates regardless of this flag.
+    /// Admins and template managers can always access templates regardless of this flag.
     /// </summary>
     public bool IsLive { get; private set; }
 

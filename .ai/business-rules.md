@@ -35,6 +35,7 @@ Merged from `RolePermissions` + user `Permissions` (`UserPermissionClaimProvider
 ## Templates
 
 - New templates start **not live** (`Template.SetLive`).
+- Starting an application on a non-live template is allowed for Admins and for users with `Template:{id}:Manage` or `Template:Any:Manage` (preview). Everyone else gets 403 "Template is not live" (`CreateApplicationCommandHandler`). The caller still needs Template Write.
 - Saving a version does **not** change in-flight applications. Applicants stay on the version they started; new apps use the latest live version.
 - Once a template is in use, new versions must declare removed/renamed fields (`retiredFields` / `semanticKey`). This is the Prism reporting contract. Recycling `field_id`s breaks historical joins.
 - Custom application statuses are **display labels** mapped onto the existing `ApplicationStatus` enum. They do not add transitions.

@@ -37,6 +37,14 @@ public class CreateApplicationCommandHandlerTests
         return repo;
     }
 
+    private static IEaRepository<Template> TemplateRepoWith(Template template)
+    {
+        var repo = Substitute.For<IEaRepository<Template>>();
+        var templates = new[] { template }.AsQueryable().BuildMockDbSet();
+        repo.Query().Returns(templates);
+        return repo;
+    }
+
     private static CreateApplicationCommandHandler CreateHandler(
         IEaRepository<Domain.Entities.Application> applicationRepo,
         IAuthenticatedUserService authUserService,
@@ -45,11 +53,12 @@ public class CreateApplicationCommandHandlerTests
         ISender mediator,
         IUnitOfWork unitOfWork,
         User? trackedUser = null,
-        IUserFactory? userFactory = null)
+        IUserFactory? userFactory = null,
+        IEaRepository<Template>? templateRepo = null)
     {
         return new CreateApplicationCommandHandler(
             applicationRepo,
-            Substitute.For<IEaRepository<Template>>(),
+            templateRepo ?? Substitute.For<IEaRepository<Template>>(),
             trackedUser is null ? Substitute.For<IEaRepository<User>>() : UserRepoWith(trackedUser),
             authUserService,
             creationService,
@@ -321,6 +330,101 @@ public class CreateApplicationCommandHandlerTests
 
         Assert.False(result.IsSuccess);
         Assert.Equal("Template schema not found", result.Error);
+        await applicationRepo.DidNotReceive().AddAsync(Arg.Any<Domain.Entities.Application>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(ApplicationCustomization))]
+    public async Task Handle_ShouldCreateApplication_WhenTemplateNotLiveAndUserManagesTemplate(
+        CreateApplicationCommand command,
+        TemplateSchemaDto templateSchema,
+        IEaRepository<Domain.Entities.Application> applicationRepo,
+        IPermissionCheckerService permissionCheckerService,
+        ISender mediator,
+        IUnitOfWork unitOfWork)
+    {
+        var user = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(Guid.NewGuid()),
+            "Template Manager",
+            "manager@example.com",
+            DateTime.UtcNow,
+            null,
+            null,
+            null,
+            "external-id");
+
+        var draft = new Template(new TemplateId(command.TemplateId), "Draft", DateTime.UtcNow, user.Id!, isLive: false);
+
+        permissionCheckerService.IsAdmin().Returns(false);
+        permissionCheckerService.HasPermission(ResourceType.Template, command.TemplateId.ToString(), AccessType.Manage).Returns(true);
+        permissionCheckerService.HasPermission(ResourceType.Template, command.TemplateId.ToString(), AccessType.Write).Returns(true);
+
+        var application = new Domain.Entities.Application(
+            new ApplicationId(Guid.NewGuid()),
+            "APP-001",
+            new TemplateVersionId(templateSchema.TemplateVersionId),
+            DateTime.UtcNow,
+            user.Id!);
+
+        mediator.Send(Arg.Any<GetLatestTemplateSchemaByUserIdQuery>(), Arg.Any<CancellationToken>())
+            .Returns(Result<TemplateSchemaDto>.Success(templateSchema));
+
+        var handler = CreateHandler(
+            applicationRepo,
+            AuthenticatedUserServiceTestHelper.MockReturningUser(user),
+            ApplicationCreationServiceTestHelper.MockReturning(application),
+            permissionCheckerService,
+            mediator,
+            unitOfWork,
+            trackedUser: user,
+            templateRepo: TemplateRepoWith(draft));
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        await applicationRepo.Received(1).AddAsync(Arg.Any<Domain.Entities.Application>(), Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(ApplicationCustomization))]
+    public async Task Handle_ShouldForbid_WhenTemplateNotLiveAndUserCannotManageTemplate(
+        CreateApplicationCommand command,
+        IEaRepository<Domain.Entities.Application> applicationRepo,
+        IPermissionCheckerService permissionCheckerService,
+        ISender mediator,
+        IUnitOfWork unitOfWork)
+    {
+        var user = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(Guid.NewGuid()),
+            "Test User",
+            "test@example.com",
+            DateTime.UtcNow,
+            null,
+            null,
+            null,
+            "external-id");
+
+        var draft = new Template(new TemplateId(command.TemplateId), "Draft", DateTime.UtcNow, user.Id!, isLive: false);
+
+        permissionCheckerService.IsAdmin().Returns(false);
+        permissionCheckerService.HasPermission(ResourceType.Template, command.TemplateId.ToString(), AccessType.Manage).Returns(false);
+        permissionCheckerService.HasPermission(ResourceType.Template, command.TemplateId.ToString(), AccessType.Write).Returns(true);
+
+        var handler = CreateHandler(
+            applicationRepo,
+            AuthenticatedUserServiceTestHelper.MockReturningUser(user),
+            Substitute.For<IApplicationCreationService>(),
+            permissionCheckerService,
+            mediator,
+            unitOfWork,
+            templateRepo: TemplateRepoWith(draft));
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("Template is not live", result.Error);
         await applicationRepo.DidNotReceive().AddAsync(Arg.Any<Domain.Entities.Application>(), Arg.Any<CancellationToken>());
     }
 

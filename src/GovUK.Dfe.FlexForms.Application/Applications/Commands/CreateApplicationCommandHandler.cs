@@ -68,7 +68,12 @@ public sealed class CreateApplicationCommandHandler(
                 if (template is null)
                     return Result<ApplicationDto>.NotFound("Template not found");
 
-                if (!template.IsLive)
+                // Template managers may start applications on draft templates to preview them.
+                if (!template.IsLive
+                    && !permissionCheckerService.HasPermission(
+                        ResourceType.Template,
+                        request.TemplateId.ToString(),
+                        AccessType.Manage))
                     return Result<ApplicationDto>.Forbid("Template is not live");
             }
 
