@@ -17,6 +17,8 @@ Request → header `X-Tenant-ID` or Origin map → catalogue lookup → scoped t
 
 Web bootstrap: app-only token → `GET /v1/host-config?target=Web` → per request `GET /v1/tenant-config/resolve` then `GET /v1/tenant-config/tenants/{id}?target=Web`.
 
+Host-config is `GlobalConfiguration` flattened (prefix removed) plus allow-listed `ConnectionStrings:Redis`, minus secret-looking keys. Web merges it **over** its own settings, so anything exported wins over Web's appsettings/env. For `target=Web`, `HostConfigurationReader` drops `ApplicationInsights:ConnectionString` and `ApplicationInsights:InstrumentationKey` so Web keeps its own App Insights resource (**Verified**, `Infrastructure/Services/HostConfigurationReader.cs`). Telemetry precedence per request: tenant `ApplicationInsights` setting → that app's host connection string.
+
 ## 4. Entities
 
 TenantConfig tables: Tenants, TenantSettings, TenantHostnames, TenantFrontendOrigins, TenantPrincipals. EA: `Template.TenantId`, `TenantMembership`, `Role.TenantId`.
