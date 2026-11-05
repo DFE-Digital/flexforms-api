@@ -99,7 +99,8 @@ public static class TenantSettingCategoryCookbook
             [
                 "Forced secret category",
                 "SuperAdmin only",
-                "Host GlobalConfiguration:ApplicationInsights is SDK boot only (same pattern as Email). Runtime request telemetry uses this tenant ConnectionString; the Web JS snippet does too. If unset, the host connection string is used"
+                "Overrides the host resource for this tenant. Runtime request telemetry uses this tenant ConnectionString; the Web JS snippet does too",
+                "If unset, the API uses its GlobalConfiguration:ApplicationInsights:ConnectionString and Web uses its own ApplicationInsights:ConnectionString (host-config does not send the API's value to Web)"
             ],
             requiresObject: true),
 
