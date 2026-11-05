@@ -49,6 +49,7 @@ Code-verified unless marked **Historical** / **Unverified**. Background: [`histo
 ## Telemetry
 
 28. **Host-config overrides Web's own settings.** Web merges `GET /v1/host-config?target=Web` after its appsettings and env vars, so any `GlobalConfiguration` key exported there silently wins. Previously this sent the API's App Insights connection string to Web, putting Web telemetry in the API resource. `HostConfigurationReader` now withholds `ApplicationInsights:ConnectionString` / `InstrumentationKey` for Web. Apply the same exclusion to any other key Web must own.
+29. **Custom telemetry channel must forward the ingestion endpoint.** `TenantAwareTelemetryChannel` wraps an inner `ServerTelemetryChannel`. The SDK applies the connection string's `IngestionEndpoint` only to the registered (wrapper) channel, so the inner host channel posted to the legacy global endpoint and host-routed server telemetry (requests, dependencies, Serilog traces) never reached the resource. Tenant channels were unaffected because each gets its own `TelemetryConfiguration`. `Initialize` now sets the inner endpoint from `configuration.EndpointContainer.Ingestion`. It only showed up once tenant `ApplicationInsights` rows were removed and everything fell back to host. Same class and fix in flexforms-web.
 
 ## Rate limiting
 
