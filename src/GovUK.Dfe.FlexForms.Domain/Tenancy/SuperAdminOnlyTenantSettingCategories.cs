@@ -29,9 +29,9 @@ public static class SuperAdminOnlyTenantSettingCategories
     public const string Email = "Email";
 
     /// <summary>
-    /// Per-tenant Application Insights connection string. Host
-    /// GlobalConfiguration:ApplicationInsights boots the SDK; runtime telemetry
-    /// (and the Web JS snippet) use this tenant row, falling back to host if unset.
+    /// Per-tenant Application Insights connection string. Runtime telemetry
+    /// (and the Web JS snippet) use this tenant row, falling back to each app's own
+    /// host connection string if unset (API: GlobalConfiguration; Web: its own appsettings).
     /// </summary>
     public const string ApplicationInsights = "ApplicationInsights";
 

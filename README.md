@@ -650,7 +650,7 @@ Step-by-step Azure setup, rollout order and the runbook are in the Prism repo: [
 | `MassTransit` / Service Bus | Messaging (or `SkipMassTransit` for codegen) |
 | `MassTransit:Outbox` | Transactional outbox switch, per-event allowlist and delivery tuning. See [Transactional outbox](#transactional-outbox-per-event) |
 | `DataProtection` | Secret settings encryption |
-| `GlobalConfiguration:ApplicationInsights:ConnectionString` | Serilog → App Insights sink |
+| `GlobalConfiguration:ApplicationInsights:ConnectionString` | API App Insights resource (SDK + Serilog sink). Not sent to Web via host-config — Web sets its own `ApplicationInsights:ConnectionString`. A tenant `ApplicationInsights` setting overrides either |
 | `GlobalConfiguration:FileStorage:Provider` | **Required** for host FileStorage DI outside Local/Development |
 | `GlobalConfiguration:Email` | Preferred host Notify registration (non-local) |
 | `AllowTenantHostConfigFallback` | Optional; force/disable first-tenant fallback for host DI |

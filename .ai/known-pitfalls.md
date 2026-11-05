@@ -46,6 +46,10 @@ Code-verified unless marked **Historical** / **Unverified**. Background: [`histo
 25. **README ER diagram still shows `TemplatePermission`.** Entity was removed; claims replaced it.
 26. **Historical name External Applications** in namespaces — not a bug.
 
+## Telemetry
+
+28. **Host-config overrides Web's own settings.** Web merges `GET /v1/host-config?target=Web` after its appsettings and env vars, so any `GlobalConfiguration` key exported there silently wins. Previously this sent the API's App Insights connection string to Web, putting Web telemetry in the API resource. `HostConfigurationReader` now withholds `ApplicationInsights:ConnectionString` / `InstrumentationKey` for Web. Apply the same exclusion to any other key Web must own.
+
 ## Rate limiting
 
 27. `RateLimitingBehaviour` keys by appid/azp/email/IP + command name. Admins and internal auth bypass. Failed SignalR negotiate + tight reconnect can look like 429/WAF (**Historical**, CORS origins often the real cause).

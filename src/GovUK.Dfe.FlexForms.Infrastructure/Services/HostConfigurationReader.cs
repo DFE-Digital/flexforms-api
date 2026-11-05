@@ -15,6 +15,15 @@ public sealed class HostConfigurationReader(IConfiguration configuration) : IHos
     private static readonly HashSet<string> AllowedConnectionStringKeys =
         new(StringComparer.OrdinalIgnoreCase) { "Redis" };
 
+    // Web sends telemetry to its own Application Insights resource. Web merges host-config over
+    // its own settings, so exporting these would silently redirect Web telemetry to the API's resource.
+    private static readonly HashSet<string> WebExcludedKeys =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "ApplicationInsights:ConnectionString",
+            "ApplicationInsights:InstrumentationKey"
+        };
+
     public HostConfigurationSnapshot GetConfiguration(string target)
     {
         var configurationValues = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
@@ -23,6 +32,14 @@ public sealed class HostConfigurationReader(IConfiguration configuration) : IHos
         if (globalSection.Exists())
         {
             FlattenSection(globalSection, globalSection.Path + ":", configurationValues);
+        }
+
+        if (string.Equals(target, "Web", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (var key in WebExcludedKeys)
+            {
+                configurationValues.Remove(key);
+            }
         }
 
         var loggingSection = configuration.GetSection("Logging");
