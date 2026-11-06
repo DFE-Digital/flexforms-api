@@ -263,6 +263,12 @@ public class RegisterUserCommandHandlerTests
         await userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
         // Existing users without TenantMembership get one created so exchange can succeed.
         await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+        // Notification grants are tenant-scoped, so an existing user joining this tenant needs its own.
+        userFactory.Received(1).EnsureNotificationPermissions(
+            existingUser,
+            tenantContextAccessor.CurrentTenant!.Id,
+            existingUser.Id!,
+            Arg.Any<DateTime?>());
     }
 
     [Theory]

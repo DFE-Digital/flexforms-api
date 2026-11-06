@@ -99,6 +99,16 @@ public interface IUserFactory
         UserId grantedBy,
         DateTime? grantedOn = null);
 
+    /// <summary>
+    /// Ensures the user has Read, Write and Delete on their own notifications for the tenant (idempotent).
+    /// Notification grants are tenant-scoped, so call this whenever an existing user gains a membership.
+    /// </summary>
+    void EnsureNotificationPermissions(
+        User user,
+        Guid tenantId,
+        UserId grantedBy,
+        DateTime? grantedOn = null);
+
     bool RemovePermissionFromUser(
         User user,
         Permission permission);

@@ -65,13 +65,15 @@ public sealed class GetUserCreatedApplicationsLookupQueryHandler(
         var applicationIds = applications
             .Where(a => a.Id is not null)
             .Select(a => a.Id!)
-            .ToList();
+            .ToHashSet();
 
         var invitePermissions = applicationIds.Count == 0
             ? []
-            : await new GetApplicationInviteesGrantedByUserQueryObject(user.Id, applicationIds)
-                .Apply(permissionRepository.Query())
-                .ToListAsync(cancellationToken);
+            : (await new GetApplicationInviteesGrantedByUserQueryObject(user.Id)
+                    .Apply(permissionRepository.Query())
+                    .ToListAsync(cancellationToken))
+                .Where(p => applicationIds.Contains(p.ApplicationId!))
+                .ToList();
 
         var inviteesByApplication = invitePermissions
             .Where(p => p.ApplicationId is not null && p.User?.Id is not null)
