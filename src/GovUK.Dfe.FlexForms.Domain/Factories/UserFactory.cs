@@ -478,6 +478,30 @@ public class UserFactory : IUserFactory
             grantedOn);
     }
 
+    /// <inheritdoc />
+    public void EnsureNotificationPermissions(
+        User user,
+        Guid tenantId,
+        UserId grantedBy,
+        DateTime? grantedOn = null)
+    {
+        if (user == null)
+            throw new ArgumentException("User cannot be null", nameof(user));
+        if (tenantId == Guid.Empty)
+            throw new ArgumentException("TenantId cannot be empty", nameof(tenantId));
+        if (grantedBy == null)
+            throw new ArgumentException("GrantedBy cannot be null", nameof(grantedBy));
+
+        AddPermissionToUser(
+            user,
+            NotificationResourceKey(user.Email, tenantId),
+            ResourceType.Notifications,
+            new[] { AccessType.Read, AccessType.Write, AccessType.Delete },
+            grantedBy,
+            null,
+            grantedOn);
+    }
+
     public bool RemovePermissionFromUser(
         User user,
         Permission permission)

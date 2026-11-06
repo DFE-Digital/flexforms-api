@@ -16,7 +16,7 @@ Create, save (append JSON versions), submit once, delete, change owner, invite c
 
 Create → Saved projection event, revision 1. Each save appends `ApplicationResponse`, increments `SourceRevision`. Submit sets `Submitted`, `SubmittedRevision`, raises `ApplicationSubmittedEvent` (email + integration triggers) and Submitted projection. Delete tombstones for Prism.
 
-Web sends a **full** JSON body (often Base64 on the wire; API stores JSON). The API does **not** merge fields. Partial bodies from a stale Web session have caused data loss — Web now guards with `StaleFormSessionException`.
+Web sends a **full** JSON body. Add-response (`AddApplicationResponseCommandHandler`) **requires Base64** and stores the decoded JSON. Create (`CreateApplicationCommandHandler`) stores `InitialResponseBody` **verbatim** — Web sends raw `"{}"`; any caller sending Base64 there (Playwright did, `e30=`) leaves an encoded body until the first save, so readers must tolerate both (**Verified**). The API does **not** merge fields. Partial bodies from a stale Web session have caused data loss — Web now guards with `StaleFormSessionException`.
 
 ## 4. Entities
 

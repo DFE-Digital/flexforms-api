@@ -263,6 +263,78 @@ public class RegisterUserCommandHandlerTests
         await userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
         // Existing users without TenantMembership get one created so exchange can succeed.
         await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+        // Notification grants are tenant-scoped, so an existing user joining this tenant needs its own.
+        userFactory.Received(1).EnsureNotificationPermissions(
+            existingUser,
+            tenantContextAccessor.CurrentTenant!.Id,
+            existingUser.Id!,
+            Arg.Any<DateTime?>());
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(UserCustomization))]
+    public async Task Handle_ShouldNotReseedNotificationGrants_WhenUserIsAlreadyActiveMember(
+        string subjectToken,
+        string email,
+        string name,
+        IEaRepository<User> userRepo,
+        IExternalIdentityValidator externalValidator,
+        IHttpContextAccessor httpContextAccessor,
+        IUserFactory userFactory,
+        IUnitOfWork unitOfWork)
+    {
+        externalValidator.ValidateIdTokenAsync(subjectToken, false, false, Arg.Any<InternalServiceAuthOptions?>(), Arg.Any<TestAuthenticationOptions?>(), Arg.Any<CancellationToken>())
+            .Returns(new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Email, email), new Claim(ClaimTypes.Name, name)])));
+
+        var tenantContextAccessor = CreateRegisterTenantContext();
+        var templateId = Guid.NewGuid();
+        var userId = new UserId(Guid.NewGuid());
+        var existingUser = new User(
+            userId,
+            new RoleId(RoleConstants.UserRoleId),
+            name,
+            email,
+            DateTime.UtcNow,
+            null,
+            null,
+            null,
+            initialPermissions:
+            [
+                new Permission(new PermissionId(Guid.NewGuid()), userId, null, templateId.ToString(),
+                    ResourceType.Template, AccessType.Read, DateTime.UtcNow, userId)
+            ]);
+        var users = new[] { existingUser }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+
+        var activeMembership = new TenantMembership(
+            new TenantMembershipId(Guid.NewGuid()),
+            tenantContextAccessor.CurrentTenant!.Id,
+            userId,
+            new RoleId(Guid.NewGuid()),
+            DateTime.UtcNow);
+        var membershipService = CreateRegisterMembershipService();
+        membershipService.GetActiveMembershipAsync(Arg.Any<Guid>(), Arg.Any<UserId>(), Arg.Any<CancellationToken>())
+            .Returns(activeMembership);
+
+        var handler = new RegisterUserCommandHandler(
+            userRepo,
+            LiveTemplateRepository(templateId),
+            externalValidator,
+            httpContextAccessor,
+            userFactory,
+            unitOfWork,
+            tenantContextAccessor,
+            AllowAllTenantTemplates(),
+            membershipService,
+            CreateRegisterAudienceBinder(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.ISelfRegistrationTemplateAccessService>(),
+            Substitute.For<GovUK.Dfe.FlexForms.Application.Services.IUserCacheInvalidator>(),
+            Substitute.For<Microsoft.Extensions.Hosting.IHostEnvironment>());
+
+        var result = await handler.Handle(new RegisterUserCommand(subjectToken, templateId), CancellationToken.None);
+
+        Assert.True(result.IsSuccess, $"Result was not successful. Error: {result.Error}");
+        userFactory.DidNotReceiveWithAnyArgs().EnsureNotificationPermissions(default!, default, default!, default);
     }
 
     [Theory]
