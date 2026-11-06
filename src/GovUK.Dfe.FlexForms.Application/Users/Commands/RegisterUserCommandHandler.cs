@@ -317,15 +317,13 @@ public sealed class RegisterUserCommandHandler(
 
                 // TenantMembership is required for token exchange. Create User membership when missing.
 
-                // Notification grants are tenant-scoped; users who first registered on another tenant have none here.
-                var permissionCountBefore = existingUser.Permissions.Count;
-                userFactory.EnsureNotificationPermissions(existingUser, currentTenant.Id, existingUser.Id, now);
-                if (existingUser.Permissions.Count != permissionCountBefore)
-                    changed = true;
-
                 if (await EnsureMembershipForCurrentTenantAsync(currentTenant.Id, existingUser, cancellationToken))
-
+                {
+                    // Notification grants are tenant-scoped, so a user joining from another tenant has none here.
+                    // Only seed them for a new or reactivated membership: active members keep what admins configured.
+                    userFactory.EnsureNotificationPermissions(existingUser, currentTenant.Id, existingUser.Id, now);
                     changed = true;
+                }
 
 
 

@@ -116,6 +116,7 @@ public sealed class AssignUserRoleCommandHandler(
             .FirstOrDefaultAsync(cancellationToken);
 
         string? previousRoleName = null;
+        var existingUserWasActiveMember = false;
         if (existingUser is not null)
         {
             if (command.CreateOnly && existingUser.Id is not null)
@@ -140,6 +141,7 @@ public sealed class AssignUserRoleCommandHandler(
                     existingUser.Id,
                     cancellationToken);
                 currentRoleName = membership?.Role?.Name;
+                existingUserWasActiveMember = membership is not null;
             }
 
             currentRoleName ??= existingUser.Role?.Name
@@ -275,7 +277,9 @@ public sealed class AssignUserRoleCommandHandler(
             return Result<UserDto>.Failure("User was created without an identifier");
 
         // Existing users joining this tenant only carry notification grants for their other tenants.
-        userFactory.EnsureNotificationPermissions(user, currentTenant.Id, grantedById, now);
+        // Active members keep whatever notification grants an admin configured.
+        if (existingUser is not null && !existingUserWasActiveMember)
+            userFactory.EnsureNotificationPermissions(user, currentTenant.Id, grantedById, now);
 
         var upsertedMembership = await tenantMembershipService.UpsertMembershipAsync(
             currentTenant.Id,

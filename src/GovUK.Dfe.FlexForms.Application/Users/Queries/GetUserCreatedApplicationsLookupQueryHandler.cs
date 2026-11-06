@@ -55,25 +55,21 @@ public sealed class GetUserCreatedApplicationsLookupQueryHandler(
 
         var tenantTemplateIds = await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken);
 
-        var applicationsQuery = new GetApplicationsByTemplateIdsQueryObject(tenantTemplateIds)
+        var createdApplicationsQuery = new GetApplicationsByTemplateIdsQueryObject(tenantTemplateIds)
             .Apply(new GetApplicationsCreatedByUserQueryObject(user.Id)
-                .Apply(applicationRepository.Query()))
-            .OrderByDescending(a => a.CreatedOn);
+                .Apply(applicationRepository.Query()));
 
-        var applications = await applicationsQuery.ToListAsync(cancellationToken);
+        var applications = await createdApplicationsQuery
+            .OrderByDescending(a => a.CreatedOn)
+            .ToListAsync(cancellationToken);
 
-        var applicationIds = applications
-            .Where(a => a.Id is not null)
-            .Select(a => a.Id!)
-            .ToHashSet();
-
-        var invitePermissions = applicationIds.Count == 0
+        var invitePermissions = applications.Count == 0
             ? []
-            : (await new GetApplicationInviteesGrantedByUserQueryObject(user.Id)
-                    .Apply(permissionRepository.Query())
-                    .ToListAsync(cancellationToken))
-                .Where(p => applicationIds.Contains(p.ApplicationId!))
-                .ToList();
+            : await new GetApplicationInviteesGrantedByUserQueryObject(
+                    user.Id,
+                    createdApplicationsQuery.Select(a => a.Id!))
+                .Apply(permissionRepository.Query())
+                .ToListAsync(cancellationToken);
 
         var inviteesByApplication = invitePermissions
             .Where(p => p.ApplicationId is not null && p.User?.Id is not null)
