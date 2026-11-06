@@ -122,6 +122,16 @@ public class TokenExchangeHandler(
                 return UnauthorizedResponse(request);
             }
         }
+        catch (Exception ex) when (httpContext.RequestAborted.IsCancellationRequested)
+        {
+            // Client navigated away. Returning 401 here would be treated as an auth failure upstream.
+            logger.LogWarning(
+                "API call {Method} {Path} cancelled because the client aborted the request ({ExceptionType})",
+                request.Method,
+                request.RequestUri?.AbsolutePath,
+                ex.GetType().Name);
+            throw new OperationCanceledException("The client aborted the request.", ex, httpContext.RequestAborted);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Token exchange handler failed for user {UserEmail}", userName);

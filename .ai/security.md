@@ -11,7 +11,7 @@
 | `ApiKey` | `X-Api-Key` hashed with `TenantApiKeyHasher` against `AuthProviders` |
 | `Mtls` | Client cert thumbprint |
 | `PlatformBearer` | Platform Entra app (`Platform:AzureAd`) — host-config, tenant-config consume, Prism |
-| `HubCookie` | Short-lived cookie for SignalR |
+| `HubCookie` | Short-lived cookie for SignalR. `CompositeScheme` forwards every `/hubs/*` request here, so hub traffic never runs `TenantBearer` |
 
 Internal Prism endpoints (`InternalPrismController`) require **platform** app role **`Prism.Read`** (`PlatformPrismRead`). User JWTs, API keys, and tenant Entra tokens are rejected. **Historical:** putting `Prism.Read` on a tenant API app instead of the platform app causes 403.
 

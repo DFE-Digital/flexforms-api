@@ -18,6 +18,9 @@ Code-verified unless marked **Historical** / **Unverified**. Background: [`histo
 9. **Entra tenants still need `TokenRefresh:TokenEndpoint`.** Removing DfE Sign-In does not remove TokenRefresh validation on Web (`TenantTokenRefreshOptionsAccessor`). Symptom: `TokenEndpoint is required` in container logs — often a **Web** config issue, not API.
 10. **Issuer try-all logging.** Multi-provider validation logs IDX errors for the wrong IdP even when exchange succeeds.
 11. **`IsServicePrincipal` must be true** on file-validation API keys or `CanRecordFileValidation` returns 403.
+30. **Notification grants are tenant-scoped.** After `ScopeNotificationPermissionsByTenant`, an existing user who joined a second tenant (self-registration or role assignment) got a membership but no `{tenantId}:{email}` Notifications grant, so `/v1/Notifications/unread` returned 403 on every page load for that tenant. Call `IUserFactory.EnsureNotificationPermissions` on every new-membership path. `BackfillTenantNotificationPermissions` repaired existing rows; cached `UserClaims_*` entries pick it up when they expire or the user is invalidated. See `features/notifications-signalr.md`.
+31. **Hub endpoints must not run TenantBearer.** The SignalR client re-sends the Azure SignalR token on reconnect; `/hubs/*` is forwarded to `HubCookie` so it is never validated as a tenant JWT.
+32. **Api.Client `TokenExchangeHandler` and client aborts.** It catches every exception and returns a synthetic 401. When the browser aborts (`HttpContext.RequestAborted`), it now logs a warning (no exception object) and throws `OperationCanceledException`, so Web records a 499 instead of an Error plus a fake 401. Ship it by bumping `GovUK.Dfe.FlexForms.Api.Client` in Web.
 
 ## Data Protection
 

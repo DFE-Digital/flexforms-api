@@ -274,6 +274,9 @@ public sealed class AssignUserRoleCommandHandler(
         if (user.Id is null)
             return Result<UserDto>.Failure("User was created without an identifier");
 
+        // Existing users joining this tenant only carry notification grants for their other tenants.
+        userFactory.EnsureNotificationPermissions(user, currentTenant.Id, grantedById, now);
+
         var upsertedMembership = await tenantMembershipService.UpsertMembershipAsync(
             currentTenant.Id,
             user.Id,
