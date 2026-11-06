@@ -55,21 +55,19 @@ public sealed class GetUserCreatedApplicationsLookupQueryHandler(
 
         var tenantTemplateIds = await tenantTemplateCatalogue.GetTemplateIdsAsync(cancellationToken);
 
-        var applicationsQuery = new GetApplicationsByTemplateIdsQueryObject(tenantTemplateIds)
+        var createdApplicationsQuery = new GetApplicationsByTemplateIdsQueryObject(tenantTemplateIds)
             .Apply(new GetApplicationsCreatedByUserQueryObject(user.Id)
-                .Apply(applicationRepository.Query()))
-            .OrderByDescending(a => a.CreatedOn);
+                .Apply(applicationRepository.Query()));
 
-        var applications = await applicationsQuery.ToListAsync(cancellationToken);
+        var applications = await createdApplicationsQuery
+            .OrderByDescending(a => a.CreatedOn)
+            .ToListAsync(cancellationToken);
 
-        var applicationIds = applications
-            .Where(a => a.Id is not null)
-            .Select(a => a.Id!)
-            .ToList();
-
-        var invitePermissions = applicationIds.Count == 0
+        var invitePermissions = applications.Count == 0
             ? []
-            : await new GetApplicationInviteesGrantedByUserQueryObject(user.Id, applicationIds)
+            : await new GetApplicationInviteesGrantedByUserQueryObject(
+                    user.Id,
+                    createdApplicationsQuery.Select(a => a.Id!))
                 .Apply(permissionRepository.Query())
                 .ToListAsync(cancellationToken);
 

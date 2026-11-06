@@ -75,7 +75,8 @@ public class AssignUserRoleCommandHandlerTests
         ITenantRoleService? tenantRoleService = null,
         IUserFactory? userFactory = null,
         IUserCacheInvalidator? userCacheInvalidator = null,
-        ITenantAccessAuditWriter? accessAuditWriter = null)
+        ITenantAccessAuditWriter? accessAuditWriter = null,
+        ITenantMembershipService? membershipService = null)
     {
         return new AssignUserRoleCommandHandler(
             userRepo,
@@ -83,7 +84,7 @@ public class AssignUserRoleCommandHandlerTests
             permissionCheckerService,
             roleProvisionerRegistry,
             CreateTenantContext(),
-            CreateMembershipService(),
+            membershipService ?? CreateMembershipService(),
             tenantRoleService ?? CreateTenantRoleService(),
             userFactory ?? Substitute.For<IUserFactory>(),
             httpContextAccessor,
@@ -440,12 +441,14 @@ public class AssignUserRoleCommandHandlerTests
 
         roleProvisionerRegistry.GetProvisioner(RoleNames.User).Returns(provisioner);
 
+        var userFactory = Substitute.For<IUserFactory>();
         var handler = CreateHandler(
             userRepo,
             unitOfWork,
             permissionCheckerService,
             roleProvisionerRegistry,
-            httpContextAccessor);
+            httpContextAccessor,
+            userFactory: userFactory);
 
         var result = await handler.Handle(
             new AssignUserRoleCommand(email, name, RoleNames.User, [templateId]),
@@ -457,6 +460,66 @@ public class AssignUserRoleCommandHandlerTests
         provisioner.Received(1).AssignToExistingUser(existingUser, Arg.Any<RoleAssignmentRequest>());
         await userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
         await unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+        // Not yet a member of this tenant, so it needs this tenant's notification grants.
+        userFactory.Received(1).EnsureNotificationPermissions(
+            existingUser,
+            Arg.Any<Guid>(),
+            adminUserId,
+            Arg.Any<DateTime?>());
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(UserCustomization))]
+    public async Task Handle_ShouldNotReseedNotificationGrants_WhenExistingUserIsActiveMember(
+        string adminEmail,
+        string email,
+        string name,
+        UserId adminUserId,
+        UserId existingUserId,
+        IEaRepository<User> userRepo,
+        IUnitOfWork unitOfWork,
+        IPermissionCheckerService permissionCheckerService,
+        IUserRoleProvisioner provisioner,
+        IUserRoleProvisionerRegistry roleProvisionerRegistry,
+        IHttpContextAccessor httpContextAccessor)
+    {
+        permissionCheckerService.CanManageUsers().Returns(true);
+        var now = DateTime.UtcNow;
+        var adminUser = new User(adminUserId, new RoleId(RoleConstants.AdminRoleId), "Admin", adminEmail, now, null, null, null);
+        var existingUser = new User(existingUserId, new RoleId(RoleConstants.UserRoleId), name, email, now, null, null, null);
+        var users = new List<User> { adminUser, existingUser }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        SetupHttpContext(httpContextAccessor, adminEmail);
+
+        provisioner.RoleName.Returns(RoleNames.User);
+        provisioner.RequiresTemplateIds.Returns(true);
+        roleProvisionerRegistry.GetProvisioner(RoleNames.User).Returns(provisioner);
+
+        var membershipService = CreateMembershipService();
+        membershipService.GetActiveMembershipAsync(Arg.Any<Guid>(), existingUserId, Arg.Any<CancellationToken>())
+            .Returns(new TenantMembership(
+                new TenantMembershipId(Guid.NewGuid()),
+                Guid.NewGuid(),
+                existingUserId,
+                new RoleId(Guid.NewGuid()),
+                now));
+
+        var userFactory = Substitute.For<IUserFactory>();
+        var handler = CreateHandler(
+            userRepo,
+            unitOfWork,
+            permissionCheckerService,
+            roleProvisionerRegistry,
+            httpContextAccessor,
+            userFactory: userFactory,
+            membershipService: membershipService);
+
+        var result = await handler.Handle(
+            new AssignUserRoleCommand(email, name, RoleNames.User, [Guid.NewGuid()]),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        userFactory.DidNotReceiveWithAnyArgs().EnsureNotificationPermissions(default!, default, default!, default);
     }
 
     [Theory]

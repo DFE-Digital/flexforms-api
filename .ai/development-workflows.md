@@ -23,6 +23,8 @@ dotnet ef migrations add <Name> --project src/GovUK.Dfe.FlexForms.Infrastructure
 
 **EA migrations must be applied to every tenant EA database.** `script/migrate-databases.sh` only migrates `ConnectionStrings__DefaultConnection`. Missing `AddMassTransitTransactionalOutbox` tables on an isolated tenant DB silently drops outbox events.
 
+Data-only migrations (`ScopeNotificationPermissionsByTenant`, `BackfillTenantNotificationPermissions`) are hand-written with `[DbContext]` + `[Migration]` attributes and no Designer file, because the model snapshot does not change. `BackfillTenantNotificationPermissions` is idempotent and its `Down` is a no-op.
+
 ## Tests
 
 | Project | Focus |

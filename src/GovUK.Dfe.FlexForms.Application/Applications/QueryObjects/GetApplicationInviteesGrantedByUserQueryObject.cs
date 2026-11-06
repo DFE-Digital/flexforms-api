@@ -8,15 +8,15 @@ using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 namespace GovUK.Dfe.FlexForms.Application.Applications.QueryObjects;
 
 /// <summary>
-/// Application-level permissions granted by a specific user (the inviter).
+/// Application-level permissions granted by a specific user (the inviter) to someone else, limited
+/// to the given applications. Pass the application ids as a query, not a materialised list: users
+/// with thousands of applications turned a list into a huge SQL parameter list.
 /// </summary>
 public sealed class GetApplicationInviteesGrantedByUserQueryObject(
     UserId grantedBy,
-    IReadOnlyCollection<ApplicationId> applicationIds)
+    IQueryable<ApplicationId> applicationIds)
     : IQueryObject<Permission>
 {
-    private readonly HashSet<ApplicationId> _applicationIds = applicationIds.ToHashSet();
-
     public IQueryable<Permission> Apply(IQueryable<Permission> query) =>
         query
             .AsNoTracking()
@@ -25,6 +25,6 @@ public sealed class GetApplicationInviteesGrantedByUserQueryObject(
                 p.GrantedBy == grantedBy
                 && p.ResourceType == ResourceType.Application
                 && p.ApplicationId != null
-                && _applicationIds.Contains(p.ApplicationId)
+                && applicationIds.Contains(p.ApplicationId)
                 && p.UserId != grantedBy);
 }

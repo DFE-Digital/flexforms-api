@@ -79,6 +79,10 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                     // looks the provider up in ITenantAuthProviderRegistry. API-key / mTLS dispatch
                     options.ForwardDefaultSelector = context =>
                     {
+                        // Hubs authorise with the hubauth cookie only. On reconnect the SignalR JS client
+                        // re-sends the Azure SignalR access token as a bearer, which TenantBearer would reject.
+                        if (context.Request.Path.StartsWithSegments("/hubs"))
+                            return "HubCookie";
                         if (context.Request.Headers.ContainsKey(AuthConstants.ApiKeyHeader))
                             return AuthConstants.ApiKey;
                         if (context.Connection.ClientCertificate is not null)

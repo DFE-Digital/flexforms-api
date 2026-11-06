@@ -312,4 +312,32 @@ public class UserFactoryTests
             p.ResourceType == ResourceType.Notifications
             && p.ResourceKey == "registered.user@example.com");
     }
+
+    [Fact]
+    public void EnsureNotificationPermissions_AddsGrantsForSecondTenant_Idempotently()
+    {
+        var firstTenant = Guid.Parse("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee");
+        var secondTenant = Guid.Parse("11111111-2222-3333-4444-555555555555");
+        var user = _userFactory.CreateUser(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.UserRoleId),
+            "Registered User",
+            "registered.user@example.com",
+            tenantId: firstTenant);
+
+        _userFactory.EnsureNotificationPermissions(user, secondTenant, user.Id!);
+        _userFactory.EnsureNotificationPermissions(user, secondTenant, user.Id!);
+
+        var secondTenantGrants = user.Permissions
+            .Where(p => p.ResourceType == ResourceType.Notifications
+                        && p.ResourceKey == "11111111-2222-3333-4444-555555555555:registered.user@example.com")
+            .Select(p => p.AccessType)
+            .OrderBy(a => a)
+            .ToList();
+
+        Assert.Equal(new[] { AccessType.Read, AccessType.Write, AccessType.Delete }, secondTenantGrants);
+        Assert.Contains(user.Permissions, p =>
+            p.ResourceType == ResourceType.Notifications
+            && p.ResourceKey == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee:registered.user@example.com");
+    }
 } 
