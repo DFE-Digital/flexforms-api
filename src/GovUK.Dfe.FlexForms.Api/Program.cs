@@ -244,6 +244,7 @@ namespace GovUK.Dfe.FlexForms.Api
                 {
                     opt.ConnectionString = appInsightsCnnStr;
                 });
+                builder.Services.AddApplicationInsightsTelemetryProcessor<GovUK.Dfe.FlexForms.Api.Telemetry.ClientAbortedRequestTelemetryProcessor>();
             }
             
             // Disable the App Insights ILogger provider completely
