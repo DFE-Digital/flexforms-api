@@ -11,7 +11,9 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations;
 /// Memberships added after <c>ScopeNotificationPermissionsByTenant</c> for users who already existed
 /// (self-registration on a second tenant, role assignment) got no <c>{tenantId}:{email}</c> notification
 /// grants, so every page load returned 403 from <c>/v1/Notifications/unread</c>.
-/// Grants Read/Write/Delete for each active membership that is missing them.
+/// Grants Read/Write/Delete only where the membership was created after that migration and has no
+/// notification grant at all for its tenant. Members with any grant (e.g. Read only, set in User
+/// Manager) are left as configured.
 /// </summary>
 [DbContext(typeof(ExternalApplicationsContext))]
 [Migration("20261106100000_BackfillTenantNotificationPermissions")]
@@ -48,6 +50,7 @@ public partial class BackfillTenantNotificationPermissions : Migration
                 (CAST({(byte)AccessType.Write} AS tinyint)),
                 (CAST({(byte)AccessType.Delete} AS tinyint))) a(AccessType)
             WHERE m.IsActive = 1
+              AND m.CreatedOn >= '2026-08-14'
               AND u.Email IS NOT NULL
               AND LEN(u.Email) BETWEEN 1 AND 219
               AND NOT EXISTS (
@@ -55,7 +58,6 @@ public partial class BackfillTenantNotificationPermissions : Migration
                     FROM ea.Permissions existing
                     WHERE existing.UserId = u.UserId
                       AND existing.ResourceType = {NotificationsResourceType}
-                      AND existing.AccessType = a.AccessType
                       AND existing.ResourceKey = LOWER(CONVERT(nvarchar(36), m.TenantId)) + N':' + u.Email);
             """);
     }
