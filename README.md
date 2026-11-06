@@ -736,6 +736,15 @@ Content-Type: application/json
 }
 ```
 
+`message` may be **Markdown** (up to 1000 characters; longer text is truncated). FlexForms stores it as sent; Web renders it safely on the upload page Status column, the preview submit check and the live banner. Supported: paragraphs, line breaks, `**bold**`, `*italics*`, `` `inline code` ``, bullet and numbered lists, and `https` links. Raw HTML and headings are not rendered. Plain text still works unchanged.
+
+```json
+{
+  "isValid": false,
+  "message": "Sheet **Budget** has problems:\n- Column `Amount` is missing\n- Row 12: date is not valid\n\nSee [the template guide](https://example.gov.uk/guide)."
+}
+```
+
 4. FlexForms records `Passed` or `Failed` on `ea.Files`. Submit is gated by the template mode.
 5. `FileValidationRecordedEvent` creates a notification for the **uploader** (category `file-validation`, context = tenant `ApplicationName`) and pushes `notification.upserted` over SignalR. The Web banner, badge, `/Notifications` list, and upload Status column update live.
 

@@ -1943,6 +1943,7 @@
           "Integrations"
         ],
         "summary": "Records an external tenant function's validation result for an uploaded file.",
+        "description": "message may be Markdown (up to 1000 characters; longer text is truncated). FlexForms Web\nrenders it on the upload page, the preview submit check and the live banner: paragraphs, line\nbreaks, **bold**, *italics*, inline code, bullet and numbered lists, and https links. Raw HTML\nand headings are not rendered. The text is stored as sent.",
         "operationId": "Integrations_RecordFileValidationResult",
         "parameters": [
           {

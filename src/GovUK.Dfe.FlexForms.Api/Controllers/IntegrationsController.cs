@@ -18,6 +18,12 @@ public class IntegrationsController(ISender sender) : ControllerBase
     /// <summary>
     /// Records an external tenant function's validation result for an uploaded file.
     /// </summary>
+    /// <remarks>
+    /// <c>message</c> may be Markdown (up to 1000 characters; longer text is truncated). FlexForms Web
+    /// renders it on the upload page, the preview submit check and the live banner: paragraphs, line
+    /// breaks, <c>**bold**</c>, <c>*italics*</c>, inline code, bullet and numbered lists, and https links. Raw HTML
+    /// and headings are not rendered. The text is stored as sent.
+    /// </remarks>
     [HttpPost("files/{fileId:guid}/validation-result")]
     [Authorize(Policy = "CanRecordFileValidation")]
     [SwaggerResponse(200, "Validation result recorded.", typeof(UploadDto))]

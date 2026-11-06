@@ -29,6 +29,8 @@ If template `FileValidation` mode ≠ Off and extension eligible: status `Pendin
 
 Virus scan is platform-owned. Tenant validation must not publish to FlexForms bus. Infected → delete; invalid → keep + maybe block submit.
 
+The callback's `message` is stored **as sent** (trimmed, max `File.ValidationMessageMaxLength` = 1000) and may be Markdown (**Verified**). The API never renders it; Web does, through `MarkdownSafe.RenderIntegrationMessage` (see flexforms-web `.ai/integrations.md`). The failed-notification text is `We could not validate '{file}'. {message}` with the raw message also in `Metadata["message"]`; Web relies on that suffix to render the detail, so keep the two in step if you change `FileValidationRecordedEventHandler`.
+
 ## 7. Edge cases
 
 - SAS must remain valid through download+scan (typically 1h).

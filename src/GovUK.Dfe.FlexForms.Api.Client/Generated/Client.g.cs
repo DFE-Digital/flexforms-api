@@ -3328,6 +3328,12 @@ namespace GovUK.Dfe.FlexForms.Api.Client
         /// <summary>
         /// Records an external tenant function's validation result for an uploaded file.
         /// </summary>
+        /// <remarks>
+        /// message may be Markdown (up to 1000 characters; longer text is truncated). FlexForms Web
+        /// <br/>renders it on the upload page, the preview submit check and the live banner: paragraphs, line
+        /// <br/>breaks, **bold**, *italics*, inline code, bullet and numbered lists, and https links. Raw HTML
+        /// <br/>and headings are not rendered. The text is stored as sent.
+        /// </remarks>
         /// <returns>Validation result recorded.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         public virtual async System.Threading.Tasks.Task<UploadDto> RecordFileValidationResultAsync(System.Guid fileId, RecordFileValidationResultRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken))
