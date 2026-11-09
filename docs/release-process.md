@@ -84,6 +84,7 @@ The two repos are released separately with their own versions. When a feature sp
 
 - Cut both releases at the same time.
 - Promote the API before the web app, unless the web change is backwards compatible.
+- On the Web production deploy, set **required_api_release** to this API's production tag (e.g. `v2.3.0`). After approval, Web waits until that tag is **Latest** here before it rolls out. Leave the input blank for Web-only changes.
 
 ## NuGet client (`GovUK.Dfe.FlexForms.Api.Client`)
 

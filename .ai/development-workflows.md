@@ -61,3 +61,5 @@ Local build regenerates the client. Use `SkipMassTransit` / CodeGeneration appse
 ## Release
 
 Trunk-based: `docs/release-process.md`. Do not rebuild production images. Backport labelled fixes onto `release/x.y`.
+
+Coupled go-lives: promote this API first. Web's production deploy can set `required_api_release` to this repo's production tag and will wait until that GitHub release is **Latest** before rolling Web.
