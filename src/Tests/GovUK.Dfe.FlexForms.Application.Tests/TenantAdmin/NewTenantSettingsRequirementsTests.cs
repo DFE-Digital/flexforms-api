@@ -13,8 +13,41 @@ public class NewTenantSettingsRequirementsTests
         new("Authorization", "Api", $$$"""{"TokenSettings":{"SecretKey":"{{{SigningKey}}}","Issuer":"iss","Audience":"aud"}}""", true),
         new("AzureAd", "Api", """{"TenantId":"entra-tenant","ClientId":"api-client"}""", true),
         new("Authentication", "Web", """{"Scheme":"DfESignIn"}""", false),
-        new("DfESignIn", "Shared", """{"Authority":"https://signin.example.test","ClientId":"dsi-client","ClientSecret":"dsi-value"}""", true)
+        new("DfESignIn", "Shared", """{"Authority":"https://signin.example.test","DiscoveryEndpoint":"https://signin.example.test/.well-known/openid-configuration","ClientId":"dsi-client","ClientSecret":"dsi-value"}""", true)
     ];
+
+    [Fact]
+    public void Validate_ShouldFail_WhenAzureAdHasNoAudienceOrClientId()
+    {
+        var settings = Replace(DfESignInTenant(), new NewTenantSetting("AzureAd", "Api", """{"TenantId":"entra-tenant"}""", true));
+
+        var errors = NewTenantSettingsRequirements.Validate(settings);
+
+        Assert.Contains(errors, e => e.Contains("Audience or ClientId"));
+    }
+
+    [Fact]
+    public void Validate_ShouldFail_WhenDfESignInHasNoDiscoveryEndpoint()
+    {
+        var settings = Replace(DfESignInTenant(), new NewTenantSetting(
+            "DfESignIn", "Shared", """{"Authority":"https://signin.example.test","ClientId":"dsi-client","ClientSecret":"dsi-value"}""", true));
+
+        var errors = NewTenantSettingsRequirements.Validate(settings);
+
+        Assert.Contains(errors, e => e.StartsWith("DfESignIn:DiscoveryEndpoint (Api or Shared)"));
+    }
+
+    [Fact]
+    public void Validate_ShouldFail_WhenApiEntraSsoIsDisabled()
+    {
+        var settings = EntraTenant().Where(s => s.Category != "EntraSso").ToList();
+        settings.Add(new NewTenantSetting("EntraSso", "Web", """{"Enabled":true,"TenantId":"t","ClientId":"c"}""", true));
+        settings.Add(new NewTenantSetting("EntraSso", "Api", """{"Enabled":false,"TenantId":"t","ClientId":"c"}""", true));
+
+        var errors = NewTenantSettingsRequirements.Validate(settings);
+
+        Assert.Contains(errors, e => e.StartsWith("EntraSso:Enabled must be true"));
+    }
 
     [Fact]
     public void Validate_ShouldPass_ForMinimalDfESignInTenant()
@@ -51,11 +84,12 @@ public class NewTenantSettingsRequirementsTests
     public void Validate_ShouldFail_WhenDfESignInIsOnlyOnWeb_BecauseApiCannotValidateTheToken()
     {
         var settings = Replace(DfESignInTenant(), new NewTenantSetting(
-            "DfESignIn", "Web", """{"Authority":"https://signin.example.test","ClientId":"dsi-client","ClientSecret":"dsi-value"}""", true));
+            "DfESignIn", "Web", """{"Authority":"https://signin.example.test","DiscoveryEndpoint":"https://signin.example.test/.well-known/openid-configuration","ClientId":"dsi-client","ClientSecret":"dsi-value"}""", true));
 
         var errors = NewTenantSettingsRequirements.Validate(settings);
 
         Assert.Contains(errors, e => e.StartsWith("DfESignIn (Api or Shared)"));
+        Assert.Contains(errors, e => e.StartsWith("DfESignIn:DiscoveryEndpoint (Api or Shared)"));
     }
 
     [Fact]

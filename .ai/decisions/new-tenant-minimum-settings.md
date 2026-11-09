@@ -18,5 +18,5 @@ The endpoint (`POST /v1/admin/tenants/{id}/clone`) and `CloneTenantRequest` / `D
 - Web and API must deploy together: an old Web payload fails API validation, and a new Web payload is misread by an old API.
 - `NewTenantSettingsRequirements` (API) and `NewTenantAdminService.BuildDraft` (Web) describe the same minimum and must change together.
 - Everything not on either list, including templates, principals, InternalServiceAuth and Layout, is configured after creation in Tenant Settings.
-- Copied template HostMappings almost always point at the current tenant's own templates and are rejected by the ownership check; the SuperAdmin clears them.
+- Copied template HostMappings almost always point at the current tenant's own templates and are rejected by the ownership check; the SuperAdmin clears them. Mappings are only checked (and accepted) when the new tenant shares the current tenant's EA database, because the validator cannot reach another database before the tenant exists.
 - Renaming the route or contracts to "create" is a later, coordinated CoreLibs + Api.Client change.

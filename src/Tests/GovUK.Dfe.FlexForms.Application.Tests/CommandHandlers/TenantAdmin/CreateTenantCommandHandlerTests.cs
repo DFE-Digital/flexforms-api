@@ -33,7 +33,16 @@ public class CreateTenantCommandHandlerTests
         _hostEnvironment.EnvironmentName.Returns("Development");
         _permissionChecker.IsInteractivePlatformAdmin().Returns(true);
         _tenantContext.CurrentTenant.Returns(
-            new TenantConfiguration(SourceId, "Transfers", new ConfigurationBuilder().Build(), []));
+            new TenantConfiguration(
+                SourceId,
+                "Transfers",
+                new ConfigurationBuilder()
+                    .AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["ConnectionStrings:DefaultConnection"] = "Server=db;Database=ea;"
+                    })
+                    .Build(),
+                []));
         _settingsQuery.ListSettingsAsync(SourceId, Arg.Any<CancellationToken>())
             .Returns(new TenantSettingsList(SourceId, "Transfers",
             [
@@ -89,6 +98,49 @@ public class CreateTenantCommandHandlerTests
         Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
         Assert.Contains("belongs to another tenant", result.Error);
         await _creator.DidNotReceiveWithAnyArgs().CreateAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldDeferTemplateMappings_WhenNewTenantUsesAnotherDatabase()
+    {
+        var settings = MinimalSettings()
+            .Where(s => s.Category != "ConnectionStrings")
+            .Append(Row("ConnectionStrings", "Api", """{"DefaultConnection":"Server=isolated;Database=ea;"}"""))
+            .Append(Row("ApplicationTemplates", "Api", $$$"""{"HostMappings":{"transfers":"{{{Guid.NewGuid()}}}"}}"""))
+            .ToList();
+
+        var result = await _handler.Handle(Command(settings), CancellationToken.None);
+
+        Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
+        Assert.Contains("current tenant's application database", result.Error);
+        await _ownershipValidator.DidNotReceiveWithAnyArgs().ValidateAsync(default, default!, default!, default);
+    }
+
+    [Theory]
+    [InlineData("__SECRET__")]
+    [InlineData("""{"__SECRET__":true}""")]
+    public async Task Handle_ShouldReject_UnresolvedSecretPlaceholder(string json)
+    {
+        var settings = MinimalSettings().Append(Row("FileStorage", "Api", json)).ToList();
+
+        var result = await _handler.Handle(Command(settings), CancellationToken.None);
+
+        Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
+        Assert.Contains("Replace __SECRET__", result.Error);
+        await _creator.DidNotReceiveWithAnyArgs().CreateAsync(default!, default);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldReturnValidation_WhenSettingsContainNull()
+    {
+        var payload = """{"hostname":"new.dev.example","frontendOrigin":"https://new.dev.example","settings":[null]}""";
+
+        var result = await _handler.Handle(
+            new CreateTenantCommand(SourceId, NewId, "New tenant", WafSafeUtf8Base64.Encode(payload)),
+            CancellationToken.None);
+
+        Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
+        Assert.Contains("null entries", result.Error);
     }
 
     [Fact]

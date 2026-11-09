@@ -88,11 +88,21 @@ public static class NewTenantSettingsRequirements
             errors.Add("AzureAd (Api or Shared) needs TenantId or Issuer so Web's service token is accepted at token exchange.");
         }
 
+        // A provider with no audiences matches no token.
+        if (IsBlank(api["AzureAd:Audience"]) && IsBlank(api["AzureAd:ClientId"]))
+        {
+            errors.Add("AzureAd (Api or Shared) needs Audience or ClientId so Web's service token passes audience validation.");
+        }
+
         ValidateInteractiveScheme(api, web, errors);
         ValidateTokenRefresh(web, errors);
 
         return errors;
     }
+
+    /// <summary>The new tenant's EA connection string as the API will read it.</summary>
+    public static string? DefaultConnection(IReadOnlyCollection<NewTenantSetting> settings) =>
+        BuildView(settings, "Api")["ConnectionStrings:DefaultConnection"];
 
     private static void ValidateInteractiveScheme(IConfiguration api, IConfiguration web, List<string> errors)
     {
@@ -108,6 +118,10 @@ public static class NewTenantSettingsRequirements
                 Require(web, "DfESignIn:Authority", "Web", errors);
                 Require(web, "DfESignIn:ClientId", "Web", errors);
                 Require(web, "DfESignIn:ClientSecret", "Web", errors);
+                // TenantOidcProviderBuilder skips the API provider without an explicit DiscoveryEndpoint,
+                // and ClientId is the audience the sign-in token is matched on.
+                Require(api, "DfESignIn:DiscoveryEndpoint", "Api", errors);
+                Require(api, "DfESignIn:ClientId", "Api", errors);
                 if (IsBlank(api["DfESignIn:Authority"]) && IsBlank(api["DfESignIn:Issuer"]))
                     errors.Add("DfESignIn (Api or Shared) needs Authority or Issuer so the API can validate the sign-in token.");
                 break;
@@ -115,8 +129,12 @@ public static class NewTenantSettingsRequirements
             case EntraSso:
                 Require(web, "EntraSso:TenantId", "Web", errors);
                 Require(web, "EntraSso:ClientId", "Web", errors);
-                if (IsBlank(api["EntraSso:TenantId"]) && IsBlank(api["EntraSso:Issuer"]))
-                    errors.Add("EntraSso (Api or Shared) needs TenantId or Issuer so the API can validate the sign-in token.");
+                // TenantOidcProviderBuilder only registers an enabled provider with a TenantId, and
+                // validates the audience against ClientId.
+                if (!bool.TryParse(api["EntraSso:Enabled"], out var entraEnabled) || !entraEnabled)
+                    errors.Add("EntraSso:Enabled must be true (Api or Shared) so the API can validate the sign-in token.");
+                Require(api, "EntraSso:TenantId", "Api", errors);
+                Require(api, "EntraSso:ClientId", "Api", errors);
                 break;
 
             case TestAuthentication:

@@ -125,15 +125,19 @@ public sealed class CreateTenantCommandHandler(
         }
 
         var errors = new List<string>();
-        var settings = await BuildSettingsAsync(
-            request.NewTenantId,
-            payload.Settings,
-            source.Settings,
-            errors,
-            cancellationToken);
+        var settings = BuildSettings(payload.Settings, source.Settings, errors);
         if (errors.Count == 0)
         {
             errors.AddRange(NewTenantSettingsRequirements.Validate(settings));
+        }
+
+        if (errors.Count == 0)
+        {
+            errors.AddRange(await ValidateTemplateMappingsAsync(
+                request.NewTenantId,
+                currentTenant,
+                settings,
+                cancellationToken));
         }
 
         if (errors.Count > 0)
@@ -171,12 +175,10 @@ public sealed class CreateTenantCommandHandler(
         }
     }
 
-    private async Task<List<NewTenantSetting>> BuildSettingsAsync(
-        Guid newTenantId,
+    private List<NewTenantSetting> BuildSettings(
         IReadOnlyList<NewTenantPayloadSetting> requested,
         IReadOnlyCollection<TenantSettingRow> sourceRows,
-        List<string> errors,
-        CancellationToken cancellationToken)
+        List<string> errors)
     {
         var settings = new List<NewTenantSetting>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -230,6 +232,14 @@ public sealed class CreateTenantCommandHandler(
                 json = restored.Json;
             }
 
+            // The shared validator lets the promotion-import placeholder through unparsed; persisted,
+            // it is invalid JSON that fails the catalogue refresh for every tenant.
+            if (TenantSettingJsonValidator.IsSecretPlaceholder(json))
+            {
+                errors.Add($"{label}: Replace __SECRET__ with settings JSON before creating the tenant.");
+                continue;
+            }
+
             var validationErrors = TenantSettingJsonValidator.Validate(category, target, json);
             if (validationErrors.Count > 0)
             {
@@ -243,19 +253,6 @@ public sealed class CreateTenantCommandHandler(
                 continue;
             }
 
-            // Copied HostMappings usually point at the current tenant's own templates, which the
-            // new tenant may not claim (same rule as Tenant Settings).
-            var ownershipErrors = await templateMappingOwnershipValidator.ValidateAsync(
-                newTenantId,
-                category,
-                json,
-                cancellationToken);
-            if (ownershipErrors.Count > 0)
-            {
-                errors.AddRange(ownershipErrors.Select(e => $"{label}: {e}"));
-                continue;
-            }
-
             var isSecret = TenantSettingsSecretCategories.ShouldEncrypt(category)
                            || sourceRow?.IsSecret == true
                            || TenantSettingSecretJson.Redact(json, category).Values.Count > 0;
@@ -264,6 +261,52 @@ public sealed class CreateTenantCommandHandler(
         }
 
         return settings;
+    }
+
+    /// <summary>
+    /// Copied HostMappings usually point at the current tenant's own templates, which the new tenant
+    /// may not claim (same rule as Tenant Settings). The ownership validator reads the current request's
+    /// EA database, so it is only meaningful when the new tenant shares it; otherwise mappings must wait
+    /// until the tenant exists and Tenant Settings can validate them in its own context.
+    /// </summary>
+    private async Task<IReadOnlyList<string>> ValidateTemplateMappingsAsync(
+        Guid newTenantId,
+        TenantConfiguration currentTenant,
+        IReadOnlyCollection<NewTenantSetting> settings,
+        CancellationToken cancellationToken)
+    {
+        var mappings = settings
+            .Where(s => TemplateMappingSettingCategories.IsTemplateMappingCategory(s.Category)
+                        && TemplateMappingSettingCategories.ExtractTemplateIds(s.SettingsJson).Count > 0)
+            .ToList();
+        if (mappings.Count == 0)
+            return [];
+
+        var sameDatabase = string.Equals(
+            NewTenantSettingsRequirements.DefaultConnection(settings)?.Trim(),
+            currentTenant.GetConnectionString("DefaultConnection")?.Trim(),
+            StringComparison.Ordinal);
+
+        var errors = new List<string>();
+        foreach (var mapping in mappings)
+        {
+            var label = $"'{mapping.Category}' ({mapping.Target})";
+            if (!sameDatabase)
+            {
+                errors.Add($"{label}: template mappings can only be copied when the new tenant uses the current tenant's application database. " +
+                           "Leave them out and add them in Tenant Settings once the tenant exists.");
+                continue;
+            }
+
+            var ownershipErrors = await templateMappingOwnershipValidator.ValidateAsync(
+                newTenantId,
+                mapping.Category,
+                mapping.SettingsJson,
+                cancellationToken);
+            errors.AddRange(ownershipErrors.Select(e => $"{label}: {e}"));
+        }
+
+        return errors;
     }
 
     internal static bool TryDecodePayload(
@@ -313,6 +356,12 @@ public sealed class CreateTenantCommandHandler(
         if (payload.Settings.Count == 0)
         {
             error = "settings must contain the new tenant's settings.";
+            return false;
+        }
+
+        if (payload.Settings.Any(s => s is null))
+        {
+            error = "settings must not contain null entries.";
             return false;
         }
 
