@@ -79,7 +79,7 @@ public class CreateTenantCommandHandlerTests
         var result = await _handler.Handle(Command(settings), CancellationToken.None);
 
         Assert.True(result.IsSuccess, result.Error);
-        Assert.Equal(7, result.Value!.SettingsCopied);
+        Assert.Equal(8, result.Value!.SettingsCopied);
     }
 
     [Fact]
@@ -176,11 +176,11 @@ public class CreateTenantCommandHandlerTests
         var result = await _handler.Handle(Command(settings), CancellationToken.None);
 
         Assert.True(result.IsSuccess, result.Error);
-        Assert.Equal(5, result.Value!.SettingsCopied);
+        Assert.Equal(6, result.Value!.SettingsCopied);
         await _creator.Received(1).CreateAsync(
             Arg.Is<NewTenantDefinition>(t =>
                 t.TenantId == NewId
-                && t.Settings.Count == 5
+                && t.Settings.Count == 6
                 && t.Settings.Single(s => s.Category == "ConnectionStrings").SettingsJson.Contains("Server=source")
                 && t.Settings.All(s => !s.SettingsJson.Contains("__REDACTED__"))
                 && t.Settings.Single(s => s.Category == "ConnectionStrings").IsSecret
@@ -207,12 +207,12 @@ public class CreateTenantCommandHandlerTests
     [Fact]
     public async Task Handle_ShouldReject_CategoriesOutsideTheMinimum()
     {
-        var settings = MinimalSettings().Append(Row("Layout", "Web", """{"ServiceName":"x"}""")).ToList();
+        var settings = MinimalSettings().Append(Row("InternalServiceAuth", "Api", """{"Issuer":"x"}""")).ToList();
 
         var result = await _handler.Handle(Command(settings), CancellationToken.None);
 
         Assert.Equal(DomainErrorCode.Validation, result.ErrorCode);
-        Assert.Contains("'Layout' (Web) cannot be set when creating a tenant", result.Error);
+        Assert.Contains("'InternalServiceAuth' (Api) cannot be set when creating a tenant", result.Error);
     }
 
     [Fact]

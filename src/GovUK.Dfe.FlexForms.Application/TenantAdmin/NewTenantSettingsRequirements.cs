@@ -6,8 +6,8 @@ namespace GovUK.Dfe.FlexForms.Application.TenantAdmin;
 
 /// <summary>
 /// The smallest set of TenantConfig settings a new tenant needs before a user can sign in and
-/// reach the dashboard, plus <see cref="OptionalCategories"/> the New tenant page may copy across.
-/// Anything else (Layout, InternalServiceAuth, …) is added later in Tenant Settings.
+/// reach the dashboard (plus its service name), and <see cref="OptionalCategories"/> the New tenant
+/// page may copy across. Anything else (InternalServiceAuth, …) is added later in Tenant Settings.
 /// </summary>
 public static class NewTenantSettingsRequirements
 {
@@ -21,6 +21,7 @@ public static class NewTenantSettingsRequirements
     public const string TokenRefresh = "TokenRefresh";
     public const string Email = "Email";
     public const string EmailTemplates = "EmailTemplates";
+    public const string Layout = "Layout";
 
     public const int MinimumSigningKeyLength = 32;
 
@@ -60,7 +61,8 @@ public static class NewTenantSettingsRequirements
             TestAuthentication,
             TokenRefresh,
             Email,
-            EmailTemplates
+            EmailTemplates,
+            Layout
         }.Concat(OptionalCategories),
         StringComparer.OrdinalIgnoreCase);
 
@@ -96,6 +98,9 @@ public static class NewTenantSettingsRequirements
 
         ValidateInteractiveScheme(api, web, errors);
         ValidateTokenRefresh(web, errors);
+
+        // Shown in the header and page titles; without it Web falls back to a generic name.
+        Require(web, "Layout:ServiceName", "Web", errors);
 
         return errors;
     }

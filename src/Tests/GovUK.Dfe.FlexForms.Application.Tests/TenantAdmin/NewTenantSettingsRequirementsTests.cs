@@ -13,6 +13,7 @@ public class NewTenantSettingsRequirementsTests
         new("Authorization", "Api", $$$"""{"TokenSettings":{"SecretKey":"{{{SigningKey}}}","Issuer":"iss","Audience":"aud"}}""", true),
         new("AzureAd", "Api", """{"TenantId":"entra-tenant","ClientId":"api-client"}""", true),
         new("Authentication", "Web", """{"Scheme":"DfESignIn"}""", false),
+        new("Layout", "Web", """{"ServiceName":"Visits"}""", false),
         new("DfESignIn", "Shared", """{"Authority":"https://signin.example.test","DiscoveryEndpoint":"https://signin.example.test/.well-known/openid-configuration","ClientId":"dsi-client","ClientSecret":"dsi-value"}""", true)
     ];
 
@@ -60,6 +61,7 @@ public class NewTenantSettingsRequirementsTests
     [InlineData("Authorization", "Authorization:TokenSettings:SecretKey")]
     [InlineData("AzureAd", "AzureAd")]
     [InlineData("Authentication", "Authentication:Scheme")]
+    [InlineData("Layout", "Layout:ServiceName")]
     public void Validate_ShouldFail_WhenAlwaysRequiredCategoryIsMissing(string category, string expected)
     {
         var settings = DfESignInTenant().Where(s => s.Category != category).ToList();
