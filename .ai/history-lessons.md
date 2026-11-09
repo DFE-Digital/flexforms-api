@@ -7,7 +7,7 @@ Lessons from past engineering work on FlexForms (incidents, design reviews, prod
 | Lesson | Status |
 |--------|--------|
 | Full response bodies are trusted; the API does not merge. A partial Web payload becomes the new version. | **Verified** — save handlers append the posted body. Web now throws `StaleFormSessionException` on a mismatched session application id. |
-| Tenant config refresh is all-or-nothing; `TenantDuplicator` creating overlapping Shared + Api keys crashed flattening for every tenant. | **Verified** — `TenantSettingTargetOverlapGate`, duplicator tests. |
+| Tenant config refresh is all-or-nothing; the old tenant duplicator creating overlapping Shared + Api keys crashed flattening for every tenant. | **Verified** — `TenantSettingTargetOverlapGate`, `TenantSettingTargetOverlapGateTests`. The duplicator was replaced by minimum-settings New tenant (`decisions/new-tenant-minimum-settings.md`). |
 | Secret leaves must be redacted in list **and** validate responses; sentinel restore keeps stored values on save. | **Verified** — README secret table + redaction. |
 | Local Data Protection path / `ApplicationName` mismatches looked like DB corruption. | **Verified** — `TenantSettingsDataProtectionExtensions`. |
 | Notify “template not found” was usually a non-hex UUID in `EmailTemplates`, not a HostMappings problem. | **Historical** — still the lookup model; validators may have tightened. |

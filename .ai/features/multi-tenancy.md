@@ -34,7 +34,7 @@ See [`../business-rules.md`](../business-rules.md). SuperAdmin-only categories. 
 ## 7. Edge cases
 
 - Refresh flatten failure blocks **all** tenants’ updates.
-- Duplicator overlapping Shared/Api keys.
+- A new tenant needs a minimum set of settings before anyone can sign in (`AzureAd` and Web token refresh included, whatever the scheme). See [`tenant-admin.md`](tenant-admin.md#minimum-settings-to-run-a-tenant-verified).
 - HostMappings must only reference templates owned by the tenant (or legacy `TenantId == null`).
 - `GET /v1/internal/prism/tenants` is the Prism exception to “tenant required”.
 

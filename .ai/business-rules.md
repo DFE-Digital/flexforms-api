@@ -7,6 +7,7 @@
 - Resolve tenant from `X-Tenant-ID`, else `Origin` → `TenantFrontendOrigins`. Hostname resolve is a dedicated endpoint for Web bootstrap (`GET /v1/tenant-config/resolve`).
 - JWT claim `tenant_id` must match the resolved tenant (`EnforceTenantConsistencyAsync`). Cross-tenant tokens are rejected. **Historical:** an LSRP admin token cannot mutate Transfers settings even with a foreign `X-Tenant-ID`.
 - Templates belong to a tenant via `Template.TenantId` and/or HostMappings. Catalogue: `TenantTemplateCatalogue`. HostMappings must not list another tenant’s template GUID on a shared EA database.
+- New tenant is created from the minimum settings plus optional copied categories (`NewTenantSettingsRequirements`), by an interactive SuperAdmin starting from their own tenant. Other categories are rejected; the tenant is rejected if the minimum is incomplete or a copied template mapping is not claimable by the new tenant. See [`features/tenant-admin.md`](features/tenant-admin.md#minimum-settings-to-run-a-tenant-verified).
 
 ## Roles
 

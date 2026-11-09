@@ -670,13 +670,14 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
-        /// Clones the caller's own tenant into a new TenantConfig tenant.
-        /// <br/>Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
-        /// <br/>Principals are not copied. Interactive SuperAdmin only.
-        /// <br/>Hostname, frontend origin, and secrets are sent only inside Base64 payloadJson
+        /// Creates a new TenantConfig tenant from the minimum settings reviewed on the Web New tenant page.
+        /// <br/>Only the submitted rows are written; nothing else is copied from tenantId,
+        /// <br/>which must be the caller's own tenant and is used only to restore __REDACTED__ secret leaves.
+        /// <br/>Requires a unique name, hostname and origin. Interactive SuperAdmin only.
+        /// <br/>Hostname, frontend origin and settings are sent only inside Base64 payloadJson
         /// <br/>(WAF-safe; avoids cleartext https:// ARGS that trip RFI rule 931130).
         /// </summary>
-        /// <returns>Tenant cloned.</returns>
+        /// <returns>Tenant created.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<DuplicateTenantResponse> CloneTenantAsync(System.Guid tenantId, CloneTenantRequest body, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
