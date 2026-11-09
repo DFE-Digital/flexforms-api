@@ -227,7 +227,7 @@ public sealed class UpsertTenantSettingCommandHandler(
         return !permissionChecker.IsInteractivePlatformAdmin();
     }
 
-    private static bool WouldEnableTestAuthentication(string category, string settingsJson)
+    internal static bool WouldEnableTestAuthentication(string category, string settingsJson)
     {
         try
         {

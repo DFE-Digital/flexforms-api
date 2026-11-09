@@ -49,6 +49,7 @@ Interactive SuperAdmins (own tenant only) can use:
 | `GET /v1/admin/tenants/{id}/export` | Promotion bundle (secrets redacted) |
 | `POST /v1/admin/tenants/{id}/import` | Apply promotion bundle |
 | `GET /v1/admin/tenants/{id}/settings/audit` | Recent setting change audit trail |
+| `POST /v1/admin/tenants/{id}/clone` | Create a new tenant from the minimum settings reviewed on Web's New tenant page. Writes only the submitted rows; `__REDACTED__` keeps the current tenant's value |
 
 After changing settings in Tenant Settings (Web), the page refreshes the API catalogue **and** clears the Web hostname cache so DNS mapping updates apply immediately.
 
@@ -73,6 +74,7 @@ Bearer tokens, API keys, and mTLS client certificates are resolved via `ITenantA
 - Keep platform-wide values (e.g. Application Insights connection string) at the host `appsettings` root — not per tenant.
 - Application Insights is configured per app: the API uses `GlobalConfiguration:ApplicationInsights:ConnectionString`, Web uses its own `ApplicationInsights:ConnectionString`. Host-config does not send the API's connection string to Web. Add a tenant `ApplicationInsights` setting only when a tenant needs a different resource (Target `Shared` for both apps, or `Api` / `Web` for one).
 - When adding a tenant, ensure hostname and frontend origin are unique across the platform.
+- A new tenant needs `ConnectionStrings`, `Authorization`, `AzureAd`, `Authentication`, the sign-in provider for that scheme, and Web token refresh (`TokenRefresh` or `DfESignIn`). Test Authentication tenants also need `Email` and `EmailTemplates` for the one-time password. The New tenant page also copies common pre-go-live settings (FeatureManagement, FileStorage, template mappings, MassTransit, FormEngine and others) from your tenant for review. Add everything else after the tenant exists.
 
 ## Legacy appsettings shape (seed only)
 

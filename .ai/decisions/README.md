@@ -21,5 +21,6 @@ Those ADRs still say “External Applications” — historical product name. De
 | Prism events are nudges + always-outbox | [`prism-events-as-nudges.md`](prism-events-as-nudges.md) |
 | Outbox allowlist (empty by default) | [`outbox-allowlist.md`](outbox-allowlist.md) |
 | CoreLibs NuGet, not project references | [`corelibs-nuget-not-project-refs.md`](corelibs-nuget-not-project-refs.md) |
+| New tenant writes only the minimum settings | [`new-tenant-minimum-settings.md`](new-tenant-minimum-settings.md) |
 
 When recording a new decision: context, decision, alternatives **only if known**, consequences, code references. Do not invent historical alternatives.

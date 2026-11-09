@@ -67,64 +67,27 @@ public class TenantSettingTargetOverlapGateTests : IDisposable
     }
 
     [Fact]
-    public async Task Duplicate_ShouldKeepSharedOnly_WhenSourceStoresInternalAuthAndTestAuthUnderShared()
+    public async Task Create_ShouldReject_WhenNewTenantRowsOverlap()
     {
-        await SeedSourceAsync(("InternalServiceAuth", "Shared"), ("TestAuthentication", "Shared"));
+        var creator = new TenantCreatorService(_db, _encryptor, Substitute.For<ILogger<TenantCreatorService>>());
 
-        await DuplicateAsync();
+        var ex = await Assert.ThrowsAsync<TenantSettingTargetConflictException>(() => creator.CreateAsync(
+            new NewTenantDefinition(
+                NewId,
+                "New tenant",
+                "new.example.com",
+                "https://new.example.com",
+                [
+                    new NewTenantSetting("TestAuthentication", "Shared", TestAuthJson, true),
+                    new NewTenantSetting("TestAuthentication", "Web", TestAuthJson, true)
+                ])));
 
-        var settings = await NewTenantSettingsAsync();
-        Assert.Empty(TenantSettingTargetOverlap.FindOverlaps(settings.Select(s => (s.Category, s.Target))));
-
-        var internalAuth = Assert.Single(settings, s => s.Category == "InternalServiceAuth");
-        Assert.Equal("Shared", internalAuth.Target);
-        Assert.Contains("new-internal-secret-key-32chars!!", internalAuth.Settings);
-
-        var testAuth = Assert.Single(settings, s => s.Category == "TestAuthentication");
-        Assert.Equal("Shared", testAuth.Target);
-        Assert.Contains(NewId.ToString(), testAuth.Settings);
-    }
-
-    [Fact]
-    public async Task Duplicate_ShouldWriteApiAndWeb_WhenSourceStoresInternalAuthPerApp()
-    {
-        await SeedSourceAsync(("InternalServiceAuth", "Api"));
-
-        await DuplicateAsync();
-
-        var targets = (await NewTenantSettingsAsync())
-            .Where(s => s.Category == "InternalServiceAuth")
-            .Select(s => s.Target)
-            .OrderBy(t => t);
-        Assert.Equal(new[] { "Api", "Web" }, targets);
-    }
-
-    [Fact]
-    public async Task Duplicate_ShouldReject_WhenSourceAlreadyHasOverlappingRows()
-    {
-        await SeedSourceAsync(("Layout", "Shared"), ("Layout", "Web"));
-
-        var ex = await Assert.ThrowsAsync<TenantSettingTargetConflictException>(DuplicateAsync);
-
-        Assert.Contains("Layout", ex.Message);
+        Assert.Contains("TestAuthentication", ex.Message);
         Assert.False(await _db.Tenants.AnyAsync(t => t.Id == NewId));
     }
 
     private TenantSettingsWriterService CreateWriter() =>
         new(_db, _encryptor, Substitute.For<ILogger<TenantSettingsWriterService>>());
-
-    private Task DuplicateAsync() =>
-        new TenantDuplicatorService(_db, _encryptor, Substitute.For<ILogger<TenantDuplicatorService>>())
-            .DuplicateAsync(
-                SourceId,
-                NewId,
-                "Sentinel",
-                "sentinel.example.com",
-                "https://sentinel.example.com",
-                "new-authorization-secret-key-32ch",
-                "new-internal-secret-key-32chars!!",
-                [],
-                "Sentinel service");
 
     private async Task SeedSourceAsync(params (string Category, string Target)[] settings)
     {
@@ -151,7 +114,4 @@ public class TenantSettingTargetOverlapGateTests : IDisposable
         await _db.SaveChangesAsync();
         _db.ChangeTracker.Clear();
     }
-
-    private Task<List<TenantSettingEntity>> NewTenantSettingsAsync() =>
-        _db.TenantSettings.AsNoTracking().Where(s => s.TenantId == NewId).ToListAsync();
 }

@@ -188,15 +188,16 @@ public class TenantAdminController(ISender sender) : ControllerBase
     }
 
     /// <summary>
-    /// Clones the caller's own tenant into a new TenantConfig tenant.
-    /// Copies all settings (re-encrypting secrets). Requires a unique name, hostname and origin.
-    /// Principals are not copied. Interactive SuperAdmin only.
-    /// Hostname, frontend origin, and secrets are sent only inside Base64 <c>payloadJson</c>
+    /// Creates a new TenantConfig tenant from the minimum settings reviewed on the Web New tenant page.
+    /// Only the submitted rows are written; nothing else is copied from <paramref name="tenantId"/>,
+    /// which must be the caller's own tenant and is used only to restore <c>__REDACTED__</c> secret leaves.
+    /// Requires a unique name, hostname and origin. Interactive SuperAdmin only.
+    /// Hostname, frontend origin and settings are sent only inside Base64 <c>payloadJson</c>
     /// (WAF-safe; avoids cleartext <c>https://</c> ARGS that trip RFI rule 931130).
     /// </summary>
     [HttpPost("{tenantId:guid}/clone")]
     [Authorize(Policy = AuthConstants.TenantAdminUserPolicy)]
-    [SwaggerResponse(201, "Tenant cloned.", typeof(DuplicateTenantResponse))]
+    [SwaggerResponse(201, "Tenant created.", typeof(DuplicateTenantResponse))]
     [SwaggerResponse(400, "Validation error.", typeof(ExceptionResponse))]
     [SwaggerResponse(401, "Unauthorized.", typeof(ExceptionResponse))]
     [SwaggerResponse(403, "Forbidden - interactive SuperAdmin of own tenant required.", typeof(ExceptionResponse))]
@@ -208,7 +209,7 @@ public class TenantAdminController(ISender sender) : ControllerBase
         CancellationToken cancellationToken)
     {
         var result = await sender.Send(
-            new DuplicateTenantCommand(
+            new CreateTenantCommand(
                 tenantId,
                 body.NewTenantId,
                 body.NewTenantName,
