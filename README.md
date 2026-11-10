@@ -170,6 +170,7 @@ Operator detail: [flexforms-web Tenant Admin User Manual §14.4](https://github.
 `DatabaseTenantConfigurationProvider` (hosted service):
 
 - Loads active tenants + settings on a timer (~60s) and on `POST /v1/admin/tenants/refresh`
+- Admin-triggered refreshes are broadcast to every API replica over Redis pub/sub (`ReplicatedTenantConfigurationProvider`)
 - Decrypts secrets, flattens JSON into `IConfiguration` on `TenantConfiguration`
 - Indexes by tenant Id and frontend origin
 - Notifies auth registry / OIDC reloaders on change
@@ -862,7 +863,7 @@ Application emails are sent via **GOV.UK Notify**. The API resolves a Notify tem
 
 ### Test Authentication one-time password
 
-When a tenant has `TestAuthentication:Enabled`, the Web Test Login page asks the user for a one-time password after they enter their email. The Web calls `POST v1/tokens/test-auth-password` (ServiceCallers) and the API emails a random 6 digit password using the `TestAuthPasswordEmail` email type. The password is stored (SHA-256 hashed, tenant-scoped) in Redis for **one hour**. `POST v1/tokens/test-auth-password/verify` consumes it on success and discards it after 5 wrong attempts. A new password is not issued within 30 seconds of the previous one.
+When a tenant has `TestAuthentication:Enabled`, the Web Test Login page asks the user for a one-time password after they enter their email. The Web calls `POST v1/tokens/test-auth-password` (ServiceCallers) and the API emails a random 6 digit password using the `TestAuthPasswordEmail` email type. The password is stored (SHA-256 hashed, tenant-scoped) in Redis for **one hour**. `POST v1/tokens/test-auth-password/verify` consumes it on success and discards it after 5 wrong attempts. A new password is not issued within 30 seconds of the previous one. The cooldown, the attempt count and consuming the password are atomic Redis operations, so parallel requests cannot get more than 5 guesses or both sign in with one password. Each issued password has its own attempt counter, and a request that read an older password can neither sign in with it after it is used nor delete a newer one.
 
 The template is tenant-wide rather than per form, so it is resolved from any `EmailTemplates` product key (the key matching the tenant name wins):
 

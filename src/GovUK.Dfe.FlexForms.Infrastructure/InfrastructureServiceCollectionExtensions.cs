@@ -1,4 +1,8 @@
+using GovUK.Dfe.CoreLibs.Utilities.RateLimiting;
+using GovUK.Dfe.FlexForms.Domain.Caching;
 using GovUK.Dfe.FlexForms.Domain.Interfaces;
+using GovUK.Dfe.FlexForms.Infrastructure.Caching;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
@@ -48,6 +52,10 @@ namespace Microsoft.Extensions.DependencyInjection
                 settings.Redis ??= new GovUK.Dfe.CoreLibs.Caching.Settings.RedisCacheSettings();
                 settings.Redis.KeyPrefix = FlexFormsCacheKeys.RedisKeyPrefix;
             });
+
+            // Shared across replicas; replaces the per-process CoreLibs limiter registered by the Application layer.
+            services.Replace(ServiceDescriptor.Singleton<IRateLimiterFactory<string>, RedisRateLimiterFactory>());
+            services.AddSingleton<IAtomicCacheStore, RedisAtomicCacheStore>();
 
             services.AddTransient<IApplicationReferenceProvider, DefaultApplicationReferenceProvider>();
             services.AddTransient<IApplicationResponseAppender, ApplicationResponseAppender>();

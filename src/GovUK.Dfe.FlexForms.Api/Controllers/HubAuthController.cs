@@ -1,12 +1,13 @@
+using GovUK.Dfe.FlexForms.Domain.Caching;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Infrastructure.Security;
 using GovUK.Dfe.CoreLibs.Http.Models;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Caching.Distributed;
 using Swashbuckle.AspNetCore.Annotations;
 using System.Security.Claims;
+using System.Text;
 
 namespace GovUK.Dfe.FlexForms.Api.Controllers
 {
@@ -21,9 +22,11 @@ namespace GovUK.Dfe.FlexForms.Api.Controllers
     /// </para>
     /// </summary>
     public class HubAuthController(
-        IDistributedCache cache,
+        IAtomicCacheStore cache,
         ITenantContextAccessor tenantContextAccessor) : ControllerBase
     {
+        private static readonly TimeSpan TicketLifetime = TimeSpan.FromMinutes(1);
+
         //Create a single use ticket for the hub, which is valid for 1 minute
         [HttpPost("auth/hub-ticket")]
         [SwaggerResponse(200, "The created ticket.", typeof(Dictionary<string, string>))]
@@ -44,11 +47,7 @@ namespace GovUK.Dfe.FlexForms.Api.Controllers
                 ?? throw new InvalidOperationException("Tenant context is required to create a hub ticket.");
 
             var ticket = Guid.NewGuid().ToString("N");
-            await cache.SetStringAsync(BuildTicketKey(tenantId, ticket), email,
-                new DistributedCacheEntryOptions
-                {
-                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(1)
-                }, ct);
+            await cache.SetAsync(BuildTicketKey(tenantId, ticket), Encoding.UTF8.GetBytes(email), TicketLifetime);
 
             var redeemUrl = Url.ActionLink(
                 action: nameof(RedeemHubCookie),
@@ -74,10 +73,10 @@ namespace GovUK.Dfe.FlexForms.Api.Controllers
             if (tenantId is null)
                 return Unauthorized();
 
-            var key = BuildTicketKey(tenantId.Value, ticket);
-            var email = await cache.GetStringAsync(key, ct);
+            // Read and delete in one step, so two requests racing with the same ticket cannot both redeem it.
+            var stored = await cache.GetAndDeleteAsync(BuildTicketKey(tenantId.Value, ticket));
+            var email = stored is null ? null : Encoding.UTF8.GetString(stored);
             if (string.IsNullOrEmpty(email)) return Unauthorized();
-            await cache.RemoveAsync(key, ct); // single use
 
             var claims = new[] {
                 new Claim(ClaimTypes.Email, email),
