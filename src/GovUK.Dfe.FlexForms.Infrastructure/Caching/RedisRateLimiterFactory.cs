@@ -1,9 +1,11 @@
 using System.Security.Cryptography;
 using System.Text;
+using GovUK.Dfe.CoreLibs.Caching.Settings;
 using GovUK.Dfe.CoreLibs.Utilities.RateLimiting;
 using GovUK.Dfe.FlexForms.Utils.Caching;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
 namespace GovUK.Dfe.FlexForms.Infrastructure.Caching;
@@ -18,6 +20,7 @@ public sealed class RedisRateLimiterFactory(
     IServiceProvider serviceProvider,
     RateLimitStore<string> fallbackStore,
     TimeProvider timeProvider,
+    IOptions<CacheSettings> cacheSettings,
     ILogger<RedisRateLimiterFactory> logger) : IRateLimiterFactory<string>
 {
     // Removes entries older than the window, then records the request only if the window has room.
@@ -58,7 +61,7 @@ public sealed class RedisRateLimiterFactory(
         {
             var redis = serviceProvider.GetRequiredService<IConnectionMultiplexer>();
             var now = timeProvider.GetUtcNow().ToUnixTimeMilliseconds();
-            var result = redis.GetDatabase().ScriptEvaluate(
+            var result = redis.GetDatabase(cacheSettings.Value.Redis?.Database ?? -1).ScriptEvaluate(
                 SlidingWindowScript,
                 [BuildKey(maxRequests, interval, key)],
                 [now, (long)interval.TotalMilliseconds, maxRequests, Guid.NewGuid().ToString("N")]);

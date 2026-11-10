@@ -1,3 +1,4 @@
+using GovUK.Dfe.CoreLibs.Caching.Settings;
 using GovUK.Dfe.CoreLibs.Utilities.RateLimiting;
 using GovUK.Dfe.FlexForms.Infrastructure.Caching;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -8,16 +9,18 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.Services;
 
 public class RedisRateLimiterFactoryTests
 {
+    private const int ConfiguredDatabase = 3;
+
     private readonly IDatabase _database = Substitute.For<IDatabase>();
+    private readonly IConnectionMultiplexer _redis = Substitute.For<IConnectionMultiplexer>();
     private readonly IServiceProvider _services = Substitute.For<IServiceProvider>();
     private bool _redisAvailable = true;
 
     public RedisRateLimiterFactoryTests()
     {
-        var redis = Substitute.For<IConnectionMultiplexer>();
-        redis.GetDatabase(Arg.Any<int>(), Arg.Any<object?>()).Returns(_database);
+        _redis.GetDatabase(Arg.Any<int>(), Arg.Any<object?>()).Returns(_database);
         _services.GetService(typeof(IConnectionMultiplexer)).Returns(_ => _redisAvailable
-            ? redis
+            ? _redis
             : throw new RedisConnectionException(ConnectionFailureType.UnableToConnect, "Redis is down"));
     }
 
@@ -54,6 +57,18 @@ public class RedisRateLimiterFactoryTests
     }
 
     [Fact]
+    public void IsAllowed_UsesTheConfiguredRedisDatabase()
+    {
+        _database
+            .ScriptEvaluate(Arg.Any<string>(), Arg.Any<RedisKey[]?>(), Arg.Any<RedisValue[]?>(), Arg.Any<CommandFlags>())
+            .Returns(RedisResult.Create((RedisValue)1L));
+
+        CreateFactory().Create(5, TimeSpan.FromMinutes(10)).IsAllowed("caller");
+
+        _redis.Received(1).GetDatabase(ConfiguredDatabase, Arg.Any<object?>());
+    }
+
+    [Fact]
     public void IsAllowed_WhenRedisIsUnavailable_FallsBackToThisReplicasLimit()
     {
         _redisAvailable = false;
@@ -73,5 +88,11 @@ public class RedisRateLimiterFactoryTests
     }
 
     private RedisRateLimiterFactory CreateFactory() =>
-        new(_services, new RateLimitStore<string>(), TimeProvider.System, NullLogger<RedisRateLimiterFactory>.Instance);
+        new(
+            _services,
+            new RateLimitStore<string>(),
+            TimeProvider.System,
+            Microsoft.Extensions.Options.Options.Create(
+                new CacheSettings { Redis = new RedisCacheSettings { Database = ConfiguredDatabase } }),
+            NullLogger<RedisRateLimiterFactory>.Instance);
 }

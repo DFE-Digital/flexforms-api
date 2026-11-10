@@ -37,6 +37,15 @@ public sealed class InMemoryAtomicCacheStore : IAtomicCacheStore
 
     public Task<bool> DeleteAsync(string key) => Task.FromResult(_items.TryRemove(key, out _));
 
+    public Task<bool> DeleteIfEqualsAsync(string key, byte[] expectedValue)
+    {
+        RemoveIfExpired(key);
+        return Task.FromResult(
+            _items.TryGetValue(key, out var item)
+            && item.Value.AsSpan().SequenceEqual(expectedValue)
+            && RemoveExact(key, item));
+    }
+
     public Task<long> IncrementAsync(string key, TimeSpan expiry)
     {
         RemoveIfExpired(key);
@@ -50,6 +59,10 @@ public sealed class InMemoryAtomicCacheStore : IAtomicCacheStore
     private void RemoveIfExpired(string key)
     {
         if (_items.TryGetValue(key, out var item) && item.ExpiresAt <= DateTimeOffset.UtcNow)
-            _items.TryRemove(key, out _);
+            RemoveExact(key, item);
     }
+
+    // Removes the key only while it still holds the entry that was looked at, so a concurrent replacement survives.
+    private bool RemoveExact(string key, (byte[] Value, DateTimeOffset ExpiresAt) item)
+        => ((ICollection<KeyValuePair<string, (byte[] Value, DateTimeOffset ExpiresAt)>>)_items).Remove(new(key, item));
 }

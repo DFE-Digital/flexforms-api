@@ -20,6 +20,12 @@ public interface IAtomicCacheStore
     /// <summary>Deletes the key. Returns true only for the caller that actually removed it.</summary>
     Task<bool> DeleteAsync(string key);
 
+    /// <summary>
+    /// Deletes the key only if it still holds <paramref name="expectedValue"/>, so a caller acting on a value it read
+    /// earlier cannot remove a newer value written since. Returns true only when this caller removed it.
+    /// </summary>
+    Task<bool> DeleteIfEqualsAsync(string key, byte[] expectedValue);
+
     /// <summary>Increments a counter, setting <paramref name="expiry"/> when the counter is created.</summary>
     Task<long> IncrementAsync(string key, TimeSpan expiry);
 }

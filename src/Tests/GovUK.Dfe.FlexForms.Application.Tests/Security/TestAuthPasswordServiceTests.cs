@@ -1,4 +1,6 @@
+using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using GovUK.Dfe.FlexForms.Application.Security;
 using GovUK.Dfe.FlexForms.Domain.Caching;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
@@ -164,6 +166,65 @@ public class TestAuthPasswordServiceTests
     }
 
     [Fact]
+    public async Task VerifyAsync_stale_request_cannot_reuse_a_password_or_delete_its_replacement()
+    {
+        var first = await _service.IssueAsync(Email);
+        var staleRequestHasRead = new TaskCompletionSource();
+        var releaseStaleRequest = new TaskCompletionSource();
+        _store.AfterRead = async read =>
+        {
+            if (read != 1)
+                return;
+            staleRequestHasRead.SetResult();
+            await releaseStaleRequest.Task;
+        };
+
+        var staleRequest = _service.VerifyAsync(Email, first!);
+        await staleRequestHasRead.Task;
+        Assert.True(await _service.VerifyAsync(Email, first!));
+        _timeProvider.Advance(TestAuthPasswordService.ResendCooldown);
+        var second = await _service.IssueAsync(Email);
+        releaseStaleRequest.SetResult();
+
+        Assert.False(await staleRequest);
+        Assert.True(await _service.VerifyAsync(Email, second!));
+    }
+
+    [Fact]
+    public async Task IssueAsync_does_not_reset_attempts_made_against_the_password_it_just_published()
+    {
+        const string wrongPassword = "wrong!";
+        _store.AfterSet = async _ =>
+        {
+            _store.AfterSet = null;
+            for (var i = 0; i < TestAuthPasswordService.MaxFailedAttempts - 1; i++)
+                await _service.VerifyAsync(Email, wrongPassword);
+        };
+
+        var password = await _service.IssueAsync(Email);
+        await _service.VerifyAsync(Email, wrongPassword);
+
+        Assert.False(await _service.VerifyAsync(Email, password!));
+    }
+
+    [Fact]
+    public async Task VerifyAsync_accepts_entry_issued_before_ids_were_added()
+    {
+        await _service.IssueAsync(Email);
+        var key = Assert.Single(PasswordEntries()).Key;
+        var now = _timeProvider.GetUtcNow();
+        await _store.SetAsync(key, JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            PasswordHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("123456"))),
+            IssuedAtUtc = now,
+            ExpiresAtUtc = now.AddHours(1),
+            FailedAttempts = 2
+        }), TimeSpan.FromHours(1));
+
+        Assert.True(await _service.VerifyAsync(Email, "123456"));
+    }
+
+    [Fact]
     public async Task VerifyAsync_accepts_password_with_surrounding_whitespace_and_differently_cased_email()
     {
         var password = await _service.IssueAsync(Email);
@@ -214,7 +275,7 @@ public class TestAuthPasswordServiceTests
 
         Assert.False(await _service.VerifyAsync(Email, WrongPassword(password!)));
 
-        var attempts = Assert.Single(_store.Entries, entry => entry.Key.EndsWith(":attempts"));
+        var attempts = Assert.Single(_store.Entries, entry => entry.Key.Contains(":attempts:"));
         Assert.Equal(TimeSpan.FromMinutes(40), attempts.Value.Expiry);
         Assert.True(await _service.VerifyAsync(Email, password!));
     }
@@ -287,7 +348,7 @@ public class TestAuthPasswordServiceTests
 
     private List<KeyValuePair<string, (byte[] Value, TimeSpan Expiry)>> PasswordEntries() =>
         _store.Entries
-            .Where(entry => !entry.Key.EndsWith(":cooldown") && !entry.Key.EndsWith(":attempts"))
+            .Where(entry => !entry.Key.EndsWith(":cooldown") && !entry.Key.Contains(":attempts"))
             .ToList();
 
     private static string WrongPassword(string password)
@@ -304,16 +365,24 @@ public class TestAuthPasswordServiceTests
 
     /// <summary>
     /// Atomic store double. Each operation is atomic, like the Redis one. <see cref="PauseAfterReads"/> holds
-    /// readers until that many have read, so tests can line requests up at the same point.
+    /// readers until that many have read, so tests can line requests up at the same point. <see cref="AfterRead"/>
+    /// and <see cref="AfterSet"/> let a test run other requests at an exact point inside one.
     /// </summary>
     private sealed class InMemoryAtomicStore(TimeProvider timeProvider) : IAtomicCacheStore
     {
         private readonly Dictionary<string, (byte[] Value, DateTimeOffset ExpiresAt, TimeSpan Expiry)> _items = new();
         private readonly Lock _sync = new();
-        private TaskCompletionSource _readersReleased = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _readersReleased = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private int _readers;
+        private int _reads;
 
         public int PauseAfterReads { get; set; }
+
+        /// <summary>Runs after the value is read, with the 1-based read number, before it is returned.</summary>
+        public Func<int, Task>? AfterRead { get; set; }
+
+        /// <summary>Runs after a value is stored, with the key, before <see cref="SetAsync"/> returns.</summary>
+        public Func<string, Task>? AfterSet { get; set; }
 
         public IReadOnlyList<KeyValuePair<string, (byte[] Value, TimeSpan Expiry)>> Entries
         {
@@ -329,14 +398,15 @@ public class TestAuthPasswordServiceTests
             }
         }
 
-        public Task SetAsync(string key, byte[] value, TimeSpan expiry)
+        public async Task SetAsync(string key, byte[] value, TimeSpan expiry)
         {
             lock (_sync)
             {
                 _items[key] = (value, timeProvider.GetUtcNow() + expiry, expiry);
             }
 
-            return Task.CompletedTask;
+            if (AfterSet is { } afterSet)
+                await afterSet(key);
         }
 
         public Task<bool> SetIfAbsentAsync(string key, byte[] value, TimeSpan expiry)
@@ -368,6 +438,9 @@ public class TestAuthPasswordServiceTests
                 await _readersReleased.Task.WaitAsync(TimeSpan.FromSeconds(5));
             }
 
+            if (AfterRead is { } afterRead)
+                await afterRead(Interlocked.Increment(ref _reads));
+
             return value;
         }
 
@@ -385,6 +458,18 @@ public class TestAuthPasswordServiceTests
             lock (_sync)
             {
                 return Task.FromResult(_items.Remove(key));
+            }
+        }
+
+        public Task<bool> DeleteIfEqualsAsync(string key, byte[] expectedValue)
+        {
+            lock (_sync)
+            {
+                RemoveExpired();
+                return Task.FromResult(
+                    _items.TryGetValue(key, out var item)
+                    && item.Value.AsSpan().SequenceEqual(expectedValue)
+                    && _items.Remove(key));
             }
         }
 

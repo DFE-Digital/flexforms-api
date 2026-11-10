@@ -18,6 +18,13 @@ public sealed class RedisAtomicCacheStore(
         return value
         """;
 
+    private const string DeleteIfEqualsScript = """
+        if redis.call('GET', KEYS[1]) == ARGV[1] then
+            return redis.call('DEL', KEYS[1])
+        end
+        return 0
+        """;
+
     private const string IncrementScript = """
         local count = redis.call('INCR', KEYS[1])
         if count == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
@@ -42,6 +49,12 @@ public sealed class RedisAtomicCacheStore(
     }
 
     public Task<bool> DeleteAsync(string key) => Database.KeyDeleteAsync(FullKey(key));
+
+    public async Task<bool> DeleteIfEqualsAsync(string key, byte[] expectedValue)
+    {
+        var result = await Database.ScriptEvaluateAsync(DeleteIfEqualsScript, [FullKey(key)], [expectedValue]);
+        return (long)result == 1;
+    }
 
     public async Task<long> IncrementAsync(string key, TimeSpan expiry)
     {
