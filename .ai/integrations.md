@@ -42,7 +42,8 @@ Hub: `/hubs/notifications` (`Api/Hubs/NotificationHub.cs`). Browser connects to 
 
 - Ticket: `HubAuthController` → `hubauth` cookie.
 - Groups: tenant + user (see hub).
-- Redis is **cache only**, not a SignalR backplane. Multi-replica in-process SignalR does not fan out. Production needs **Azure SignalR** (`Azure__SignalR__ConnectionString` / `ConnectionStrings:AzureSignalR`). Empty connection string → silent in-process fallback.
+- Redis is **cache only**, not a SignalR backplane. Multi-replica in-process SignalR does not fan out. Production needs **Azure SignalR** (`Azure__SignalR__ConnectionString` / `ConnectionStrings:AzureSignalR`). Empty connection string → startup fails outside Development/Local/code generation unless `SignalR:AllowInProcess=true` (only for an environment that will never run more than one replica).
+- Redis pub/sub channel `FlexForms:Api:TenantConfigurationChanged` (API replicas only) carries tenant configuration refreshes between replicas. Web uses its own channels (`FlexForms:TenantConfigurationInvalidated`, `FlexForms:LocalCacheKeyRemoved`); the two apps do not listen to each other's. Web also caches templates and status labels in the shared Redis under `FlexForms:Cache:FormTemplate_*` / `CustomApplicationStatuses_*`; those keys do not collide with the API's tenant-prefixed `FlexForms:Cache:t:{tenantId}:*` keys.
 - If Dev and Test share one Azure SignalR resource, set distinct `Azure__SignalR__ApplicationName` (e.g. `flexforms-dev` vs `flexforms-test`).
 
 ## Prism

@@ -33,9 +33,14 @@ Issuer mismatches: CoreLibs may try multiple OIDC providers; wrong-provider atte
 ## Test authentication / OTP
 
 - Signing key must be ≥16 bytes (32+ recommended). Short keys throw `SymmetricSecurityKey` size errors.
-- OTP generate/verify is **API-owned** (Redis TTL + Notify). Web mints the test JWT after verify.
+- OTP generate/verify is **API-owned** (Redis TTL + Notify). Web mints the test JWT after verify. Cooldown, attempt count and consumption go through `IAtomicCacheStore`; never move them back to read-then-write.
 - `TenantSettingsReader` merges Shared then target; **`Web` sorts after `Shared` and wins**. Editing only Shared leaves a stale Web row in control.
 - OTP endpoints must remain behind `ServiceCallers` + environment gate. Fail closed in Production.
+
+## Rate limits and revocation across replicas
+
+- `[RateLimit]` commands and the secret-reveal limit use `RedisRateLimiterFactory`, so the configured limit holds across all replicas (`.ai/known-pitfalls.md` item 36).
+- Revoking credentials through the admin endpoints (API keys, mTLS thumbprints, Test Authentication, tenant deactivation) takes effect on every replica immediately via the tenant configuration broadcast (item 34). A direct SQL edit waits for the 60-second refresh.
 
 ## Tenant consistency
 

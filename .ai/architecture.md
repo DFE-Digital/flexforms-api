@@ -30,7 +30,7 @@ Controllers inject `ISender` and stay thin. After adding `[Authorize]` endpoints
 
 Host always uses `ConnectionStrings:TenantConfigDatabase`. Each tenant’s EA connection comes from TenantSettings `ConnectionStrings:DefaultConnection` (Target Shared/Api). Tenants may share one EA database or use isolated DBs.
 
-`DatabaseTenantConfigurationProvider` reloads the catalogue on a timer (~60s) and on `POST /v1/admin/tenants/refresh`.
+`DatabaseTenantConfigurationProvider` reloads the catalogue on a timer (~60s) and on `POST /v1/admin/tenants/refresh`. DI resolves `ITenantConfigurationProvider` to `ReplicatedTenantConfigurationProvider`, which wraps it so admin-triggered refreshes are broadcast to every replica over Redis pub/sub (`.ai/known-pitfalls.md` item 34).
 
 **Historical pitfall (verified):** a flatten/JSON error for **one** tenant can abort the **entire** refresh, leaving a stale snapshot so new tenants appear “not configured”. See [`known-pitfalls.md`](known-pitfalls.md).
 

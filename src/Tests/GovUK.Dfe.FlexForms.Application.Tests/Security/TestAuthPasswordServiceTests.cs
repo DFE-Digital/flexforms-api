@@ -1,6 +1,6 @@
 using System.Text;
-using GovUK.Dfe.CoreLibs.Caching.Interfaces;
 using GovUK.Dfe.FlexForms.Application.Security;
+using GovUK.Dfe.FlexForms.Domain.Caching;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -12,19 +12,20 @@ public class TestAuthPasswordServiceTests
 {
     private const string Email = "tester@education.gov.uk";
 
-    private readonly InMemoryRedisCacheService _redis = new();
-    private readonly ITenantContextAccessor _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
     private readonly ManualTimeProvider _timeProvider = new(new DateTimeOffset(2026, 9, 25, 9, 0, 0, TimeSpan.Zero));
+    private readonly InMemoryAtomicStore _store;
+    private readonly ITenantContextAccessor _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
     private readonly Guid _tenantId = Guid.Parse("11111111-1111-4111-8111-111111111111");
     private readonly TestAuthPasswordService _service;
 
     public TestAuthPasswordServiceTests()
     {
+        _store = new InMemoryAtomicStore(_timeProvider);
         _tenantContextAccessor.CurrentTenant.Returns(
             new TenantConfiguration(_tenantId, "TestTenant", new ConfigurationBuilder().Build(), []));
 
         _service = new TestAuthPasswordService(
-            _redis,
+            _store,
             _tenantContextAccessor,
             _timeProvider,
             NullLogger<TestAuthPasswordService>.Instance);
@@ -44,8 +45,7 @@ public class TestAuthPasswordServiceTests
     {
         await _service.IssueAsync(Email);
 
-        var (key, entry) = Assert.Single(_redis.Entries);
-        Assert.Equal(TimeSpan.FromHours(1), entry.Expiry);
+        var (key, entry) = Assert.Single(PasswordEntries());
         Assert.Equal(TestAuthPasswordService.PasswordLifetime, entry.Expiry);
         Assert.StartsWith($"t:{_tenantId}:TestAuthPassword_", key);
     }
@@ -55,7 +55,7 @@ public class TestAuthPasswordServiceTests
     {
         var password = await _service.IssueAsync(Email);
 
-        var (key, entry) = Assert.Single(_redis.Entries);
+        var (key, entry) = Assert.Single(PasswordEntries());
         var stored = Encoding.UTF8.GetString(entry.Value);
         Assert.DoesNotContain(password!, stored);
         Assert.DoesNotContain(Email, key, StringComparison.OrdinalIgnoreCase);
@@ -68,7 +68,7 @@ public class TestAuthPasswordServiceTests
         _timeProvider.Advance(TestAuthPasswordService.ResendCooldown);
         await _service.IssueAsync($"  {Email.ToUpperInvariant()} ");
 
-        Assert.Single(_redis.Entries);
+        Assert.Single(PasswordEntries());
     }
 
     [Fact]
@@ -81,8 +81,8 @@ public class TestAuthPasswordServiceTests
             new TenantConfiguration(otherTenantId, "OtherTenant", new ConfigurationBuilder().Build(), []));
         await _service.IssueAsync(Email);
 
-        Assert.Equal(2, _redis.Entries.Count);
-        Assert.Contains(_redis.Entries.Keys, k => k.StartsWith($"t:{otherTenantId}:"));
+        Assert.Equal(2, PasswordEntries().Count);
+        Assert.Contains(PasswordEntries(), entry => entry.Key.StartsWith($"t:{otherTenantId}:"));
     }
 
     [Fact]
@@ -95,6 +95,14 @@ public class TestAuthPasswordServiceTests
 
         Assert.Null(second);
         Assert.True(await _service.VerifyAsync(Email, first!));
+    }
+
+    [Fact]
+    public async Task IssueAsync_issues_only_one_password_when_requests_arrive_together()
+    {
+        var results = await Task.WhenAll(Enumerable.Range(0, 5).Select(_ => _service.IssueAsync(Email)));
+
+        Assert.Single(results, password => password is not null);
     }
 
     [Fact]
@@ -114,13 +122,45 @@ public class TestAuthPasswordServiceTests
     }
 
     [Fact]
+    public async Task IssueAsync_resets_failed_attempts()
+    {
+        var first = await _service.IssueAsync(Email);
+        for (var i = 0; i < TestAuthPasswordService.MaxFailedAttempts - 1; i++)
+        {
+            await _service.VerifyAsync(Email, WrongPassword(first!));
+        }
+
+        _timeProvider.Advance(TestAuthPasswordService.ResendCooldown);
+        var second = await _service.IssueAsync(Email);
+        for (var i = 0; i < TestAuthPasswordService.MaxFailedAttempts - 1; i++)
+        {
+            await _service.VerifyAsync(Email, WrongPassword(second!));
+        }
+
+        Assert.True(await _service.VerifyAsync(Email, second!));
+    }
+
+    [Fact]
     public async Task VerifyAsync_returns_true_for_correct_password_and_consumes_it()
     {
         var password = await _service.IssueAsync(Email);
 
         Assert.True(await _service.VerifyAsync(Email, password!));
-        Assert.Empty(_redis.Entries);
+        Assert.Empty(PasswordEntries());
         Assert.False(await _service.VerifyAsync(Email, password!));
+    }
+
+    [Fact]
+    public async Task VerifyAsync_lets_only_one_of_two_simultaneous_correct_attempts_through()
+    {
+        var password = await _service.IssueAsync(Email);
+        _store.PauseAfterReads = 2;
+
+        var results = await Task.WhenAll(
+            _service.VerifyAsync(Email, password!),
+            _service.VerifyAsync(Email, password!));
+
+        Assert.Single(results, ok => ok);
     }
 
     [Fact]
@@ -148,13 +188,13 @@ public class TestAuthPasswordServiceTests
     }
 
     [Fact]
-    public async Task VerifyAsync_returns_false_and_removes_entry_once_expired()
+    public async Task VerifyAsync_returns_false_once_expired()
     {
         var password = await _service.IssueAsync(Email);
         _timeProvider.Advance(TestAuthPasswordService.PasswordLifetime);
 
         Assert.False(await _service.VerifyAsync(Email, password!));
-        Assert.Empty(_redis.Entries);
+        Assert.Empty(PasswordEntries());
     }
 
     [Fact]
@@ -167,15 +207,15 @@ public class TestAuthPasswordServiceTests
     }
 
     [Fact]
-    public async Task VerifyAsync_wrong_password_records_attempt_and_keeps_remaining_lifetime()
+    public async Task VerifyAsync_wrong_password_counts_attempt_for_the_remaining_lifetime()
     {
         var password = await _service.IssueAsync(Email);
         _timeProvider.Advance(TimeSpan.FromMinutes(20));
 
         Assert.False(await _service.VerifyAsync(Email, WrongPassword(password!)));
 
-        var (_, entry) = Assert.Single(_redis.Entries);
-        Assert.Equal(TimeSpan.FromMinutes(40), entry.Expiry);
+        var attempts = Assert.Single(_store.Entries, entry => entry.Key.EndsWith(":attempts"));
+        Assert.Equal(TimeSpan.FromMinutes(40), attempts.Value.Expiry);
         Assert.True(await _service.VerifyAsync(Email, password!));
     }
 
@@ -189,7 +229,21 @@ public class TestAuthPasswordServiceTests
             Assert.False(await _service.VerifyAsync(Email, WrongPassword(password!)));
         }
 
-        Assert.Empty(_redis.Entries);
+        Assert.Empty(PasswordEntries());
+        Assert.False(await _service.VerifyAsync(Email, password!));
+    }
+
+    [Fact]
+    public async Task VerifyAsync_caps_guesses_when_they_arrive_together()
+    {
+        var password = await _service.IssueAsync(Email);
+        var parallelGuesses = TestAuthPasswordService.MaxFailedAttempts + 2;
+        _store.PauseAfterReads = parallelGuesses;
+
+        await Task.WhenAll(Enumerable.Range(0, parallelGuesses)
+            .Select(_ => _service.VerifyAsync(Email, WrongPassword(password!))));
+
+        Assert.Empty(PasswordEntries());
         Assert.False(await _service.VerifyAsync(Email, password!));
     }
 
@@ -210,25 +264,31 @@ public class TestAuthPasswordServiceTests
     public async Task VerifyAsync_discards_unreadable_entry()
     {
         await _service.IssueAsync(Email);
-        var key = Assert.Single(_redis.Entries).Key;
-        await _redis.SetRawAsync(key, Encoding.UTF8.GetBytes("not json"), TimeSpan.FromHours(1));
+        var key = Assert.Single(PasswordEntries()).Key;
+        await _store.SetAsync(key, Encoding.UTF8.GetBytes("not json"), TimeSpan.FromHours(1));
 
         Assert.False(await _service.VerifyAsync(Email, "123456"));
-        Assert.Empty(_redis.Entries);
+        Assert.Empty(PasswordEntries());
     }
 
     [Fact]
     public async Task IssueAsync_issues_new_password_when_existing_entry_unreadable()
     {
         await _service.IssueAsync(Email);
-        var key = Assert.Single(_redis.Entries).Key;
-        await _redis.SetRawAsync(key, Encoding.UTF8.GetBytes("not json"), TimeSpan.FromHours(1));
+        var key = Assert.Single(PasswordEntries()).Key;
+        await _store.SetAsync(key, Encoding.UTF8.GetBytes("not json"), TimeSpan.FromHours(1));
+        _timeProvider.Advance(TestAuthPasswordService.ResendCooldown);
 
         var password = await _service.IssueAsync(Email);
 
         Assert.NotNull(password);
         Assert.True(await _service.VerifyAsync(Email, password!));
     }
+
+    private List<KeyValuePair<string, (byte[] Value, TimeSpan Expiry)>> PasswordEntries() =>
+        _store.Entries
+            .Where(entry => !entry.Key.EndsWith(":cooldown") && !entry.Key.EndsWith(":attempts"))
+            .ToList();
 
     private static string WrongPassword(string password)
         => password == "000000" ? "111111" : "000000";
@@ -242,34 +302,114 @@ public class TestAuthPasswordServiceTests
         public void Advance(TimeSpan by) => _now += by;
     }
 
-    private sealed class InMemoryRedisCacheService : IAdvancedRedisCacheService
+    /// <summary>
+    /// Atomic store double. Each operation is atomic, like the Redis one. <see cref="PauseAfterReads"/> holds
+    /// readers until that many have read, so tests can line requests up at the same point.
+    /// </summary>
+    private sealed class InMemoryAtomicStore(TimeProvider timeProvider) : IAtomicCacheStore
     {
-        public Dictionary<string, (byte[] Value, TimeSpan Expiry)> Entries { get; } = new();
+        private readonly Dictionary<string, (byte[] Value, DateTimeOffset ExpiresAt, TimeSpan Expiry)> _items = new();
+        private readonly Lock _sync = new();
+        private TaskCompletionSource _readersReleased = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _readers;
 
-        public Type CacheType => typeof(IRedisCacheType);
+        public int PauseAfterReads { get; set; }
 
-        public Task SetRawAsync(string cacheKey, byte[] value, TimeSpan expiry)
+        public IReadOnlyList<KeyValuePair<string, (byte[] Value, TimeSpan Expiry)>> Entries
         {
-            Entries[cacheKey] = (value, expiry);
+            get
+            {
+                lock (_sync)
+                {
+                    RemoveExpired();
+                    return _items
+                        .Select(item => KeyValuePair.Create(item.Key, (item.Value.Value, item.Value.Expiry)))
+                        .ToList();
+                }
+            }
+        }
+
+        public Task SetAsync(string key, byte[] value, TimeSpan expiry)
+        {
+            lock (_sync)
+            {
+                _items[key] = (value, timeProvider.GetUtcNow() + expiry, expiry);
+            }
+
             return Task.CompletedTask;
         }
 
-        public Task<byte[]?> GetRawAsync(string cacheKey)
-            => Task.FromResult(Entries.TryGetValue(cacheKey, out var entry) ? entry.Value : null);
-
-        public Task RemoveAsync(string cacheKey)
+        public Task<bool> SetIfAbsentAsync(string key, byte[] value, TimeSpan expiry)
         {
-            Entries.Remove(cacheKey);
-            return Task.CompletedTask;
+            lock (_sync)
+            {
+                RemoveExpired();
+                if (_items.ContainsKey(key))
+                    return Task.FromResult(false);
+
+                _items[key] = (value, timeProvider.GetUtcNow() + expiry, expiry);
+                return Task.FromResult(true);
+            }
         }
 
-        public Task RemoveByPatternAsync(string pattern) => throw new NotSupportedException();
+        public async Task<byte[]?> GetAsync(string key)
+        {
+            byte[]? value;
+            lock (_sync)
+            {
+                RemoveExpired();
+                value = _items.TryGetValue(key, out var item) ? item.Value : null;
+            }
 
-        public Task<T> GetOrAddAsync<T>(string cacheKey, Func<Task<T>> fetchFunction, string methodName,
-            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+            if (PauseAfterReads > 0)
+            {
+                if (Interlocked.Increment(ref _readers) >= PauseAfterReads)
+                    _readersReleased.TrySetResult();
+                await _readersReleased.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            }
 
-        public Task<T?> GetAsync<T>(string cacheKey) => throw new NotSupportedException();
+            return value;
+        }
 
-        public void Remove(string cacheKey) => Entries.Remove(cacheKey);
+        public Task<byte[]?> GetAndDeleteAsync(string key)
+        {
+            lock (_sync)
+            {
+                RemoveExpired();
+                return Task.FromResult(_items.Remove(key, out var item) ? item.Value : null);
+            }
+        }
+
+        public Task<bool> DeleteAsync(string key)
+        {
+            lock (_sync)
+            {
+                return Task.FromResult(_items.Remove(key));
+            }
+        }
+
+        public Task<long> IncrementAsync(string key, TimeSpan expiry)
+        {
+            lock (_sync)
+            {
+                RemoveExpired();
+                if (_items.TryGetValue(key, out var item))
+                {
+                    var count = long.Parse(Encoding.UTF8.GetString(item.Value)) + 1;
+                    _items[key] = (Encoding.UTF8.GetBytes(count.ToString()), item.ExpiresAt, item.Expiry);
+                    return Task.FromResult(count);
+                }
+
+                _items[key] = (Encoding.UTF8.GetBytes("1"), timeProvider.GetUtcNow() + expiry, expiry);
+                return Task.FromResult(1L);
+            }
+        }
+
+        private void RemoveExpired()
+        {
+            var now = timeProvider.GetUtcNow();
+            foreach (var key in _items.Where(item => item.Value.ExpiresAt <= now).Select(item => item.Key).ToList())
+                _items.Remove(key);
+        }
     }
 }

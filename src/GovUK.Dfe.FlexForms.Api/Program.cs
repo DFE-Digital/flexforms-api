@@ -156,9 +156,16 @@ namespace GovUK.Dfe.FlexForms.Api
                 dbProvider.RefreshAsync(CancellationToken.None).GetAwaiter().GetResult();
 
                 tenantConfigurationProvider = dbProvider;
-                builder.Services.AddSingleton<ITenantConfigurationProvider>(dbProvider);
+                builder.Services.AddSingleton(sp => new GovUK.Dfe.FlexForms.Infrastructure.Services.ReplicatedTenantConfigurationProvider(
+                    dbProvider,
+                    sp,
+                    sp.GetRequiredService<ILogger<GovUK.Dfe.FlexForms.Infrastructure.Services.ReplicatedTenantConfigurationProvider>>()));
+                builder.Services.AddSingleton<ITenantConfigurationProvider>(sp =>
+                    sp.GetRequiredService<GovUK.Dfe.FlexForms.Infrastructure.Services.ReplicatedTenantConfigurationProvider>());
                 builder.Services.AddSingleton<ITenantConfigurationRefreshState>(dbProvider);
                 builder.Services.AddSingleton<IHostedService>(dbProvider);
+                builder.Services.AddHostedService(sp =>
+                    sp.GetRequiredService<GovUK.Dfe.FlexForms.Infrastructure.Services.ReplicatedTenantConfigurationProvider>());
             }
             else
             {
@@ -523,6 +530,14 @@ namespace GovUK.Dfe.FlexForms.Api
 
             if (azureSignalRConn is null)
             {
+                if (!AllowsInProcessSignalR(config, environment))
+                {
+                    throw new InvalidOperationException(
+                        "Azure SignalR Service is not configured (Azure:SignalR:ConnectionString / ConnectionStrings:AzureSignalR). " +
+                        "In-process SignalR only works with a single API replica: users connected to one replica miss notifications sent from another. " +
+                        "Configure Azure SignalR, or set SignalR:AllowInProcess=true for an environment that will only ever run one replica.");
+                }
+
                 return false;
             }
 
@@ -543,6 +558,16 @@ namespace GovUK.Dfe.FlexForms.Api
 
             return true;
         }
+
+        /// <summary>
+        /// In-process SignalR is allowed by default only where one process is the whole deployment
+        /// (Development, Local, NSwag code generation); <c>SignalR:AllowInProcess</c> overrides either way.
+        /// </summary>
+        internal static bool AllowsInProcessSignalR(IConfiguration config, IWebHostEnvironment environment)
+            => config.GetValue<bool?>("SignalR:AllowInProcess")
+               ?? (environment.IsDevelopment()
+                   || environment.IsEnvironment("Local")
+                   || environment.EnvironmentName.Contains("CodeGeneration", StringComparison.OrdinalIgnoreCase));
 
         /// <summary>
         /// Builds a temporary IServiceScopeFactory so the DatabaseTenantConfigurationProvider
