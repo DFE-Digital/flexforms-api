@@ -17,4 +17,10 @@ public static class FlexFormsCacheKeys
 
     /// <summary>Raw Redis blacklist by application + original file name.</summary>
     public const string InfectedFileNamePrefix = "FlexForms:InfectedFileName:";
+
+    /// <summary>Pub/sub channel that tells every API replica to reload tenant configuration from the database.</summary>
+    public const string ApiTenantConfigurationChangedChannel = "FlexForms:Api:TenantConfigurationChanged";
+
+    /// <summary>Raw Redis prefix for the shared sliding-window rate limiter.</summary>
+    public const string RateLimitPrefix = "FlexForms:RateLimit:";
 }

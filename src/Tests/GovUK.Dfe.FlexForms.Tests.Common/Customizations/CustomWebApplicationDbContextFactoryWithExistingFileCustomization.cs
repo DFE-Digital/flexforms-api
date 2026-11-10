@@ -143,6 +143,8 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                         var mockRedisCache = new MockRedisCacheService();
                         services.AddSingleton<ICacheService<IRedisCacheType>>(mockRedisCache);
                         services.AddSingleton<IAdvancedRedisCacheService>(mockRedisCache);
+                        services.RemoveAll<GovUK.Dfe.FlexForms.Domain.Caching.IAtomicCacheStore>();
+                        services.AddSingleton<GovUK.Dfe.FlexForms.Domain.Caching.IAtomicCacheStore, InMemoryAtomicCacheStore>();
                     },
                     ExternalHttpClientConfiguration = client =>
                     {

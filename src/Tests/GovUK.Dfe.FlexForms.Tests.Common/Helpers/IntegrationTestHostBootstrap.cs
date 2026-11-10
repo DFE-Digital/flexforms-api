@@ -45,6 +45,8 @@ public static class IntegrationTestHostBootstrap
             "Server=localhost,1433;Database=ExternalApplications;User Id=SA;Password=YourPassword123!;TrustServerCertificate=True;");
         Environment.SetEnvironmentVariable("SkipMassTransit", "true");
         Environment.SetEnvironmentVariable("SkipBackgroundService", "true");
+        // The test host is a single process, so in-process SignalR is correct here (see Program.AllowsInProcessSignalR).
+        Environment.SetEnvironmentVariable("SignalR__AllowInProcess", "true");
         Environment.SetEnvironmentVariable("Tenants__Transfers__NotificationService__RedisConnectionString", "localhost:6379");
     }
 }

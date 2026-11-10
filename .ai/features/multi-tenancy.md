@@ -44,4 +44,4 @@ See [`../business-rules.md`](../business-rules.md). SuperAdmin-only categories. 
 
 ## 9. Limits
 
-Hot reload is eventual (~60s). Per-replica Web cache can stay stale longer. Operator docs: `docs/multi-tenancy-config.md`.
+Changes made through the admin endpoints reach every API replica straight away (`ReplicatedTenantConfigurationProvider` broadcasts the refresh over Redis); SQL edits and missed broadcasts converge on the ~60s timer. Web keeps its own per-replica cache; changes made through the Web admin pages are broadcast there too, but writes made straight to the API wait for Web's cache to expire (`PlatformBootstrap:TenantConfigurationCacheMinutes`). See `.ai/known-pitfalls.md` item 34. Operator docs: `docs/multi-tenancy-config.md`.

@@ -29,7 +29,8 @@ Lessons from past engineering work on FlexForms (incidents, design reviews, prod
 |--------|--------|
 | Analytics uses long facts (`answer_facts` + catalogue), not wide tables per template edit. EventMappings are **not** the reporting contract. | **Verified** in Prism; EventMappings remain tenant integrations. |
 | Draft-save vs submit-only projection was debated; **current** behaviour projects save, submit, and delete. | **Verified** — do not “optimise” by dropping Saved events. |
-| SignalR needs Azure SignalR under multiple replicas; Redis is not a backplane; sticky sessions are insufficient because bus consumers may run on another replica. | **Verified** — `ConfigureSignalR` + comments. |
+| SignalR needs Azure SignalR under multiple replicas; Redis is not a backplane; sticky sessions are insufficient because bus consumers may run on another replica. | **Verified** — `ConfigureSignalR` + comments; startup now fails without it outside Development/Local/codegen. |
+| In-memory state that must agree across replicas (tenant config snapshot, rate-limit counts) drifted per replica; fixed with Redis pub/sub refresh and a Redis sliding-window limiter, keeping the in-process path as fallback. | **Verified** — `ReplicatedTenantConfigurationProvider`, `RedisRateLimiterFactory`. |
 | Dual ScanResult consumers (API + Web) are intentional. | **Verified**. |
 
 ## Product boundaries

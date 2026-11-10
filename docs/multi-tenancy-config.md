@@ -69,7 +69,7 @@ Bearer tokens, API keys, and mTLS client certificates are resolved via `ITenantA
 
 ## Operational notes
 
-- Rotate secrets via Tenant Settings; changes propagate within the refresh interval (default 60s) or immediately after admin refresh.
+- Rotate secrets via Tenant Settings; changes made through the admin endpoints reach every API replica immediately (Redis broadcast). Direct SQL edits propagate within the refresh interval (default 60s) or after `POST /v1/admin/tenants/refresh`.
 - Use **export/import** to promote non-secret configuration between environments; re-enter secrets in the target environment.
 - Keep platform-wide values (e.g. Application Insights connection string) at the host `appsettings` root — not per tenant.
 - Application Insights is configured per app: the API uses `GlobalConfiguration:ApplicationInsights:ConnectionString`, Web uses its own `ApplicationInsights:ConnectionString`. Host-config does not send the API's connection string to Web. Add a tenant `ApplicationInsights` setting only when a tenant needs a different resource (Target `Shared` for both apps, or `Api` / `Web` for one).
