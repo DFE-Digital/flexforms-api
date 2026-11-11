@@ -5,7 +5,7 @@ using MediatR;
 
 namespace GovUK.Dfe.FlexForms.Application.Applications.Commands;
 
-[RateLimit(10, 10)]
+[RateLimit(20, 10)]
 public sealed record RecordFileValidationResultCommand(
     Guid FileId,
     bool IsValid,
