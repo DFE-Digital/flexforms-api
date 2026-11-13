@@ -72,7 +72,9 @@ public class TestAuthAuthenticatorInviteServiceTests
     public async Task RedeemAsync_lets_only_one_parallel_request_use_the_code()
     {
         var invite = await _service.IssueAsync(Email);
+        _cache.HoldReadsUntil(3);
 
+        // All three have read the same code entry before any of them tries to consume it.
         var results = await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => _service.RedeemAsync(Email, invite.Code)));
 
         Assert.Single(results, ok => ok);

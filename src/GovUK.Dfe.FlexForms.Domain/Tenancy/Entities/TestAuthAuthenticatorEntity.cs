@@ -16,6 +16,12 @@ public class TestAuthAuthenticatorEntity
     /// <summary>The TOTP secret, protected with Data Protection. Never stored or logged in plaintext.</summary>
     public string EncryptedSecret { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Id of the setup that produced this enrolment. A concurrency token: saves and removals only apply to the
+    /// enrolment they read, so a delayed confirmation cannot overwrite a newer one or recreate a removed one.
+    /// </summary>
+    public string SetupId { get; set; } = string.Empty;
+
     public DateTime CreatedAtUtc { get; set; }
 
     public DateTime? LastUsedAtUtc { get; set; }

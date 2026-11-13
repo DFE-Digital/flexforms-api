@@ -17,7 +17,8 @@ public interface ITestAuthAuthenticatorService
     Task<TestAuthAuthenticatorSetup> BeginSetupAsync(string email, string issuer, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Saves the pending enrolment when <paramref name="code"/> matches it. Too many wrong codes discard it.
+    /// Saves the pending enrolment when <paramref name="code"/> matches it. Too many wrong codes discard it. Returns
+    /// <c>false</c> without saving if the enrolment was replaced or removed after this setup began.
     /// </summary>
     Task<bool> ConfirmSetupAsync(string email, string code, CancellationToken cancellationToken = default);
 

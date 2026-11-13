@@ -15,12 +15,23 @@ internal sealed class ManualClock(DateTimeOffset now) : TimeProvider
 
 /// <summary>
 /// <see cref="IAtomicCacheStore"/> double whose entries expire against a test-controlled clock. Each operation is
-/// atomic, like the Redis one.
+/// atomic, like the Redis one. <see cref="HoldReadsUntil"/> keeps readers waiting until that many have read, so
+/// parallel requests really act on the same value.
 /// </summary>
 internal sealed class TimedAtomicCacheStore(TimeProvider timeProvider) : IAtomicCacheStore
 {
     private readonly Dictionary<string, (byte[] Value, DateTimeOffset ExpiresAt, TimeSpan Expiry)> _items = new();
     private readonly Lock _sync = new();
+    private TaskCompletionSource? _readsReleased;
+    private int _readsToHold;
+    private int _reads;
+
+    public void HoldReadsUntil(int readers)
+    {
+        _readsToHold = readers;
+        _reads = 0;
+        _readsReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    }
 
     public IReadOnlyList<KeyValuePair<string, (byte[] Value, TimeSpan Expiry)>> Entries
     {
@@ -56,13 +67,23 @@ internal sealed class TimedAtomicCacheStore(TimeProvider timeProvider) : IAtomic
         }
     }
 
-    public Task<byte[]?> GetAsync(string key)
+    public async Task<byte[]?> GetAsync(string key)
     {
+        byte[]? value;
         lock (_sync)
         {
             RemoveExpired();
-            return Task.FromResult(_items.TryGetValue(key, out var item) ? item.Value : null);
+            value = _items.TryGetValue(key, out var item) ? item.Value : null;
         }
+
+        if (_readsReleased is { } released)
+        {
+            if (Interlocked.Increment(ref _reads) >= _readsToHold)
+                released.TrySetResult();
+            await released.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+
+        return value;
     }
 
     public Task<byte[]?> GetAndDeleteAsync(string key)

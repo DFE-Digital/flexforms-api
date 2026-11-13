@@ -52,13 +52,13 @@ public sealed class TestAuthAuthenticatorService(
         string email,
         string issuer,
         CancellationToken cancellationToken = default)
-        => BeginSetupCoreAsync(email, issuer, fromInvite: false);
+        => BeginSetupCoreAsync(email, issuer, fromInvite: false, cancellationToken);
 
     public Task<TestAuthAuthenticatorSetup> BeginInviteSetupAsync(
         string email,
         string issuer,
         CancellationToken cancellationToken = default)
-        => BeginSetupCoreAsync(email, issuer, fromInvite: true);
+        => BeginSetupCoreAsync(email, issuer, fromInvite: true, cancellationToken);
 
     public Task<bool> ConfirmSetupAsync(string email, string code, CancellationToken cancellationToken = default)
         => ConfirmSetupCoreAsync(email, code, inviteOnly: false, cancellationToken);
@@ -66,10 +66,18 @@ public sealed class TestAuthAuthenticatorService(
     public Task<bool> ConfirmInviteSetupAsync(string email, string code, CancellationToken cancellationToken = default)
         => ConfirmSetupCoreAsync(email, code, inviteOnly: true, cancellationToken);
 
-    private async Task<TestAuthAuthenticatorSetup> BeginSetupCoreAsync(string email, string issuer, bool fromInvite)
+    private async Task<TestAuthAuthenticatorSetup> BeginSetupCoreAsync(
+        string email,
+        string issuer,
+        bool fromInvite,
+        CancellationToken cancellationToken)
     {
         var normalizedEmail = Normalize(email);
         var secret = KeyGeneration.GenerateRandomKey(SecretLengthBytes);
+
+        // The enrolment this setup will replace. Confirming only saves while it is still current, so a confirmation
+        // that is delayed cannot overwrite a newer enrolment or bring back one that was removed.
+        var replacesSetupId = await authenticatorStore.GetCurrentSetupIdAsync(TenantId, normalizedEmail, cancellationToken);
 
         // A fresh id gives this pending secret its own attempt counter, so starting again resets nothing shared.
         await store.SetAsync(
@@ -77,7 +85,8 @@ public sealed class TestAuthAuthenticatorService(
             JsonSerializer.SerializeToUtf8Bytes(new PendingSetupEntry(
                 secretProtector.Protect(secret),
                 Guid.NewGuid().ToString("N"),
-                fromInvite)),
+                fromInvite,
+                replacesSetupId)),
             PendingSetupLifetime);
 
         var sharedKey = Base32Encoding.ToString(secret);
@@ -139,7 +148,17 @@ public sealed class TestAuthAuthenticatorService(
 
         await store.DeleteAsync(attemptsKey);
         await store.SetIfAbsentAsync(cacheKey + StepSuffix + timeStep.ToString(CultureInfo.InvariantCulture), [1], UsedCodeLifetime);
-        await authenticatorStore.SaveAsync(TenantId, normalizedEmail, secret, timeProvider.GetUtcNow().UtcDateTime, cancellationToken);
+
+        var saved = await authenticatorStore.SaveAsync(
+            TenantId,
+            normalizedEmail,
+            secret,
+            timeProvider.GetUtcNow().UtcDateTime,
+            entry.Id,
+            entry.ReplacesSetupId,
+            cancellationToken);
+        if (!saved)
+            return false;
 
         logger.LogInformation("Test authentication authenticator enrolled for {Email}", normalizedEmail);
         return true;
@@ -245,5 +264,10 @@ public sealed class TestAuthAuthenticatorService(
             tenantContextAccessor,
             $"{CacheKeyPrefix}{CacheKeyHelper.GenerateHashedCacheKey(normalizedEmail)}");
 
-    private sealed record PendingSetupEntry(string ProtectedSecret, string Id, bool FromInvite = false);
+    /// <param name="ReplacesSetupId">Setup id of the enrolment current when this setup began, or <c>null</c> if none.</param>
+    private sealed record PendingSetupEntry(
+        string ProtectedSecret,
+        string Id,
+        bool FromInvite = false,
+        string? ReplacesSetupId = null);
 }

@@ -230,6 +230,11 @@ public class TenantConfigDbContext(DbContextOptions<TenantConfigDbContext> optio
                 .IsRequired()
                 .HasMaxLength(1000);
 
+            entity.Property(e => e.SetupId)
+                .IsRequired()
+                .HasMaxLength(32)
+                .IsConcurrencyToken();
+
             entity.Property(e => e.CreatedAtUtc).IsRequired();
 
             entity.HasIndex(e => new { e.TenantId, e.NormalizedEmail }).IsUnique();

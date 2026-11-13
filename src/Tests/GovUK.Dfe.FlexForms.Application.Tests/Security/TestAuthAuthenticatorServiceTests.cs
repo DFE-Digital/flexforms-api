@@ -166,11 +166,60 @@ public class TestAuthAuthenticatorServiceTests
         var sharedKey = await EnrolAsync();
         _timeProvider.Advance(TimeSpan.FromMinutes(1));
         var code = CodeFor(sharedKey);
+        _authenticators.HoldFindsUntil(3);
 
+        // All three have looked up the enrolment and matched the code before any of them marks it used.
         var results = await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => _service.VerifyAsync(Email, code)));
 
         Assert.Single(results, ok => ok);
     }
+
+    [Fact]
+    public async Task ConfirmSetupAsync_delayed_does_not_overwrite_a_newer_enrolment()
+    {
+        var older = await _service.BeginSetupAsync(Email, Issuer);
+        string? newerKey = null;
+        _authenticators.BeforeNextSave = async () =>
+        {
+            // The older confirmation has consumed its setup but not saved yet; a newer setup completes meanwhile.
+            var newer = await _service.BeginSetupAsync(Email, Issuer);
+            newerKey = newer.SharedKey;
+            Assert.True(await _service.ConfirmSetupAsync(Email, CodeFor(newer.SharedKey)));
+        };
+
+        Assert.False(await _service.ConfirmSetupAsync(Email, CodeFor(older.SharedKey)));
+
+        Assert.Equal(Base32Encoding.ToBytes(newerKey!), Assert.Single(_authenticators.Entries).Value.Secret);
+    }
+
+    [Fact]
+    public async Task ConfirmSetupAsync_delayed_does_not_recreate_a_removed_enrolment()
+    {
+        await EnrolAsync();
+        AdvanceToNextStep();
+        var replacement = await _service.BeginSetupAsync(Email, Issuer);
+        _authenticators.BeforeNextSave = async () => Assert.True(await _service.RemoveAsync(Email));
+
+        Assert.False(await _service.ConfirmSetupAsync(Email, CodeFor(replacement.SharedKey)));
+
+        Assert.Empty(_authenticators.Entries);
+    }
+
+    [Fact]
+    public async Task ConfirmSetupAsync_replaces_the_enrolment_that_was_current_when_setup_began()
+    {
+        var first = await EnrolAsync();
+        AdvanceToNextStep();
+        var second = await _service.BeginSetupAsync(Email, Issuer);
+
+        Assert.True(await _service.ConfirmSetupAsync(Email, CodeFor(second.SharedKey)));
+
+        var saved = Assert.Single(_authenticators.Entries).Value.Secret;
+        Assert.Equal(Base32Encoding.ToBytes(second.SharedKey), saved);
+        Assert.NotEqual(Base32Encoding.ToBytes(first), saved);
+    }
+
+    private void AdvanceToNextStep() => _timeProvider.Advance(TimeSpan.FromSeconds(30));
 
     [Fact]
     public async Task VerifyAsync_allows_one_step_of_clock_drift_but_not_two()
@@ -348,8 +397,15 @@ public class TestAuthAuthenticatorServiceTests
     private static string CodeFor(string sharedKey, DateTimeOffset at)
         => new Totp(Base32Encoding.ToBytes(sharedKey)).ComputeTotp(at.UtcDateTime);
 
+    // Not valid at any step the service accepts (one either side of now), so wrong-code tests cannot pass by chance.
     private string WrongCode(string sharedKey)
-        => CodeFor(sharedKey) == "000000" ? "111111" : "000000";
+    {
+        var totp = new Totp(Base32Encoding.ToBytes(sharedKey));
+        var now = _timeProvider.GetUtcNow().UtcDateTime;
+        return Enumerable.Range(0, 4)
+            .Select(value => value.ToString("D6", System.Globalization.CultureInfo.InvariantCulture))
+            .First(code => !totp.VerifyTotp(now, code, out _, new VerificationWindow(previous: 1, future: 1)));
+    }
 
     private void UseTenant(Guid tenantId)
         => _tenantContextAccessor.CurrentTenant.Returns(
@@ -367,33 +423,86 @@ public class TestAuthAuthenticatorServiceTests
                 : null;
     }
 
+    /// <summary>
+    /// Enrolment store double with the same compare-and-swap rule as the SQL store. <see cref="BeforeNextSave"/> runs
+    /// once, inside the next save and before its check, so a test can complete another request at that exact point.
+    /// <see cref="HoldFindsUntil"/> keeps lookups waiting until that many callers have looked up, so requests overlap.
+    /// </summary>
     private sealed class InMemoryAuthenticatorStore : ITestAuthAuthenticatorStore
     {
         private readonly Lock _sync = new();
-        private readonly Dictionary<(Guid, string), TestAuthAuthenticatorEnrolment> _entries = new();
+        private readonly Dictionary<(Guid, string), (TestAuthAuthenticatorEnrolment Enrolment, string SetupId)> _entries = new();
+        private TaskCompletionSource? _findsReleased;
+        private int _findsToHold;
+        private int _finds;
 
         public Dictionary<(Guid, string), DateTime> LastUsed { get; } = new();
+
+        public Func<Task>? BeforeNextSave { get; set; }
 
         public IReadOnlyDictionary<(Guid, string), TestAuthAuthenticatorEnrolment> Entries
         {
             get
             {
                 lock (_sync)
-                    return new Dictionary<(Guid, string), TestAuthAuthenticatorEnrolment>(_entries);
+                    return _entries.ToDictionary(entry => entry.Key, entry => entry.Value.Enrolment);
             }
         }
 
-        public Task<TestAuthAuthenticatorEnrolment?> FindAsync(Guid tenantId, string normalizedEmail, CancellationToken cancellationToken = default)
+        public void HoldFindsUntil(int callers)
         {
-            lock (_sync)
-                return Task.FromResult(_entries.GetValueOrDefault((tenantId, normalizedEmail)));
+            _findsToHold = callers;
+            _finds = 0;
+            _findsReleased = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         }
 
-        public Task SaveAsync(Guid tenantId, string normalizedEmail, byte[] secret, DateTime createdAtUtc, CancellationToken cancellationToken = default)
+        public async Task<TestAuthAuthenticatorEnrolment?> FindAsync(Guid tenantId, string normalizedEmail, CancellationToken cancellationToken = default)
+        {
+            TestAuthAuthenticatorEnrolment? enrolment;
+            lock (_sync)
+                enrolment = _entries.TryGetValue((tenantId, normalizedEmail), out var entry) ? entry.Enrolment : null;
+
+            if (_findsReleased is { } released)
+            {
+                if (Interlocked.Increment(ref _finds) >= _findsToHold)
+                    released.TrySetResult();
+                await released.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            }
+
+            return enrolment;
+        }
+
+        public Task<string?> GetCurrentSetupIdAsync(Guid tenantId, string normalizedEmail, CancellationToken cancellationToken = default)
         {
             lock (_sync)
-                _entries[(tenantId, normalizedEmail)] = new TestAuthAuthenticatorEnrolment(secret, createdAtUtc);
-            return Task.CompletedTask;
+                return Task.FromResult(_entries.TryGetValue((tenantId, normalizedEmail), out var entry) ? entry.SetupId : null);
+        }
+
+        public async Task<bool> SaveAsync(
+            Guid tenantId,
+            string normalizedEmail,
+            byte[] secret,
+            DateTime createdAtUtc,
+            string setupId,
+            string? expectedCurrentSetupId,
+            CancellationToken cancellationToken = default)
+        {
+            if (BeforeNextSave is { } beforeSave)
+            {
+                BeforeNextSave = null;
+                await beforeSave();
+            }
+
+            lock (_sync)
+            {
+                var key = (tenantId, normalizedEmail);
+                var currentSetupId = _entries.TryGetValue(key, out var current) ? current.SetupId : null;
+                if (currentSetupId != expectedCurrentSetupId)
+                    return false;
+
+                _entries[key] = (new TestAuthAuthenticatorEnrolment(secret, createdAtUtc), setupId);
+                return true;
+            }
         }
 
         public Task MarkUsedAsync(Guid tenantId, string normalizedEmail, DateTime usedAtUtc, CancellationToken cancellationToken = default)

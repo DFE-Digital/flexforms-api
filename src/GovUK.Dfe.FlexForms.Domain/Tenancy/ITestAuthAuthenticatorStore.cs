@@ -15,14 +15,30 @@ public interface ITestAuthAuthenticatorStore
         string normalizedEmail,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Saves the enrolment, replacing any existing one for the same tenant and email.</summary>
-    Task SaveAsync(
+    /// <summary>
+    /// Returns the setup id of the current enrolment (even when its secret cannot be decrypted), or <c>null</c> when
+    /// there is no enrolment. Pass it to <see cref="SaveAsync"/> as the enrolment a new setup replaces.
+    /// </summary>
+    Task<string?> GetCurrentSetupIdAsync(
+        Guid tenantId,
+        string normalizedEmail,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Saves the enrolment produced by setup <paramref name="setupId"/>, but only while the current enrolment is
+    /// still <paramref name="expectedCurrentSetupId"/> (<c>null</c> meaning there is none). Returns <c>false</c>
+    /// without saving when it has since been replaced or removed.
+    /// </summary>
+    Task<bool> SaveAsync(
         Guid tenantId,
         string normalizedEmail,
         byte[] secret,
         DateTime createdAtUtc,
+        string setupId,
+        string? expectedCurrentSetupId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Best effort: does nothing if the enrolment was replaced or removed meanwhile.</summary>
     Task MarkUsedAsync(
         Guid tenantId,
         string normalizedEmail,

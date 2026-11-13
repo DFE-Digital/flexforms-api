@@ -11,11 +11,18 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Services;
 /// Losing the Data Protection key ring makes existing secrets unreadable; those users sign in with the emailed
 /// password and enrol again.
 /// </summary>
+/// <remarks>
+/// <see cref="TestAuthAuthenticatorEntity.SetupId"/> is a concurrency token, so every update and delete is
+/// <c>WHERE SetupId = (value read)</c>, and the unique (TenantId, NormalizedEmail) index stops two first-time saves.
+/// That makes <see cref="SaveAsync"/> a compare-and-swap across replicas.
+/// </remarks>
 public sealed class TestAuthAuthenticatorStore(
     TenantConfigDbContext dbContext,
     ITestAuthAuthenticatorSecretProtector secretProtector,
     ILogger<TestAuthAuthenticatorStore> logger) : ITestAuthAuthenticatorStore
 {
+    private const int MaxDeleteAttempts = 3;
+
     public async Task<TestAuthAuthenticatorEnrolment?> FindAsync(
         Guid tenantId,
         string normalizedEmail,
@@ -41,35 +48,73 @@ public sealed class TestAuthAuthenticatorStore(
         return new TestAuthAuthenticatorEnrolment(secret, entity.CreatedAtUtc);
     }
 
-    public async Task SaveAsync(
+    public Task<string?> GetCurrentSetupIdAsync(
+        Guid tenantId,
+        string normalizedEmail,
+        CancellationToken cancellationToken = default)
+        => dbContext.TestAuthAuthenticators
+            .AsNoTracking()
+            .Where(e => e.TenantId == tenantId && e.NormalizedEmail == normalizedEmail)
+            .Select(e => e.SetupId)
+            .SingleOrDefaultAsync(cancellationToken);
+
+    public async Task<bool> SaveAsync(
         Guid tenantId,
         string normalizedEmail,
         byte[] secret,
         DateTime createdAtUtc,
+        string setupId,
+        string? expectedCurrentSetupId,
         CancellationToken cancellationToken = default)
     {
         var encryptedSecret = secretProtector.Protect(secret);
         var entity = await FindTrackedAsync(tenantId, normalizedEmail, cancellationToken);
 
-        if (entity is null)
+        if (expectedCurrentSetupId is null)
         {
+            if (entity is not null)
+                return Stale(tenantId);
+
             dbContext.TestAuthAuthenticators.Add(new TestAuthAuthenticatorEntity
             {
                 Id = Guid.NewGuid(),
                 TenantId = tenantId,
                 NormalizedEmail = normalizedEmail,
                 EncryptedSecret = encryptedSecret,
+                SetupId = setupId,
                 CreatedAtUtc = createdAtUtc
             });
         }
         else
         {
+            if (entity is null || entity.SetupId != expectedCurrentSetupId)
+                return Stale(tenantId);
+
             entity.EncryptedSecret = encryptedSecret;
+            entity.SetupId = setupId;
             entity.CreatedAtUtc = createdAtUtc;
             entity.LastUsedAtUtc = null;
         }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            dbContext.ChangeTracker.Clear();
+            return Stale(tenantId);
+        }
+        catch (DbUpdateException) when (expectedCurrentSetupId is null)
+        {
+            // Another first-time save won the unique index. Anything else is a real failure.
+            dbContext.ChangeTracker.Clear();
+            if (await GetCurrentSetupIdAsync(tenantId, normalizedEmail, cancellationToken) is null)
+                throw;
+
+            return Stale(tenantId);
+        }
     }
 
     public async Task MarkUsedAsync(
@@ -83,7 +128,14 @@ public sealed class TestAuthAuthenticatorStore(
             return;
 
         entity.LastUsedAtUtc = usedAtUtc;
-        await dbContext.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            dbContext.ChangeTracker.Clear();
+        }
     }
 
     public async Task<bool> DeleteAsync(
@@ -91,13 +143,32 @@ public sealed class TestAuthAuthenticatorStore(
         string normalizedEmail,
         CancellationToken cancellationToken = default)
     {
-        var entity = await FindTrackedAsync(tenantId, normalizedEmail, cancellationToken);
-        if (entity is null)
-            return false;
+        for (var attempt = 1; ; attempt++)
+        {
+            var entity = await FindTrackedAsync(tenantId, normalizedEmail, cancellationToken);
+            if (entity is null)
+                return false;
 
-        dbContext.TestAuthAuthenticators.Remove(entity);
-        await dbContext.SaveChangesAsync(cancellationToken);
-        return true;
+            dbContext.TestAuthAuthenticators.Remove(entity);
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+                return true;
+            }
+            catch (DbUpdateConcurrencyException) when (attempt < MaxDeleteAttempts)
+            {
+                // Replaced between read and delete: remove whatever is enrolled now.
+                dbContext.ChangeTracker.Clear();
+            }
+        }
+    }
+
+    private bool Stale(Guid tenantId)
+    {
+        logger.LogWarning(
+            "Test authentication authenticator enrolment in tenant {TenantId} changed while a setup was being confirmed; the older setup was not saved",
+            tenantId);
+        return false;
     }
 
     private Task<TestAuthAuthenticatorEntity?> FindTrackedAsync(
