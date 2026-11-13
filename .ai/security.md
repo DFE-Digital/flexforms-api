@@ -73,6 +73,7 @@ For users who cannot receive the first email, an administrator creates a one-tim
 - Codes: 10 characters from an alphabet without 0/O/1/I, shown as `XXXXX-XXXXX`; case, spaces and hyphens are ignored. Only a SHA-256 hash is stored in Redis (tenant-scoped, per email), 24 hour expiry, single use (compare-and-delete), 5 wrong attempts discard it, and a new code replaces an unused one.
 - The anonymous confirm only completes a pending enrolment that was started from a code (`PendingSetupEntry.FromInvite`), and checks that before counting attempts, so it cannot touch a signed-in user's own pending setup.
 - Confirming replaces any existing enrolment, so a setup code is also how an administrator helps a user who lost their device.
+- Codes are tenant-scoped, so Web can only create them for the admin's own tenant. For another tenant, someone with Redis write access can create one by hand: [`docs/test-auth-authenticator-setup-codes.md`](../docs/test-auth-authenticator-setup-codes.md). Keep that runbook in step with the key and value format in `TestAuthAuthenticatorInviteService`. Never insert `TestAuthAuthenticators` rows by hand (the secret must be Data Protection ciphertext).
 
 ## Rate limits and revocation across replicas
 
