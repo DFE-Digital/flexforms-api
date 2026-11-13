@@ -8,11 +8,10 @@
 		<PackageReadmeFile>readme.md</PackageReadmeFile>
 		<PackageId>GovUK.Dfe.FlexForms.Api.Client</PackageId>
 		<Title>FlexForms API Client (NSwag HTTP SDK)</Title>
-		<Description>First-party .NET HTTP client for the FlexForms API (GovUK.Dfe.FlexForms.Api). Includes NSwag-generated typed clients and DTOs for applications, templates, users, roles, tenant admin, files, notifications, and token exchange, plus ASP.NET Core handlers for DfE Sign-In / Entra token exchange, Azure bearer tokens, header forwarding (tenant, template, application), and DI registration. Targets net8.0 and net10.0. This package is specific and dedicated to the FlexForms service and is not intended for use by any other service.</Description>
+		<Description>First-party .NET HTTP client for the FlexForms API (GovUK.Dfe.FlexForms.Api). Includes NSwag-generated typed clients and DTOs for applications, templates, users, roles, tenant admin, files, notifications, and token exchange, plus ASP.NET Core handlers for DfE Sign-In / Entra token exchange, Azure bearer tokens, header forwarding (tenant, template, application), and DI registration. Targets net10.0. This package is specific and dedicated to the FlexForms service and is not intended for use by any other service.</Description>
 		<PackageTags>dfe;govuk;flexforms;api-client;nswag;http;oidc;token-exchange;multitenant</PackageTags>
 		<Authors>DFE-Digital</Authors>
-		<TargetFramework></TargetFramework>
-		<TargetFrameworks>net8.0;net10.0</TargetFrameworks>
+		<TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
 
 	<ItemGroup>
@@ -22,18 +21,11 @@
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 		<PackageReference Include="Azure.Identity" Version="1.21.0" />
-		<PackageReference Include="GovUK.Dfe.CoreLibs.Contracts" Version="1.0.113" />
+		<PackageReference Include="GovUK.Dfe.CoreLibs.Contracts" Version="2.0.2" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Http" Version="1.0.13" />
 		<PackageReference Include="GovUK.Dfe.CoreLibs.Security" Version="1.1.32" />
-		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-	</ItemGroup>
-
-	<ItemGroup Condition="'$(TargetFramework)' == 'net8.0'">
-		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="8.0.14" />
-	</ItemGroup>
-
-	<ItemGroup Condition="'$(TargetFramework)' == 'net10.0'">
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.3" />
+		<PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
 	</ItemGroup>
 
 </Project>

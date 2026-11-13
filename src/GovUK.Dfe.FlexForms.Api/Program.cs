@@ -117,6 +117,8 @@ namespace GovUK.Dfe.FlexForms.Api
             builder.Services.AddScoped<ITenantHostnameResolver, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantHostnameResolver>();
             builder.Services.AddSingleton<IHostConfigurationReader, GovUK.Dfe.FlexForms.Infrastructure.Services.HostConfigurationReader>();
             builder.Services.AddScoped<ITenantSettingAuditWriter, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantSettingAuditWriter>();
+            builder.Services.AddSingleton<ITestAuthAuthenticatorSecretProtector, GovUK.Dfe.FlexForms.Infrastructure.Services.DataProtectionTestAuthAuthenticatorSecretProtector>();
+            builder.Services.AddScoped<ITestAuthAuthenticatorStore, GovUK.Dfe.FlexForms.Infrastructure.Services.TestAuthAuthenticatorStore>();
             builder.Services.AddScoped<ITenantSettingAuditQuery, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantSettingAuditQueryService>();
             builder.Services.AddScoped<ITenantAccessAuditWriter, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantAccessAuditWriter>();
             builder.Services.AddScoped<ITenantAccessAuditQuery, GovUK.Dfe.FlexForms.Infrastructure.Services.TenantAccessAuditQueryService>();

@@ -34,6 +34,34 @@ public static class PermissionClaimEvaluator
         HasTenantAdminAccess(user);
 
     /// <summary>
+    /// The email of an interactive user (user JWT), or <c>null</c> for machine/service identities: <c>is_service=true</c>
+    /// callers, app-only Entra tokens, and principals without an <c>email</c> claim. Use it wherever an action is
+    /// only for a person, so a service principal mapped to an email (or carrying a UPN) cannot act as that person.
+    /// </summary>
+    public static string? GetInteractiveUserEmail(ClaimsPrincipal? user)
+    {
+        if (user?.Identity?.IsAuthenticated != true)
+        {
+            return null;
+        }
+
+        if (user.HasClaim(c =>
+                c.Type == TenantAuthClaimTypes.IsService
+                && string.Equals(c.Value, "true", StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
+        if (string.Equals(user.FindFirst("idtyp")?.Value, "app", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var email = (user.FindFirst(ClaimTypes.Email)?.Value ?? user.FindFirst("email")?.Value)?.Trim();
+        return string.IsNullOrEmpty(email) || !email.Contains('@') ? null : email;
+    }
+
+    /// <summary>
     /// Returns true when the principal is an interactive SuperAdmin (platform admin) user JWT,
     /// not a machine/service identity.
     /// </summary>

@@ -35,13 +35,17 @@ Data-only migrations (`ScopeNotificationPermissionsByTenant`, `BackfillTenantNot
 | Api.Tests.Integration | Controllers + SignalR |
 | Tests.Common | WebApplicationFactory, tokens |
 
-Prism outbox acceptance tests need Docker: `PrismOutboxAcceptanceTests.cs`.
+Prism outbox acceptance tests need Docker: `PrismOutboxAcceptanceTests.cs`. So do `Security/TestAuthAuthenticatorStoreSqlServerTests.cs`, which share the same SQL Server container (`SqlServerOutboxFixture.CreateTenantConfigDatabaseAsync`) and check the authenticator store's cross-replica guarantees (unique index, `SetupId` concurrency token, removal retries) with one DbContext per "replica". EF InMemory enforces neither unique indexes nor real cross-context conflicts, so keep those checks on SQL Server.
 
 Do not swap Testcontainers SQL for an in-memory provider when testing outbox/temporal behaviour.
+
+The CoreLibs `CustomWebApplicationDbContextFactory` strips every `DbContextOptions` registration and only re-adds contexts listed in `SeedData` (EA). `CustomWebApplicationDbContextFactoryCustomization` registers `TenantConfigDbContext` on the EF InMemory provider so handlers that depend on it (Test Authentication authenticators) resolve in integration tests. The "with rate limiting" customization does not.
 
 ## NSwag / Api.Client
 
 Local build regenerates the client. Use `SkipMassTransit` / CodeGeneration appsettings if the host must start without bus. After contract changes, bump the NuGet consumed by Web and Prism.
+
+To build against a CoreLibs Contracts version that is not yet on nuget.org, `dotnet pack` it into a local folder and restore with `-p:RestoreAdditionalProjectSources=<folder>`. Delete that version from `~/.nuget/packages` afterwards so the published package is used once it exists.
 
 ## TenantConfig scripts
 

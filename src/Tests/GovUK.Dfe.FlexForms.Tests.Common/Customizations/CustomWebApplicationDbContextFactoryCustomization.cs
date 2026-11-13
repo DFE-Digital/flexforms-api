@@ -82,6 +82,7 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                     })
                     .Build();
 
+                var tenantConfigDatabaseName = $"tenantconfig-{Guid.NewGuid()}";
                 var factory = new CustomWebApplicationDbContextFactory<Program>()
                 {
                     SeedData = new Dictionary<Type, Action<DbContext>>
@@ -176,6 +177,10 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                         services.AddSingleton<IAdvancedRedisCacheService>(mockRedisCache);
                         services.RemoveAll<GovUK.Dfe.FlexForms.Domain.Caching.IAtomicCacheStore>();
                         services.AddSingleton<GovUK.Dfe.FlexForms.Domain.Caching.IAtomicCacheStore, InMemoryAtomicCacheStore>();
+
+                        // The base factory strips every DbContextOptions registration; only the EA context is re-added
+                        // through SeedData, so TenantConfig consumers (e.g. Test Authentication authenticators) need this.
+                        services.AddDbContext<TenantConfigDbContext>(options => options.UseInMemoryDatabase(tenantConfigDatabaseName));
                     },
                     ExternalHttpClientConfiguration = client =>
                     {

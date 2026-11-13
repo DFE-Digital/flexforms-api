@@ -37,6 +37,46 @@ Issuer mismatches: CoreLibs may try multiple OIDC providers; wrong-provider atte
 - `TenantSettingsReader` merges Shared then target; **`Web` sorts after `Shared` and wins**. Editing only Shared leaves a stale Web row in control.
 - OTP endpoints must remain behind `ServiceCallers` + environment gate. Fail closed in Production.
 
+### Authenticator app (TOTP) alternative
+
+**Verified** in `Application/Security/TestAuthAuthenticatorService.cs`, `Infrastructure/Services/TestAuthAuthenticatorStore.cs`, `TokensController`, `UsersController`.
+
+A user who has enrolled an authenticator app for their email **in this tenant** can sign in with its code instead of the emailed password. The emailed password always stays available.
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `POST /v1/tokens/test-auth-authenticator/verify` | `ServiceCallers` + environment gate | Login check (`VerifyTestAuthAuthenticatorCodeRequest` → `VerifyTestAuthPasswordResponse`) |
+| `GET /v1/me/test-auth-authenticator` | User JWT (`[Authorize]`) | Enrolment status |
+| `POST /v1/me/test-auth-authenticator/setup` | User JWT, `[RateLimit(10, 60)]` | New secret held as a pending enrolment in Redis for 10 minutes; returns key + `otpauth://` URI |
+| `POST /v1/me/test-auth-authenticator/setup/confirm` | User JWT, `[RateLimit(10, 60)]` | Saves the pending secret when the code matches |
+| `DELETE /v1/me/test-auth-authenticator` | User JWT | Removes the caller's enrolment |
+
+- Enrolment endpoints take the email **only from an interactive user's JWT** (`TestAuthAuthenticatorCaller` → `PermissionClaimEvaluator.GetInteractiveUserEmail`), never from the request, and apply the same environment gate + `TestAuthentication:Enabled` check. Never add an email parameter to them. Service principals (`is_service=true`, `idtyp=app`) are refused even when mapped to an email, and the email must be in `email` / `ClaimTypes.Email` (not `upn` or `preferred_username`).
+- Enrolments live in `tenantconfig.TestAuthAuthenticators` (unique per `TenantId` + normalised email). Secrets, including the pending one in Redis, are encrypted with Data Protection purpose `TestAuthAuthenticator.v1` (`DataProtectionTestAuthAuthenticatorSecretProtector`). An undecryptable secret is treated as not enrolled; the user signs in by email and enrols again.
+- TOTP: SHA1, 6 digits, 30 second step, ±1 step drift (Otp.NET). Starting setup again does not disable the current enrolment until a new code is confirmed.
+- Saving an enrolment is a compare-and-swap. Each row records the `SetupId` of the setup that produced it (an EF concurrency token, so updates and deletes are `WHERE SetupId = value read`), and each pending setup records the `SetupId` it replaces (`ReplacesSetupId`, null when there was none). Confirm only saves while that is still current, so a delayed confirmation cannot overwrite a newer enrolment or recreate a removed one; it returns false instead. Never go back to an unconditional upsert.
+- Removing an authenticator keeps the row as a tombstone (`RemovedAtUtc` set, secret wiped, new `SetupId`) instead of deleting it. A deleted row would look like "never enrolled", so a first-time setup that began before an enrol-then-remove could insert its older secret. Lookups ignore tombstones; a new setup expects the tombstone's `SetupId` and revives the row. Remove always advances the generation, creating a tombstone even when nothing was enrolled, so a first-time setup being confirmed cannot enrol after the user asked to remove.
+- The login check counts every attempt before comparing, including for emails with no enrolment, so the response does not reveal who has enrolled. 5 attempts within 15 minutes lock that email out of authenticator sign-in (email OTP still works). Each code is accepted once (SET NX per time step). Same `IAtomicCacheStore` rules as the OTP (`.ai/known-pitfalls.md` item 35).
+- Rows are not removed when an EA user is deleted, and a removed authenticator stays as a tombstone holding the email (no secret). Delete rows by tenant + email directly in SQL when personal data must go; that is safe outside an in-progress setup.
+
+### Administrator-issued setup codes
+
+**Verified** in `Application/Security/TestAuthAuthenticatorInviteService.cs`, `CreateTestAuthAuthenticatorInviteCommandHandler`, `RedeemTestAuthAuthenticatorInviteCommandHandler`, `ConfirmTestAuthAuthenticatorInviteSetupCommandHandler`.
+
+For users who cannot receive the first email, an administrator creates a one-time setup code and gives it to them outside the system.
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `POST /v1/users/test-auth-authenticator-invites` | `CanManageUsers`, `[RateLimit(10, 60)]` | Creates a code for an email (the user need not exist). Returned once |
+| `POST /v1/tokens/test-auth-authenticator/invite/redeem` | `ServiceCallers` + environment gate | Consumes the code and starts a pending enrolment (`BeginTestAuthAuthenticatorSetupResponse`) |
+| `POST /v1/tokens/test-auth-authenticator/invite/confirm` | `ServiceCallers` + environment gate | Saves the enrolment when the app code matches (`VerifyTestAuthPasswordResponse`); Web then signs the user in |
+
+- Whoever holds a code can enrol an app for that email and so sign in as them. Only interactive users can create codes (same `GetInteractiveUserEmail` rule; a service principal with admin role claims is refused). Only a SuperAdmin (`IsInteractivePlatformAdmin`) can create a code for another administrator (tenant `Admin` membership or platform SuperAdmin); anyone with `CanManageUsers` can create one for an ordinary user or themselves. Every code is written to `TenantAccessAudits` (action `TestAuthAuthenticatorSetupCodeCreated`, actor + subject email).
+- Codes: 10 characters from an alphabet without 0/O/1/I, shown as `XXXXX-XXXXX`; case, spaces and hyphens are ignored. Only a SHA-256 hash is stored in Redis (tenant-scoped, per email), 24 hour expiry, single use (compare-and-delete), 5 wrong attempts discard it, and a new code replaces an unused one.
+- The anonymous confirm only completes a pending enrolment that was started from a code (`PendingSetupEntry.FromInvite`), and checks that before counting attempts, so it cannot touch a signed-in user's own pending setup.
+- Confirming replaces any existing enrolment, so a setup code is also how an administrator helps a user who lost their device.
+- Codes are tenant-scoped, so Web can only create them for the admin's own tenant. For another tenant, someone with Redis write access can create one by hand: [`docs/test-auth-authenticator-setup-codes.md`](../docs/test-auth-authenticator-setup-codes.md). The runbook generates a fresh random code; never document a fixed example code someone could copy. Keep that runbook in step with the key and value format in `TestAuthAuthenticatorInviteService`. Never insert `TestAuthAuthenticators` rows by hand (the secret must be Data Protection ciphertext).
+
 ## Rate limits and revocation across replicas
 
 - `[RateLimit]` commands and the secret-reveal limit use `RedisRateLimiterFactory`, so the configured limit holds across all replicas (`.ai/known-pitfalls.md` item 36).

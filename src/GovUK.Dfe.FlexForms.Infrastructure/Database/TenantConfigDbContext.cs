@@ -18,6 +18,7 @@ public class TenantConfigDbContext(DbContextOptions<TenantConfigDbContext> optio
     public DbSet<TenantFrontendOriginEntity> TenantFrontendOrigins { get; set; } = null!;
     public DbSet<TenantPrincipalEntity> TenantPrincipals { get; set; } = null!;
     public DbSet<TenantSettingAuditEntity> TenantSettingAudits { get; set; } = null!;
+    public DbSet<TestAuthAuthenticatorEntity> TestAuthAuthenticators { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -30,6 +31,7 @@ public class TenantConfigDbContext(DbContextOptions<TenantConfigDbContext> optio
         ConfigureTenantFrontendOriginEntity(modelBuilder);
         ConfigureTenantPrincipalEntity(modelBuilder);
         ConfigureTenantSettingAuditEntity(modelBuilder);
+        ConfigureTestAuthAuthenticatorEntity(modelBuilder);
     }
 
     private static void ConfigureTenantEntity(ModelBuilder modelBuilder)
@@ -204,6 +206,39 @@ public class TenantConfigDbContext(DbContextOptions<TenantConfigDbContext> optio
                 .HasMaxLength(500);
 
             entity.HasIndex(e => new { e.TenantId, e.ChangedAtUtc });
+
+            entity.HasOne(e => e.Tenant)
+                .WithMany()
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureTestAuthAuthenticatorEntity(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TestAuthAuthenticatorEntity>(entity =>
+        {
+            entity.ToTable("TestAuthAuthenticators");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).ValueGeneratedNever();
+
+            entity.Property(e => e.NormalizedEmail)
+                .IsRequired()
+                .HasMaxLength(256);
+
+            // Required but empty for a removed enrolment (tombstone).
+            entity.Property(e => e.EncryptedSecret)
+                .IsRequired()
+                .HasMaxLength(1000);
+
+            entity.Property(e => e.SetupId)
+                .IsRequired()
+                .HasMaxLength(32)
+                .IsConcurrencyToken();
+
+            entity.Property(e => e.CreatedAtUtc).IsRequired();
+
+            entity.HasIndex(e => new { e.TenantId, e.NormalizedEmail }).IsUnique();
 
             entity.HasOne(e => e.Tenant)
                 .WithMany()
