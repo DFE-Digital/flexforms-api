@@ -16,8 +16,9 @@ public interface ITestAuthAuthenticatorStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Returns the setup id of the current enrolment (even when its secret cannot be decrypted), or <c>null</c> when
-    /// there is no enrolment. Pass it to <see cref="SaveAsync"/> as the enrolment a new setup replaces.
+    /// Returns the current generation for this tenant/email: the setup id of the enrolment (even when its secret
+    /// cannot be decrypted), or of the removal if it was removed. <c>null</c> only when there has never been an
+    /// enrolment. Pass it to <see cref="SaveAsync"/> as the generation a new setup replaces.
     /// </summary>
     Task<string?> GetCurrentSetupIdAsync(
         Guid tenantId,
@@ -25,9 +26,9 @@ public interface ITestAuthAuthenticatorStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Saves the enrolment produced by setup <paramref name="setupId"/>, but only while the current enrolment is
-    /// still <paramref name="expectedCurrentSetupId"/> (<c>null</c> meaning there is none). Returns <c>false</c>
-    /// without saving when it has since been replaced or removed.
+    /// Saves the enrolment produced by setup <paramref name="setupId"/>, but only while the current generation is
+    /// still <paramref name="expectedCurrentSetupId"/> (<c>null</c> meaning there has never been an enrolment).
+    /// Returns <c>false</c> without saving when it has since been replaced or removed.
     /// </summary>
     Task<bool> SaveAsync(
         Guid tenantId,
@@ -45,10 +46,14 @@ public interface ITestAuthAuthenticatorStore
         DateTime usedAtUtc,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Removes the enrolment. Returns <c>true</c> when one existed.</summary>
+    /// <summary>
+    /// Removes the enrolment, keeping a tombstone with a new generation so setups that began earlier cannot recreate
+    /// it. Returns <c>true</c> when an enrolment was active.
+    /// </summary>
     Task<bool> DeleteAsync(
         Guid tenantId,
         string normalizedEmail,
+        DateTime removedAtUtc,
         CancellationToken cancellationToken = default);
 }
 

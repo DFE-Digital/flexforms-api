@@ -95,11 +95,50 @@ public class TestAuthAuthenticatorStoreTests : IDisposable
     public async Task SaveAsync_does_not_recreate_a_removed_enrolment()
     {
         await _store.SaveAsync(TenantId, Email, [1], CreatedAt, FirstSetup, expectedCurrentSetupId: null);
-        await _store.DeleteAsync(TenantId, Email);
+        await _store.DeleteAsync(TenantId, Email, CreatedAt.AddHours(1));
 
         Assert.False(await _store.SaveAsync(TenantId, Email, [2], CreatedAt, SecondSetup, FirstSetup));
 
-        Assert.Empty(_db.TestAuthAuthenticators);
+        Assert.Null(await _store.FindAsync(TenantId, Email));
+    }
+
+    [Fact]
+    public async Task SaveAsync_first_time_save_refuses_after_an_enrolment_was_created_and_removed()
+    {
+        await _store.SaveAsync(TenantId, Email, [1], CreatedAt, FirstSetup, expectedCurrentSetupId: null);
+        await _store.DeleteAsync(TenantId, Email, CreatedAt.AddHours(1));
+
+        Assert.False(await _store.SaveAsync(TenantId, Email, [2], CreatedAt, SecondSetup, expectedCurrentSetupId: null));
+
+        Assert.Null(await _store.FindAsync(TenantId, Email));
+    }
+
+    [Fact]
+    public async Task DeleteAsync_keeps_a_tombstone_with_a_new_generation_and_no_secret()
+    {
+        await _store.SaveAsync(TenantId, Email, [1], CreatedAt, FirstSetup, expectedCurrentSetupId: null);
+
+        Assert.True(await _store.DeleteAsync(TenantId, Email, CreatedAt.AddHours(1)));
+
+        var row = await _db.TestAuthAuthenticators.AsNoTracking().SingleAsync();
+        Assert.Equal(string.Empty, row.EncryptedSecret);
+        Assert.Equal(CreatedAt.AddHours(1), row.RemovedAtUtc);
+        Assert.NotEqual(FirstSetup, row.SetupId);
+        Assert.Equal(row.SetupId, await _store.GetCurrentSetupIdAsync(TenantId, Email));
+        Assert.Null(await _store.FindAsync(TenantId, Email));
+    }
+
+    [Fact]
+    public async Task SaveAsync_expecting_the_removal_generation_enrols_again()
+    {
+        await _store.SaveAsync(TenantId, Email, [1], CreatedAt, FirstSetup, expectedCurrentSetupId: null);
+        await _store.DeleteAsync(TenantId, Email, CreatedAt.AddHours(1));
+        var removalGeneration = await _store.GetCurrentSetupIdAsync(TenantId, Email);
+
+        Assert.True(await _store.SaveAsync(TenantId, Email, [2], CreatedAt.AddDays(1), SecondSetup, removalGeneration));
+
+        Assert.Equal(new byte[] { 2 }, (await _store.FindAsync(TenantId, Email))!.Secret);
+        Assert.Null((await _db.TestAuthAuthenticators.AsNoTracking().SingleAsync()).RemovedAtUtc);
     }
 
     [Fact]
@@ -146,9 +185,20 @@ public class TestAuthAuthenticatorStoreTests : IDisposable
     {
         await _store.SaveAsync(TenantId, Email, [1], CreatedAt, FirstSetup, expectedCurrentSetupId: null);
 
-        Assert.True(await _store.DeleteAsync(TenantId, Email));
-        Assert.False(await _store.DeleteAsync(TenantId, Email));
-        Assert.Empty(_db.TestAuthAuthenticators);
+        Assert.True(await _store.DeleteAsync(TenantId, Email, CreatedAt.AddHours(1)));
+        Assert.False(await _store.DeleteAsync(TenantId, Email, CreatedAt.AddHours(2)));
+        Assert.Null(await _store.FindAsync(TenantId, Email));
+    }
+
+    [Fact]
+    public async Task MarkUsedAsync_ignores_a_removed_enrolment()
+    {
+        await _store.SaveAsync(TenantId, Email, [1], CreatedAt, FirstSetup, expectedCurrentSetupId: null);
+        await _store.DeleteAsync(TenantId, Email, CreatedAt.AddHours(1));
+
+        await _store.MarkUsedAsync(TenantId, Email, CreatedAt.AddHours(2));
+
+        Assert.Null((await _db.TestAuthAuthenticators.AsNoTracking().SingleAsync()).LastUsedAtUtc);
     }
 
     private TestAuthAuthenticatorStore CreateStore(IDataProtectionProvider dataProtection)

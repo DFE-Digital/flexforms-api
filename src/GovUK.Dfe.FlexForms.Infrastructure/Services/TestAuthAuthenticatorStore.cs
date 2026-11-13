@@ -12,9 +12,11 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Services;
 /// password and enrol again.
 /// </summary>
 /// <remarks>
-/// <see cref="TestAuthAuthenticatorEntity.SetupId"/> is a concurrency token, so every update and delete is
-/// <c>WHERE SetupId = (value read)</c>, and the unique (TenantId, NormalizedEmail) index stops two first-time saves.
-/// That makes <see cref="SaveAsync"/> a compare-and-swap across replicas.
+/// <see cref="TestAuthAuthenticatorEntity.SetupId"/> is the tenant/email generation and a concurrency token, so every
+/// update is <c>WHERE SetupId = (value read)</c>, and the unique (TenantId, NormalizedEmail) index stops two first-time
+/// saves. That makes <see cref="SaveAsync"/> a compare-and-swap across replicas. Removal keeps the row as a tombstone
+/// with a new generation instead of deleting it: a deleted row would look like "never enrolled" again, letting a
+/// first-time setup that began before an enrol-then-remove recreate an authenticator.
 /// </remarks>
 public sealed class TestAuthAuthenticatorStore(
     TenantConfigDbContext dbContext,
@@ -30,7 +32,9 @@ public sealed class TestAuthAuthenticatorStore(
     {
         var entity = await dbContext.TestAuthAuthenticators
             .AsNoTracking()
-            .SingleOrDefaultAsync(e => e.TenantId == tenantId && e.NormalizedEmail == normalizedEmail, cancellationToken);
+            .SingleOrDefaultAsync(
+                e => e.TenantId == tenantId && e.NormalizedEmail == normalizedEmail && e.RemovedAtUtc == null,
+                cancellationToken);
 
         if (entity is null)
             return null;
@@ -94,6 +98,7 @@ public sealed class TestAuthAuthenticatorStore(
             entity.SetupId = setupId;
             entity.CreatedAtUtc = createdAtUtc;
             entity.LastUsedAtUtc = null;
+            entity.RemovedAtUtc = null;
         }
 
         try
@@ -124,7 +129,7 @@ public sealed class TestAuthAuthenticatorStore(
         CancellationToken cancellationToken = default)
     {
         var entity = await FindTrackedAsync(tenantId, normalizedEmail, cancellationToken);
-        if (entity is null)
+        if (entity is null || entity.RemovedAtUtc is not null)
             return;
 
         entity.LastUsedAtUtc = usedAtUtc;
@@ -141,15 +146,19 @@ public sealed class TestAuthAuthenticatorStore(
     public async Task<bool> DeleteAsync(
         Guid tenantId,
         string normalizedEmail,
+        DateTime removedAtUtc,
         CancellationToken cancellationToken = default)
     {
         for (var attempt = 1; ; attempt++)
         {
             var entity = await FindTrackedAsync(tenantId, normalizedEmail, cancellationToken);
-            if (entity is null)
+            if (entity is null || entity.RemovedAtUtc is not null)
                 return false;
 
-            dbContext.TestAuthAuthenticators.Remove(entity);
+            entity.EncryptedSecret = string.Empty;
+            entity.SetupId = Guid.NewGuid().ToString("N");
+            entity.RemovedAtUtc = removedAtUtc;
+            entity.LastUsedAtUtc = null;
             try
             {
                 await dbContext.SaveChangesAsync(cancellationToken);

@@ -169,7 +169,11 @@ public sealed class TestAuthAuthenticatorService(
         var normalizedEmail = Normalize(email);
         await store.DeleteAsync(CreateCacheKey(normalizedEmail) + SetupSuffix);
 
-        var removed = await authenticatorStore.DeleteAsync(TenantId, normalizedEmail, cancellationToken);
+        var removed = await authenticatorStore.DeleteAsync(
+            TenantId,
+            normalizedEmail,
+            timeProvider.GetUtcNow().UtcDateTime,
+            cancellationToken);
         if (removed)
             logger.LogInformation("Test authentication authenticator removed for {Email}", normalizedEmail);
 

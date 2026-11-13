@@ -13,14 +13,23 @@ public class TestAuthAuthenticatorEntity
     /// <summary>Trimmed, lower-case email address.</summary>
     public string NormalizedEmail { get; set; } = string.Empty;
 
-    /// <summary>The TOTP secret, protected with Data Protection. Never stored or logged in plaintext.</summary>
+    /// <summary>
+    /// The TOTP secret, protected with Data Protection. Never stored or logged in plaintext. Empty once removed.
+    /// </summary>
     public string EncryptedSecret { get; set; } = string.Empty;
 
     /// <summary>
-    /// Id of the setup that produced this enrolment. A concurrency token: saves and removals only apply to the
-    /// enrolment they read, so a delayed confirmation cannot overwrite a newer one or recreate a removed one.
+    /// Generation of this tenant/email: the id of the setup that produced the enrolment, or a fresh id when it was
+    /// removed. A concurrency token: saves and removals only apply to the generation they read, so a delayed
+    /// confirmation cannot overwrite a newer enrolment or recreate a removed one.
     /// </summary>
     public string SetupId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Set when the user removed their authenticator. The row is kept as a tombstone (secret wiped) so its
+    /// <see cref="SetupId"/> still guards against setups that began before the removal.
+    /// </summary>
+    public DateTime? RemovedAtUtc { get; set; }
 
     public DateTime CreatedAtUtc { get; set; }
 

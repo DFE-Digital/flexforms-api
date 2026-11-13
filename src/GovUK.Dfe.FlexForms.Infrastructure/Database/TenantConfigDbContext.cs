@@ -226,6 +226,7 @@ public class TenantConfigDbContext(DbContextOptions<TenantConfigDbContext> optio
                 .IsRequired()
                 .HasMaxLength(256);
 
+            // Required but empty for a removed enrolment (tombstone).
             entity.Property(e => e.EncryptedSecret)
                 .IsRequired()
                 .HasMaxLength(1000);

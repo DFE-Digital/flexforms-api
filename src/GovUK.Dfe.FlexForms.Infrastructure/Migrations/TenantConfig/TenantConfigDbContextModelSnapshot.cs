@@ -269,6 +269,9 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations.TenantConfig
                         .HasMaxLength(256)
                         .HasColumnType("nvarchar(256)");
 
+                    b.Property<DateTime?>("RemovedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("SetupId")
                         .IsConcurrencyToken()
                         .IsRequired()

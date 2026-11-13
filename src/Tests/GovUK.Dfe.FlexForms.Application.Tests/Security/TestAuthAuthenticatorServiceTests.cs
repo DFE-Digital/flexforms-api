@@ -206,6 +206,36 @@ public class TestAuthAuthenticatorServiceTests
     }
 
     [Fact]
+    public async Task ConfirmSetupAsync_delayed_first_time_setup_does_not_recreate_after_a_newer_enrolment_was_removed()
+    {
+        var older = await _service.BeginSetupAsync(Email, Issuer);
+        _authenticators.BeforeNextSave = async () =>
+        {
+            // The older first-time confirmation has consumed its setup; a newer setup enrols and is then removed.
+            var newer = await _service.BeginSetupAsync(Email, Issuer);
+            Assert.True(await _service.ConfirmSetupAsync(Email, CodeFor(newer.SharedKey)));
+            Assert.True(await _service.RemoveAsync(Email));
+        };
+
+        Assert.False(await _service.ConfirmSetupAsync(Email, CodeFor(older.SharedKey)));
+
+        Assert.Empty(_authenticators.Entries);
+    }
+
+    [Fact]
+    public async Task ConfirmSetupAsync_can_enrol_again_after_removal()
+    {
+        await EnrolAsync();
+        await _service.RemoveAsync(Email);
+        AdvanceToNextStep();
+
+        var again = await _service.BeginSetupAsync(Email, Issuer);
+
+        Assert.True(await _service.ConfirmSetupAsync(Email, CodeFor(again.SharedKey)));
+        Assert.Equal(Base32Encoding.ToBytes(again.SharedKey), Assert.Single(_authenticators.Entries).Value.Secret);
+    }
+
+    [Fact]
     public async Task ConfirmSetupAsync_replaces_the_enrolment_that_was_current_when_setup_began()
     {
         var first = await EnrolAsync();
@@ -424,14 +454,15 @@ public class TestAuthAuthenticatorServiceTests
     }
 
     /// <summary>
-    /// Enrolment store double with the same compare-and-swap rule as the SQL store. <see cref="BeforeNextSave"/> runs
-    /// once, inside the next save and before its check, so a test can complete another request at that exact point.
-    /// <see cref="HoldFindsUntil"/> keeps lookups waiting until that many callers have looked up, so requests overlap.
+    /// Enrolment store double with the same compare-and-swap and tombstone rules as the SQL store (a removed entry
+    /// keeps a new generation). <see cref="BeforeNextSave"/> runs once, inside the next save and before its check, so
+    /// a test can complete other requests at that exact point. <see cref="HoldFindsUntil"/> keeps lookups waiting
+    /// until that many callers have looked up, so requests overlap.
     /// </summary>
     private sealed class InMemoryAuthenticatorStore : ITestAuthAuthenticatorStore
     {
         private readonly Lock _sync = new();
-        private readonly Dictionary<(Guid, string), (TestAuthAuthenticatorEnrolment Enrolment, string SetupId)> _entries = new();
+        private readonly Dictionary<(Guid, string), (TestAuthAuthenticatorEnrolment? Enrolment, string SetupId)> _entries = new();
         private TaskCompletionSource? _findsReleased;
         private int _findsToHold;
         private int _finds;
@@ -445,7 +476,9 @@ public class TestAuthAuthenticatorServiceTests
             get
             {
                 lock (_sync)
-                    return _entries.ToDictionary(entry => entry.Key, entry => entry.Value.Enrolment);
+                    return _entries
+                        .Where(entry => entry.Value.Enrolment is not null)
+                        .ToDictionary(entry => entry.Key, entry => entry.Value.Enrolment!);
             }
         }
 
@@ -512,10 +545,17 @@ public class TestAuthAuthenticatorServiceTests
             return Task.CompletedTask;
         }
 
-        public Task<bool> DeleteAsync(Guid tenantId, string normalizedEmail, CancellationToken cancellationToken = default)
+        public Task<bool> DeleteAsync(Guid tenantId, string normalizedEmail, DateTime removedAtUtc, CancellationToken cancellationToken = default)
         {
             lock (_sync)
-                return Task.FromResult(_entries.Remove((tenantId, normalizedEmail)));
+            {
+                var key = (tenantId, normalizedEmail);
+                if (!_entries.TryGetValue(key, out var current) || current.Enrolment is null)
+                    return Task.FromResult(false);
+
+                _entries[key] = (null, Guid.NewGuid().ToString("N"));
+                return Task.FromResult(true);
+            }
         }
     }
 }
