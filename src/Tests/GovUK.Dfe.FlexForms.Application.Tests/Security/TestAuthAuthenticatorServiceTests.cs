@@ -223,6 +223,17 @@ public class TestAuthAuthenticatorServiceTests
     }
 
     [Fact]
+    public async Task RemoveAsync_while_a_first_time_setup_is_saving_stops_it_enrolling()
+    {
+        var setup = await _service.BeginSetupAsync(Email, Issuer);
+        _authenticators.BeforeNextSave = async () => Assert.False(await _service.RemoveAsync(Email));
+
+        Assert.False(await _service.ConfirmSetupAsync(Email, CodeFor(setup.SharedKey)));
+
+        Assert.Empty(_authenticators.Entries);
+    }
+
+    [Fact]
     public async Task ConfirmSetupAsync_can_enrol_again_after_removal()
     {
         await EnrolAsync();
@@ -550,11 +561,9 @@ public class TestAuthAuthenticatorServiceTests
             lock (_sync)
             {
                 var key = (tenantId, normalizedEmail);
-                if (!_entries.TryGetValue(key, out var current) || current.Enrolment is null)
-                    return Task.FromResult(false);
-
+                var wasActive = _entries.TryGetValue(key, out var current) && current.Enrolment is not null;
                 _entries[key] = (null, Guid.NewGuid().ToString("N"));
-                return Task.FromResult(true);
+                return Task.FromResult(wasActive);
             }
         }
     }

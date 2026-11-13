@@ -191,6 +191,20 @@ public class TestAuthAuthenticatorStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task DeleteAsync_without_enrolment_still_advances_the_generation()
+    {
+        Assert.False(await _store.DeleteAsync(TenantId, Email, CreatedAt));
+
+        var tombstone = await _store.GetCurrentSetupIdAsync(TenantId, Email);
+        Assert.NotNull(tombstone);
+        Assert.False(await _store.SaveAsync(TenantId, Email, [1], CreatedAt, FirstSetup, expectedCurrentSetupId: null));
+        Assert.Null(await _store.FindAsync(TenantId, Email));
+
+        Assert.False(await _store.DeleteAsync(TenantId, Email, CreatedAt.AddMinutes(1)));
+        Assert.NotEqual(tombstone, await _store.GetCurrentSetupIdAsync(TenantId, Email));
+    }
+
+    [Fact]
     public async Task MarkUsedAsync_ignores_a_removed_enrolment()
     {
         await _store.SaveAsync(TenantId, Email, [1], CreatedAt, FirstSetup, expectedCurrentSetupId: null);

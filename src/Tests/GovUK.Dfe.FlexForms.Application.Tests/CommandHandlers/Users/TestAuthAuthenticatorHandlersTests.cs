@@ -117,6 +117,50 @@ public class TestAuthAuthenticatorHandlersTests
     }
 
     [Fact]
+    public async Task BeginSetup_rejects_service_principals_even_with_an_email()
+    {
+        SetUser(new Claim(ClaimTypes.Email, Email), new Claim(TenantAuthClaimTypes.IsService, "true"));
+
+        var result = await BeginHandler().Handle(new BeginTestAuthAuthenticatorSetupCommand(), CancellationToken.None);
+
+        Assert.Equal(DomainErrorCode.Forbidden, result.ErrorCode);
+        Assert.Equal(TestAuthAuthenticatorCaller.InteractiveUsersOnlyMessage, result.Error);
+        await _service.DidNotReceiveWithAnyArgs().BeginSetupAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task BeginSetup_rejects_app_only_tokens()
+    {
+        SetUser(new Claim(ClaimTypes.Email, Email), new Claim("idtyp", "app"));
+
+        var result = await BeginHandler().Handle(new BeginTestAuthAuthenticatorSetupCommand(), CancellationToken.None);
+
+        Assert.Equal(TestAuthAuthenticatorCaller.InteractiveUsersOnlyMessage, result.Error);
+    }
+
+    [Fact]
+    public async Task BeginSetup_does_not_take_the_email_from_upn_or_preferred_username()
+    {
+        SetUser(new Claim("upn", Email), new Claim("preferred_username", Email));
+
+        var result = await BeginHandler().Handle(new BeginTestAuthAuthenticatorSetupCommand(), CancellationToken.None);
+
+        Assert.Equal(TestAuthAuthenticatorCaller.InteractiveUsersOnlyMessage, result.Error);
+        await _service.DidNotReceiveWithAnyArgs().BeginSetupAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task Remove_rejects_service_principals()
+    {
+        SetUser(new Claim(ClaimTypes.Email, Email), new Claim(TenantAuthClaimTypes.IsService, "true"));
+
+        var result = await RemoveHandler().Handle(new RemoveTestAuthAuthenticatorCommand(), CancellationToken.None);
+
+        Assert.Equal(DomainErrorCode.Forbidden, result.ErrorCode);
+        await _service.DidNotReceiveWithAnyArgs().RemoveAsync(default!, default);
+    }
+
+    [Fact]
     public async Task ConfirmSetup_returns_enrolled_status_when_code_matches()
     {
         _service.ConfirmSetupAsync(Email, "123456", Arg.Any<CancellationToken>()).Returns(true);

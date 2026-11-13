@@ -106,6 +106,35 @@ public class TestAuthAuthenticatorInviteHandlersTests
     }
 
     [Fact]
+    public async Task Create_is_forbidden_for_service_principals_with_admin_rights_and_a_mapped_email()
+    {
+        _httpContextAccessor.HttpContext.Returns(new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Email, AdminEmail), new Claim(TenantAuthClaimTypes.IsService, "true")],
+                "ApiKey"))
+        });
+
+        var result = await CreateHandler().Handle(new CreateTestAuthAuthenticatorInviteCommand(AdminEmail), CancellationToken.None);
+
+        Assert.Equal(CreateTestAuthAuthenticatorInviteCommandHandler.NotAllowedMessage, result.Error);
+        await _inviteService.DidNotReceiveWithAnyArgs().IssueAsync(default!);
+    }
+
+    [Fact]
+    public async Task Create_is_forbidden_when_the_actor_email_is_only_a_upn()
+    {
+        _httpContextAccessor.HttpContext.Returns(new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity([new Claim("upn", AdminEmail)], "TenantBearer"))
+        });
+
+        var result = await CreateHandler().Handle(new CreateTestAuthAuthenticatorInviteCommand(TesterEmail), CancellationToken.None);
+
+        Assert.Equal(DomainErrorCode.Forbidden, result.ErrorCode);
+    }
+
+    [Fact]
     public async Task Create_by_tenant_admin_is_forbidden_for_another_tenant_admin()
     {
         var subject = AddUser(TesterEmail, RoleConstants.UserRoleId);

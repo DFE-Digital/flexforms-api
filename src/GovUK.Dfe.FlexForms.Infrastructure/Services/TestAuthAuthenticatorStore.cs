@@ -149,24 +149,42 @@ public sealed class TestAuthAuthenticatorStore(
         DateTime removedAtUtc,
         CancellationToken cancellationToken = default)
     {
+        // Always advances the generation, even when nothing is enrolled, so a setup already being confirmed (including
+        // a first-time one) cannot enrol after the user asked to remove their authenticator.
         for (var attempt = 1; ; attempt++)
         {
             var entity = await FindTrackedAsync(tenantId, normalizedEmail, cancellationToken);
-            if (entity is null || entity.RemovedAtUtc is not null)
-                return false;
+            var wasActive = entity is { RemovedAtUtc: null };
 
-            entity.EncryptedSecret = string.Empty;
-            entity.SetupId = Guid.NewGuid().ToString("N");
-            entity.RemovedAtUtc = removedAtUtc;
-            entity.LastUsedAtUtc = null;
+            if (entity is null)
+            {
+                dbContext.TestAuthAuthenticators.Add(new TestAuthAuthenticatorEntity
+                {
+                    Id = Guid.NewGuid(),
+                    TenantId = tenantId,
+                    NormalizedEmail = normalizedEmail,
+                    EncryptedSecret = string.Empty,
+                    SetupId = Guid.NewGuid().ToString("N"),
+                    CreatedAtUtc = removedAtUtc,
+                    RemovedAtUtc = removedAtUtc
+                });
+            }
+            else
+            {
+                entity.EncryptedSecret = string.Empty;
+                entity.SetupId = Guid.NewGuid().ToString("N");
+                entity.RemovedAtUtc ??= removedAtUtc;
+                entity.LastUsedAtUtc = null;
+            }
+
             try
             {
                 await dbContext.SaveChangesAsync(cancellationToken);
-                return true;
+                return wasActive;
             }
-            catch (DbUpdateConcurrencyException) when (attempt < MaxDeleteAttempts)
+            catch (DbUpdateException) when (attempt < MaxDeleteAttempts)
             {
-                // Replaced between read and delete: remove whatever is enrolled now.
+                // Changed between read and write (or a concurrent first insert won): apply to whatever is there now.
                 dbContext.ChangeTracker.Clear();
             }
         }

@@ -37,7 +37,7 @@ public sealed class CreateTestAuthAuthenticatorInviteCommandHandler(
     : IRequestHandler<CreateTestAuthAuthenticatorInviteCommand, Result<CreateTestAuthAuthenticatorInviteResponse>>
 {
     public const string AuditAction = "TestAuthAuthenticatorSetupCodeCreated";
-    public const string NotAllowedMessage = "Only administrators can create authenticator setup codes.";
+    public const string NotAllowedMessage = "Only signed-in administrators can create authenticator setup codes.";
     public const string AdministratorTargetMessage =
         "Only a SuperAdmin can create an authenticator setup code for another administrator.";
 
@@ -49,11 +49,13 @@ public sealed class CreateTestAuthAuthenticatorInviteCommandHandler(
         if (!TestAuthenticationEnvironmentGate.IsEnabledForTenant(hostEnvironment, tenant))
             return Result<CreateTestAuthAuthenticatorInviteResponse>.Forbid(TestAuthAuthenticatorCaller.NotEnabledMessage);
 
-        if (!permissionCheckerService.CanManageUsers())
+        // Only a person may create codes: a service principal with admin role claims and a mapped email must not be
+        // able to mint itself (or anyone) an interactive sign-in.
+        var actorEmail = PermissionClaimEvaluator.GetInteractiveUserEmail(httpContextAccessor.HttpContext?.User);
+        if (actorEmail is null || !permissionCheckerService.CanManageUsers())
             return Result<CreateTestAuthAuthenticatorInviteResponse>.Forbid(NotAllowedMessage);
 
         var email = request.Email.Trim();
-        var actorEmail = EntraClientIdentity.PickEmail(httpContextAccessor.HttpContext?.User)?.Trim();
         var isSelf = string.Equals(actorEmail, email, StringComparison.OrdinalIgnoreCase);
 
         var subject = await FindUserAsync(email, cancellationToken);
@@ -67,7 +69,7 @@ public sealed class CreateTestAuthAuthenticatorInviteCommandHandler(
 
         var invite = await inviteService.IssueAsync(email);
 
-        var actor = string.IsNullOrEmpty(actorEmail) ? null : await FindUserAsync(actorEmail, cancellationToken);
+        var actor = await FindUserAsync(actorEmail, cancellationToken);
         await accessAuditWriter.AppendAsync(
             tenant!.Id,
             subject?.Id,
@@ -75,7 +77,7 @@ public sealed class CreateTestAuthAuthenticatorInviteCommandHandler(
             AuditAction,
             roleName: null,
             actor?.Id,
-            actorEmail ?? httpContextAccessor.HttpContext?.User?.Identity?.Name ?? "unknown",
+            actorEmail,
             $"Authenticator setup code created, expires {invite.ExpiresAtUtc.ToString("u", CultureInfo.InvariantCulture)}",
             cancellationToken);
 

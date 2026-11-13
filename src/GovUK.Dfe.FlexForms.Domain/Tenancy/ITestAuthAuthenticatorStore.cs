@@ -48,7 +48,8 @@ public interface ITestAuthAuthenticatorStore
 
     /// <summary>
     /// Removes the enrolment, keeping a tombstone with a new generation so setups that began earlier cannot recreate
-    /// it. Returns <c>true</c> when an enrolment was active.
+    /// it. Always advances the generation, even when nothing is enrolled, so a first-time setup being confirmed cannot
+    /// enrol after a removal. Returns <c>true</c> when an enrolment was active.
     /// </summary>
     Task<bool> DeleteAsync(
         Guid tenantId,
