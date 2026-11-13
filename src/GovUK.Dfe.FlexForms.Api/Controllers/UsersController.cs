@@ -42,6 +42,94 @@ public class UsersController(ISender sender) : ControllerBase
     }
 
     /// <summary>
+    /// Returns whether I have an authenticator app enrolled for Test Authentication sign-in in this tenant.
+    /// </summary>
+    [HttpGet("/v{version:apiVersion}/me/test-auth-authenticator")]
+    [SwaggerResponse(200, "Enrolment status.", typeof(TestAuthAuthenticatorStatusResponse))]
+    [SwaggerResponse(401, "Unauthorized no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize]
+    public async Task<IActionResult> GetMyTestAuthAuthenticatorStatusAsync(CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new GetTestAuthAuthenticatorStatusQuery(), cancellationToken);
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Starts enrolling an authenticator app for my Test Authentication sign-in in this tenant. Returns the key and
+    /// QR code URI; nothing is saved until a code is confirmed. An existing enrolment keeps working until then.
+    /// </summary>
+    [HttpPost("/v{version:apiVersion}/me/test-auth-authenticator/setup")]
+    [SwaggerResponse(200, "Pending enrolment.", typeof(BeginTestAuthAuthenticatorSetupResponse))]
+    [SwaggerResponse(401, "Unauthorized no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+    [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize]
+    public async Task<IActionResult> BeginMyTestAuthAuthenticatorSetupAsync(CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new BeginTestAuthAuthenticatorSetupCommand(), cancellationToken);
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Completes my authenticator app enrolment with a code from the app. <c>isEnrolled</c> is false when the code
+    /// was wrong or the pending enrolment expired.
+    /// </summary>
+    [HttpPost("/v{version:apiVersion}/me/test-auth-authenticator/setup/confirm")]
+    [SwaggerResponse(200, "Enrolment status after confirming.", typeof(TestAuthAuthenticatorStatusResponse))]
+    [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
+    [SwaggerResponse(401, "Unauthorized no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+    [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize]
+    public async Task<IActionResult> ConfirmMyTestAuthAuthenticatorSetupAsync(
+        [FromBody] ConfirmTestAuthAuthenticatorSetupRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new ConfirmTestAuthAuthenticatorSetupCommand(request.Code), cancellationToken);
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Removes my authenticator app enrolment for Test Authentication in this tenant. Returns false when none existed.
+    /// </summary>
+    [HttpDelete("/v{version:apiVersion}/me/test-auth-authenticator")]
+    [SwaggerResponse(200, "Whether an enrolment was removed.", typeof(bool))]
+    [SwaggerResponse(401, "Unauthorized no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize]
+    public async Task<IActionResult> RemoveMyTestAuthAuthenticatorAsync(CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new RemoveTestAuthAuthenticatorCommand(), cancellationToken);
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
+    /// Creates a one-time code that lets the given email set up a Test Authentication authenticator app in this tenant
+    /// without first receiving an emailed password. The code is returned once and expires after 24 hours. Only a
+    /// SuperAdmin can create a code for another administrator.
+    /// </summary>
+    [HttpPost("test-auth-authenticator-invites")]
+    [SwaggerResponse(200, "Setup code created.", typeof(CreateTestAuthAuthenticatorInviteResponse))]
+    [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
+    [SwaggerResponse(401, "Unauthorized no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Not allowed, or Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+    [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize(Policy = "CanManageUsers")]
+    public async Task<IActionResult> CreateTestAuthAuthenticatorInviteAsync(
+        [FromBody] CreateTestAuthAuthenticatorInviteRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender.Send(new CreateTestAuthAuthenticatorInviteCommand(request.Email), cancellationToken);
+        return new ObjectResult(result) { StatusCode = StatusCodes.Status200OK };
+    }
+
+    /// <summary>
     /// Create and registers a new user using the data in the provided External-IDP token.
     /// </summary>
     [HttpPost("register")]

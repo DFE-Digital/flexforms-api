@@ -817,6 +817,34 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<VerifyTestAuthPasswordResponse> VerifyTestAuthPasswordAsync(VerifyTestAuthPasswordRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Verifies a code from the authenticator app the user enrolled for Test Authentication in this tenant.
+        /// <br/>An alternative to the emailed one-time password; each code is accepted once.
+        /// </summary>
+        /// <returns>Verification outcome.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<VerifyTestAuthPasswordResponse> VerifyTestAuthAuthenticatorCodeAsync(VerifyTestAuthAuthenticatorCodeRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Uses an administrator-issued setup code to start Test Authentication authenticator app enrolment for the
+        /// <br/>email it was issued for. The code is consumed. Complete enrolment with
+        /// <br/>test-auth-authenticator/invite/confirm.
+        /// </summary>
+        /// <returns>Pending enrolment.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<BeginTestAuthAuthenticatorSetupResponse> RedeemTestAuthAuthenticatorInviteAsync(RedeemTestAuthAuthenticatorInviteRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Completes an enrolment started from a setup code with a code from the new authenticator app.
+        /// <br/>isValid is true when the app is now enrolled.
+        /// </summary>
+        /// <returns>Whether the authenticator app is now enrolled.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<VerifyTestAuthPasswordResponse> ConfirmTestAuthAuthenticatorInviteSetupAsync(VerifyTestAuthAuthenticatorCodeRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
     }
 
     [System.CodeDom.Compiler.GeneratedCode("NSwag", "14.7.1.0 (NJsonSchema v11.6.1.0 (Newtonsoft.Json v13.0.0.0))")]
@@ -841,6 +869,50 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>A UserAuthorizationDto object representing the User's Permissions and Roles.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<UserAuthorizationDto> GetMyPermissionsAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Returns whether I have an authenticator app enrolled for Test Authentication sign-in in this tenant.
+        /// </summary>
+        /// <returns>Enrolment status.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TestAuthAuthenticatorStatusResponse> GetMyTestAuthAuthenticatorStatusAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Removes my authenticator app enrolment for Test Authentication in this tenant. Returns false when none existed.
+        /// </summary>
+        /// <returns>Whether an enrolment was removed.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<bool> RemoveMyTestAuthAuthenticatorAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Starts enrolling an authenticator app for my Test Authentication sign-in in this tenant. Returns the key and
+        /// <br/>QR code URI; nothing is saved until a code is confirmed. An existing enrolment keeps working until then.
+        /// </summary>
+        /// <returns>Pending enrolment.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<BeginTestAuthAuthenticatorSetupResponse> BeginMyTestAuthAuthenticatorSetupAsync(System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Completes my authenticator app enrolment with a code from the app. isEnrolled is false when the code
+        /// <br/>was wrong or the pending enrolment expired.
+        /// </summary>
+        /// <returns>Enrolment status after confirming.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TestAuthAuthenticatorStatusResponse> ConfirmMyTestAuthAuthenticatorSetupAsync(ConfirmTestAuthAuthenticatorSetupRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Creates a one-time code that lets the given email set up a Test Authentication authenticator app in this tenant
+        /// <br/>without first receiving an emailed password. The code is returned once and expires after 24 hours. Only a
+        /// <br/>SuperAdmin can create a code for another administrator.
+        /// </summary>
+        /// <returns>Setup code created.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<CreateTestAuthAuthenticatorInviteResponse> CreateTestAuthAuthenticatorInviteAsync(CreateTestAuthAuthenticatorInviteRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>

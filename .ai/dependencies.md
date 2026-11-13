@@ -14,7 +14,7 @@ Missing from this workspace (do not invent): tenant file-validation Function rep
 
 ## CoreLibs versioning (critical)
 
-Packages are **independently versioned**. FlexForms pins different versions per project (e.g. Contracts `1.0.113`, Security `1.1.32`, Messaging `0.1.6`).
+Packages are **independently versioned**. FlexForms pins different versions per project (e.g. Contracts `2.0.2`, Security `1.1.32`, Messaging `0.1.6`). Contracts 2.x is net10.0 only, which is why Api.Client no longer targets net8.0.
 
 **Do not** replace NuGet with local `ProjectReference` to `DfE.CoreLibs` in normal work. Local assemblies version as `1.0.0.0`; published `GovUK.Dfe.CoreLibs.Notifications` may demand `Contracts 1.0.x.0` → `FileLoadException` at startup. **Verified** in README; **Historical** from Prism development.
 
@@ -24,9 +24,13 @@ Changing a DTO in `GovUK.Dfe.CoreLibs.Contracts.ExternalApplications` requires: 
 
 ## Api.Client
 
-NSwag regenerates on local build. CI packs `GovUK.Dfe.FlexForms.Api.Client` with GitVersion (`GitVersion.Packages.yml`). Publishing uses NuGet trusted publishing (OIDC), same pattern as CoreLibs. Trusted publishing is **per GitHub repo**.
+Targets net10.0 only. NSwag regenerates on local build. CI packs `GovUK.Dfe.FlexForms.Api.Client` with GitVersion (`GitVersion.Packages.yml`). Publishing uses NuGet trusted publishing (OIDC), same pattern as CoreLibs. Trusted publishing is **per GitHub repo**.
 
 Do **not** add API-key auth to Api.Client — it is the first-party Web client. Integrations use a narrow `HttpClient`.
+
+## Other NuGet
+
+- `Otp.NET` (Application): RFC 6238 TOTP for Test Authentication authenticator apps (`TestAuthAuthenticatorService`).
 
 ## Hosting
 

@@ -25,7 +25,7 @@ Controllers inject `ISender` and stay thin. After adding `[Authorize]` endpoints
 
 | Database | Context | Schema | Contents |
 |----------|---------|--------|----------|
-| TenantConfig | `TenantConfigDbContext` | `tenantconfig` | Tenants, settings JSON, hostnames, origins, principals |
+| TenantConfig | `TenantConfigDbContext` | `tenantconfig` | Tenants, settings JSON, hostnames, origins, principals, setting audits, Test Auth authenticator enrolments |
 | EA | `ExternalApplicationsContext` | `ea` | Users, roles, memberships, templates, applications, files, outbox |
 
 Host always uses `ConnectionStrings:TenantConfigDatabase`. Each tenant’s EA connection comes from TenantSettings `ConnectionStrings:DefaultConnection` (Target Shared/Api). Tenants may share one EA database or use isolated DBs.

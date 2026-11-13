@@ -18,7 +18,7 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations.TenantConfig
 #pragma warning disable 612, 618
             modelBuilder
                 .HasDefaultSchema("tenantconfig")
-                .HasAnnotation("ProductVersion", "10.0.10")
+                .HasAnnotation("ProductVersion", "10.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
@@ -248,6 +248,38 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations.TenantConfig
                             }));
                 });
 
+            modelBuilder.Entity("GovUK.Dfe.FlexForms.Domain.Tenancy.Entities.TestAuthAuthenticatorEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EncryptedSecret")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("LastUsedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("NormalizedEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<Guid>("TenantId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TenantId", "NormalizedEmail")
+                        .IsUnique();
+
+                    b.ToTable("TestAuthAuthenticators", "tenantconfig");
+                });
+
             modelBuilder.Entity("GovUK.Dfe.FlexForms.Domain.Tenancy.Entities.TenantFrontendOriginEntity", b =>
                 {
                     b.HasOne("GovUK.Dfe.FlexForms.Domain.Tenancy.Entities.TenantEntity", "Tenant")
@@ -296,6 +328,17 @@ namespace GovUK.Dfe.FlexForms.Infrastructure.Migrations.TenantConfig
                 {
                     b.HasOne("GovUK.Dfe.FlexForms.Domain.Tenancy.Entities.TenantEntity", "Tenant")
                         .WithMany("Settings")
+                        .HasForeignKey("TenantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Tenant");
+                });
+
+            modelBuilder.Entity("GovUK.Dfe.FlexForms.Domain.Tenancy.Entities.TestAuthAuthenticatorEntity", b =>
+                {
+                    b.HasOne("GovUK.Dfe.FlexForms.Domain.Tenancy.Entities.TenantEntity", "Tenant")
+                        .WithMany()
                         .HasForeignKey("TenantId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
