@@ -35,7 +35,7 @@ Data-only migrations (`ScopeNotificationPermissionsByTenant`, `BackfillTenantNot
 | Api.Tests.Integration | Controllers + SignalR |
 | Tests.Common | WebApplicationFactory, tokens |
 
-Prism outbox acceptance tests need Docker: `PrismOutboxAcceptanceTests.cs`.
+Prism outbox acceptance tests need Docker: `PrismOutboxAcceptanceTests.cs`. So do `Security/TestAuthAuthenticatorStoreSqlServerTests.cs`, which share the same SQL Server container (`SqlServerOutboxFixture.CreateTenantConfigDatabaseAsync`) and check the authenticator store's cross-replica guarantees (unique index, `SetupId` concurrency token, removal retries) with one DbContext per "replica". EF InMemory enforces neither unique indexes nor real cross-context conflicts, so keep those checks on SQL Server.
 
 Do not swap Testcontainers SQL for an in-memory provider when testing outbox/temporal behaviour.
 
