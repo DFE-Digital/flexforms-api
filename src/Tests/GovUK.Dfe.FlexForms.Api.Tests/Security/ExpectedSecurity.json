@@ -7,6 +7,31 @@
     },
     {
       "Controller": "UsersController",
+      "Action": "GetMyTestAuthAuthenticatorStatusAsync",
+      "ExpectedSecurity": "Authorize"
+    },
+    {
+      "Controller": "UsersController",
+      "Action": "BeginMyTestAuthAuthenticatorSetupAsync",
+      "ExpectedSecurity": "Authorize"
+    },
+    {
+      "Controller": "UsersController",
+      "Action": "ConfirmMyTestAuthAuthenticatorSetupAsync",
+      "ExpectedSecurity": "Authorize"
+    },
+    {
+      "Controller": "UsersController",
+      "Action": "RemoveMyTestAuthAuthenticatorAsync",
+      "ExpectedSecurity": "Authorize"
+    },
+    {
+      "Controller": "UsersController",
+      "Action": "CreateTestAuthAuthenticatorInviteAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
+    },
+    {
+      "Controller": "UsersController",
       "Action": "RegisterUserAsync",
       "ExpectedSecurity": "Authorize: Policy=ServiceCallers"
     },
@@ -113,6 +138,21 @@
     {
       "Controller": "TokensController",
       "Action": "VerifyTestAuthPassword",
+      "ExpectedSecurity": "Authorize: Policy=ServiceCallers"
+    },
+    {
+      "Controller": "TokensController",
+      "Action": "VerifyTestAuthAuthenticatorCode",
+      "ExpectedSecurity": "Authorize: Policy=ServiceCallers"
+    },
+    {
+      "Controller": "TokensController",
+      "Action": "RedeemTestAuthAuthenticatorInvite",
+      "ExpectedSecurity": "Authorize: Policy=ServiceCallers"
+    },
+    {
+      "Controller": "TokensController",
+      "Action": "ConfirmTestAuthAuthenticatorInviteSetup",
       "ExpectedSecurity": "Authorize: Policy=ServiceCallers"
     },
     {

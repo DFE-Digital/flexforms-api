@@ -11,6 +11,46 @@ namespace GovUK.Dfe.FlexForms.Application.Tests.Services;
 
 public class PermissionClaimEvaluatorTests
 {
+    [Theory]
+    [InlineData(ClaimTypes.Email)]
+    [InlineData("email")]
+    public void GetInteractiveUserEmail_ReturnsEmail_ForInteractiveUser(string claimType)
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim(claimType, " ada@example.com ")], "Bearer"));
+
+        Assert.Equal("ada@example.com", PermissionClaimEvaluator.GetInteractiveUserEmail(user));
+    }
+
+    [Theory]
+    [InlineData(TenantAuthClaimTypes.IsService, "true")]
+    [InlineData("idtyp", "app")]
+    public void GetInteractiveUserEmail_ReturnsNull_ForMachineIdentities(string claimType, string value)
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Email, "ada@example.com"), new Claim(claimType, value)],
+            "Bearer"));
+
+        Assert.Null(PermissionClaimEvaluator.GetInteractiveUserEmail(user));
+    }
+
+    [Fact]
+    public void GetInteractiveUserEmail_ReturnsNull_WhenEmailIsOnlyInUpnOrPreferredUsername()
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim("upn", "ada@example.com"), new Claim("preferred_username", "ada@example.com")],
+            "Bearer"));
+
+        Assert.Null(PermissionClaimEvaluator.GetInteractiveUserEmail(user));
+    }
+
+    [Fact]
+    public void GetInteractiveUserEmail_ReturnsNull_WhenNotAuthenticated()
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity([new Claim(ClaimTypes.Email, "ada@example.com")]));
+
+        Assert.Null(PermissionClaimEvaluator.GetInteractiveUserEmail(user));
+    }
+
     [Fact]
     public void CanReadAllApplications_ReturnsTrue_ForTenantWideApplicationReadClaim()
     {

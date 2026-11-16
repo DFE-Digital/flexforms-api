@@ -10,8 +10,9 @@ using Xunit;
 namespace GovUK.Dfe.FlexForms.Api.Tests.Messaging.Outbox;
 
 /// <summary>
-/// One SQL Server container for the outbox acceptance tests. Each test gets its own database with the real EA
-/// migrations applied (including the outbox tables and source revisions) and the standard test data seeded.
+/// One SQL Server container for the outbox acceptance tests and the Test Authentication authenticator store tests.
+/// Each test gets its own database: EA with the real migrations (outbox tables, source revisions) and the standard
+/// test data, or TenantConfig with the real migrations and one tenant.
 /// </summary>
 public sealed class SqlServerOutboxFixture : IAsyncLifetime
 {
@@ -41,6 +42,24 @@ public sealed class SqlServerOutboxFixture : IAsyncLifetime
             await db.Database.ExecuteSqlRawAsync("DELETE FROM ea.TenantMemberships; DELETE FROM ea.Roles;");
             EaContextSeeder.SeedTestData(db);
         }
+
+        return connectionString;
+    }
+
+    /// <summary>Creates a TenantConfig database with the real migrations and a tenant with <paramref name="tenantId"/>.</summary>
+    public async Task<string> CreateTenantConfigDatabaseAsync(Guid tenantId)
+    {
+        var connectionString = new SqlConnectionStringBuilder(_container.GetConnectionString())
+        {
+            InitialCatalog = $"tenantconfig_{Guid.NewGuid():N}",
+        }.ConnectionString;
+
+        await using var db = new TenantConfigDbContext(new DbContextOptionsBuilder<TenantConfigDbContext>()
+            .UseSqlServer(connectionString)
+            .Options);
+        await db.Database.MigrateAsync();
+        db.Tenants.Add(new GovUK.Dfe.FlexForms.Domain.Tenancy.Entities.TenantEntity { Id = tenantId, Name = $"tenant-{tenantId:N}" });
+        await db.SaveChangesAsync();
 
         return connectionString;
     }

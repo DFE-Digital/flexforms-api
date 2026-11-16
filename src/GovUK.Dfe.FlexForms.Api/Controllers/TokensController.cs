@@ -89,6 +89,82 @@ namespace GovUK.Dfe.FlexForms.Api.Controllers
             return Ok(result.Value);
         }
 
+        /// <summary>
+        /// Verifies a code from the authenticator app the user enrolled for Test Authentication in this tenant.
+        /// An alternative to the emailed one-time password; each code is accepted once.
+        /// </summary>
+        [HttpPost("test-auth-authenticator/verify")]
+        [SwaggerResponse(200, "Verification outcome.", typeof(VerifyTestAuthPasswordResponse))]
+        [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
+        [SwaggerResponse(401, "Unauthorized - no valid service token", typeof(ExceptionResponse))]
+        [SwaggerResponse(403, "Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+        [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+        [Authorize(Policy = "ServiceCallers")]
+        public async Task<ActionResult<VerifyTestAuthPasswordResponse>> VerifyTestAuthAuthenticatorCode(
+            [FromBody] VerifyTestAuthAuthenticatorCodeRequest request,
+            CancellationToken cancellationToken)
+        {
+            var result = await sender.Send(
+                new VerifyTestAuthAuthenticatorCodeCommand(request.Email, request.Code),
+                cancellationToken);
+
+            if (!result.IsSuccess)
+                return ToErrorResult(result.ErrorCode, result.Error);
+
+            return Ok(result.Value);
+        }
+
+        /// <summary>
+        /// Uses an administrator-issued setup code to start Test Authentication authenticator app enrolment for the
+        /// email it was issued for. The code is consumed. Complete enrolment with
+        /// <c>test-auth-authenticator/invite/confirm</c>.
+        /// </summary>
+        [HttpPost("test-auth-authenticator/invite/redeem")]
+        [SwaggerResponse(200, "Pending enrolment.", typeof(BeginTestAuthAuthenticatorSetupResponse))]
+        [SwaggerResponse(400, "Invalid request data, or the setup code is incorrect, expired or used.", typeof(ExceptionResponse))]
+        [SwaggerResponse(401, "Unauthorized - no valid service token", typeof(ExceptionResponse))]
+        [SwaggerResponse(403, "Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+        [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+        [Authorize(Policy = "ServiceCallers")]
+        public async Task<ActionResult<BeginTestAuthAuthenticatorSetupResponse>> RedeemTestAuthAuthenticatorInvite(
+            [FromBody] RedeemTestAuthAuthenticatorInviteRequest request,
+            CancellationToken cancellationToken)
+        {
+            var result = await sender.Send(
+                new RedeemTestAuthAuthenticatorInviteCommand(request.Email, request.InviteCode),
+                cancellationToken);
+
+            if (!result.IsSuccess)
+                return ToErrorResult(result.ErrorCode, result.Error);
+
+            return Ok(result.Value);
+        }
+
+        /// <summary>
+        /// Completes an enrolment started from a setup code with a code from the new authenticator app.
+        /// <c>isValid</c> is true when the app is now enrolled.
+        /// </summary>
+        [HttpPost("test-auth-authenticator/invite/confirm")]
+        [SwaggerResponse(200, "Whether the authenticator app is now enrolled.", typeof(VerifyTestAuthPasswordResponse))]
+        [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
+        [SwaggerResponse(401, "Unauthorized - no valid service token", typeof(ExceptionResponse))]
+        [SwaggerResponse(403, "Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+        [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+        [Authorize(Policy = "ServiceCallers")]
+        public async Task<ActionResult<VerifyTestAuthPasswordResponse>> ConfirmTestAuthAuthenticatorInviteSetup(
+            [FromBody] VerifyTestAuthAuthenticatorCodeRequest request,
+            CancellationToken cancellationToken)
+        {
+            var result = await sender.Send(
+                new ConfirmTestAuthAuthenticatorInviteSetupCommand(request.Email, request.Code),
+                cancellationToken);
+
+            if (!result.IsSuccess)
+                return ToErrorResult(result.ErrorCode, result.Error);
+
+            return Ok(result.Value);
+        }
+
         private ObjectResult ToErrorResult(DomainErrorCode? errorCode, string? error)
         {
             if (errorCode == DomainErrorCode.Forbidden)

@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.CoreLibs.Http.Models;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
@@ -230,6 +231,66 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
                 () => usersClient.GetMyPermissionsAsync());
 
             Assert.Equal(401, ex.StatusCode);
+        }
+
+        [Theory]
+        [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+        public async Task GetMyTestAuthAuthenticatorStatusAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+            CustomWebApplicationDbContextFactory<Program> factory,
+            IUsersClient usersClient)
+        {
+            var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+                () => usersClient.GetMyTestAuthAuthenticatorStatusAsync());
+
+            Assert.Equal(401, ex.StatusCode);
+        }
+
+        [Theory]
+        [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+        public async Task TestAuthAuthenticatorEndpoints_ShouldReturnForbidden_WhenTestAuthenticationDisabledForTenant(
+            CustomWebApplicationDbContextFactory<Program> factory,
+            IUsersClient usersClient,
+            HttpClient httpClient)
+        {
+            factory.TestClaims =
+            [
+                new Claim(ClaimTypes.Email, "bob@example.com")
+            ];
+
+            httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", "user-token");
+
+            Assert.Equal(403, (await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+                () => usersClient.GetMyTestAuthAuthenticatorStatusAsync())).StatusCode);
+            Assert.Equal(403, (await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+                () => usersClient.BeginMyTestAuthAuthenticatorSetupAsync())).StatusCode);
+            Assert.Equal(403, (await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+                () => usersClient.ConfirmMyTestAuthAuthenticatorSetupAsync(
+                    new ConfirmTestAuthAuthenticatorSetupRequest("123456")))).StatusCode);
+            Assert.Equal(403, (await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+                () => usersClient.RemoveMyTestAuthAuthenticatorAsync())).StatusCode);
+        }
+
+        [Theory]
+        [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+        public async Task CreateTestAuthAuthenticatorInviteAsync_ShouldReturnForbidden_WhenCallerCannotManageUsers(
+            CustomWebApplicationDbContextFactory<Program> factory,
+            IUsersClient usersClient,
+            HttpClient httpClient)
+        {
+            factory.TestClaims =
+            [
+                new Claim(ClaimTypes.Email, "bob@example.com")
+            ];
+
+            httpClient.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", "user-token");
+
+            var ex = await Assert.ThrowsAnyAsync<ExternalApplicationsException>(
+                () => usersClient.CreateTestAuthAuthenticatorInviteAsync(
+                    new CreateTestAuthAuthenticatorInviteRequest("tester@example.com")));
+
+            Assert.Equal(403, ex.StatusCode);
         }
 
         [Theory]

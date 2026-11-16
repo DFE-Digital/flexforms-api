@@ -54,7 +54,7 @@ Product branding is FlexForms. Many types still use the historical name **Extern
 | [`.ai/decisions/`](.ai/decisions/) | ADRs (existing + captured) |
 | [`.ai/features/`](.ai/features/) | Deep dives |
 
-Human docs that remain authoritative: [`README.md`](README.md), [`docs/multi-tenancy-config.md`](docs/multi-tenancy-config.md), [`docs/transactional-outbox.md`](docs/transactional-outbox.md), [`docs/adrs/`](docs/adrs/).
+Human docs that remain authoritative: [`README.md`](README.md), [`docs/multi-tenancy-config.md`](docs/multi-tenancy-config.md), [`docs/transactional-outbox.md`](docs/transactional-outbox.md), [`docs/test-auth-authenticator-setup-codes.md`](docs/test-auth-authenticator-setup-codes.md), [`docs/adrs/`](docs/adrs/).
 
 ## Knowledge maintenance
 
