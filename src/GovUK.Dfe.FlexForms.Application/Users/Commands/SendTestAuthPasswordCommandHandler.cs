@@ -79,7 +79,7 @@ public sealed class SendTestAuthPasswordCommandHandler(
         return Result<bool>.Success(true);
     }
 
-    private static string ResolveServiceName(TenantConfiguration tenant)
+    internal static string ResolveServiceName(TenantConfiguration tenant)
     {
         var serviceName = tenant.Settings[ServiceNameSettingKey];
         return string.IsNullOrWhiteSpace(serviceName) ? tenant.Name : serviceName.Trim();

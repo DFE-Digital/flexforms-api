@@ -258,6 +258,130 @@ public class TokensControllerTests
         Assert.Equal(isValid, clientResponse!.IsValid);
     }
 
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task VerifyTestAuthAuthenticatorCode_ShouldReturnForbidden_WhenTestAuthenticationDisabledForTenant(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        ITokensClient tokensClient,
+        HttpClient httpClient)
+    {
+        AuthenticateAsServiceCaller(factory, httpClient);
+
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => tokensClient.VerifyTestAuthAuthenticatorCodeAsync(
+                new VerifyTestAuthAuthenticatorCodeRequest("bob@example.com", "123456")));
+
+        Assert.Equal(403, ex.StatusCode);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task VerifyTestAuthAuthenticatorCode_ShouldReturnBadRequest_WhenCodeNotSixDigits(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        ITokensClient tokensClient,
+        HttpClient httpClient)
+    {
+        AuthenticateAsServiceCaller(factory, httpClient);
+
+        var ex = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => tokensClient.VerifyTestAuthAuthenticatorCodeAsync(
+                new VerifyTestAuthAuthenticatorCodeRequest("bob@example.com", "12ab")));
+
+        Assert.Equal(400, ex.StatusCode);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task VerifyTestAuthAuthenticatorCode_ShouldReturnForbidden_WhenCallerIsNotAService(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        ITokensClient tokensClient,
+        HttpClient httpClient)
+    {
+        factory.TestClaims = new List<Claim>
+        {
+            new Claim("appid", "app"),
+            new Claim("iss", "windows.net")
+        };
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "azure-token");
+
+        var ex = await Assert.ThrowsAnyAsync<ExternalApplicationsException>(
+            () => tokensClient.VerifyTestAuthAuthenticatorCodeAsync(
+                new VerifyTestAuthAuthenticatorCodeRequest("bob@example.com", "123456")));
+
+        Assert.Equal(403, ex.StatusCode);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task TestAuthAuthenticatorInviteEndpoints_ShouldReturnForbidden_WhenTestAuthenticationDisabledForTenant(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        ITokensClient tokensClient,
+        HttpClient httpClient)
+    {
+        AuthenticateAsServiceCaller(factory, httpClient);
+
+        Assert.Equal(403, (await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => tokensClient.RedeemTestAuthAuthenticatorInviteAsync(
+                new RedeemTestAuthAuthenticatorInviteRequest("bob@example.com", "ABCDE-FGHJK")))).StatusCode);
+        Assert.Equal(403, (await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
+            () => tokensClient.ConfirmTestAuthAuthenticatorInviteSetupAsync(
+                new VerifyTestAuthAuthenticatorCodeRequest("bob@example.com", "123456")))).StatusCode);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
+    public async Task RedeemTestAuthAuthenticatorInvite_ShouldReturnForbidden_WhenCallerIsNotAService(
+        CustomWebApplicationDbContextFactory<Program> factory,
+        ITokensClient tokensClient,
+        HttpClient httpClient)
+    {
+        factory.TestClaims = new List<Claim>
+        {
+            new Claim("appid", "app"),
+            new Claim("iss", "windows.net")
+        };
+        httpClient.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", "azure-token");
+
+        var ex = await Assert.ThrowsAnyAsync<ExternalApplicationsException>(
+            () => tokensClient.RedeemTestAuthAuthenticatorInviteAsync(
+                new RedeemTestAuthAuthenticatorInviteRequest("bob@example.com", "ABCDE-FGHJK")));
+
+        Assert.Equal(403, ex.StatusCode);
+    }
+
+    [Fact]
+    public void CreateTestAuthAuthenticatorInviteResponse_ShouldRoundTrip_FromApiCamelCaseToClientDefaultSerializer()
+    {
+        var expires = new DateTime(2026, 11, 14, 9, 0, 0, DateTimeKind.Utc);
+        var json = System.Text.Json.JsonSerializer.Serialize(
+            new CreateTestAuthAuthenticatorInviteResponse("ABCDE-FGHJK", expires),
+            new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web));
+
+        Assert.Equal(
+            new CreateTestAuthAuthenticatorInviteResponse("ABCDE-FGHJK", expires),
+            System.Text.Json.JsonSerializer.Deserialize<CreateTestAuthAuthenticatorInviteResponse>(json, new System.Text.Json.JsonSerializerOptions()));
+    }
+
+    [Fact]
+    public void TestAuthAuthenticatorResponses_ShouldRoundTrip_FromApiCamelCaseToClientDefaultSerializer()
+    {
+        var api = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+        var client = new System.Text.Json.JsonSerializerOptions();
+        var enrolledOn = new DateTime(2026, 11, 13, 9, 0, 0, DateTimeKind.Utc);
+
+        var status = System.Text.Json.JsonSerializer.Deserialize<TestAuthAuthenticatorStatusResponse>(
+            System.Text.Json.JsonSerializer.Serialize(new TestAuthAuthenticatorStatusResponse(true, enrolledOn), api),
+            client);
+        var setup = System.Text.Json.JsonSerializer.Deserialize<BeginTestAuthAuthenticatorSetupResponse>(
+            System.Text.Json.JsonSerializer.Serialize(new BeginTestAuthAuthenticatorSetupResponse("KEY", "otpauth://totp/x"), api),
+            client);
+
+        Assert.Equal(new TestAuthAuthenticatorStatusResponse(true, enrolledOn), status);
+        Assert.Equal(new BeginTestAuthAuthenticatorSetupResponse("KEY", "otpauth://totp/x"), setup);
+    }
+
     private static void AuthenticateAsServiceCaller(
         CustomWebApplicationDbContextFactory<Program> factory,
         HttpClient httpClient)
