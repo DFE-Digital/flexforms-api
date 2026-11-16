@@ -8,7 +8,7 @@ Prerequisites: .NET 10 SDK, TenantConfig SQL, Redis (or memory-only for smoke te
 dotnet run --project src/GovUK.Dfe.FlexForms.Api
 ```
 
-HTTPS: `https://localhost:7089` (see `launchSettings.json`). Swagger at `/swagger`.
+HTTPS: `https://localhost:7089` (see `launchSettings.json`). Swagger at `/swagger`. Keep `Microsoft.OpenApi` on **2.x** with Swashbuckle 10 (see known-pitfalls #39); 3.x makes `/swagger` 500.
 
 After editing TenantSettings in SQL: `POST /v1/admin/tenants/refresh` (Admin/SuperAdmin JWT) or wait ~60s.
 
