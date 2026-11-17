@@ -11,7 +11,9 @@ Constants in CoreLibs `TopicNames`:
 | `file-scanner-requests` | `ScanRequestedEvent` | API (`FileUploadedDomainEventHandler`) | `rsd-file-scanner-function` |
 | `file-scanner-results` | `ScanResultEvent` | file-scanner-function | **API and Web** `ScanResultConsumer` |
 | `flexforms-prism` | `ApplicationProjectionRequestedEvent`, `TemplateVersionPublishedEvent` | API outbox | Prism `ProjectionFunction` |
-| `transfer-application-submitted` | `TransferApplicationSubmitted` | Schema/event mapping (tenant) | External RSD consumers |
+| `transfer-application-submitted` | `TransferApplicationSubmittedEvent` | `EventTriggerDispatcher` when tenant `EventTriggers` binds it ([`features/event-triggers.md`](features/event-triggers.md)) | External RSD consumers |
+
+Subscriptions (**Verified**): the API consumes `file-scanner-results` on `{MassTransit:SubscriptionPrefix}-scan-result` (default `extapi-scan-result`, `ApplicationServiceCollectionExtensions`); Web uses `extweb-scan-result`; the scanner reads `file-scanner-requests` on `file-scanner-function-app`; Prism reads `flexforms-prism` on `prism-projector`. To add a consumer, follow the naming comment in `ApplicationServiceCollectionExtensions` and add a `cfg.SubscriptionEndpoint<TEvent>`.
 
 Tenant is stamped on messages (`TenantAwareEventPublisher` / `TenantContextConsumeFilter`). Shared namespace for all tenants — isolation is headers/metadata, not a bus per tenant.
 
@@ -34,7 +36,7 @@ API does **not** call ClamAV. Flow:
 3. Scanner POSTs `/scan/async/url` to ClamAV API (Base64 URL).
 4. `ScanResultConsumer` (API) updates file metadata, deletes infected files, notifies via Redis + SignalR.
 
-Scan requests are **not** on the Prism always-outbox list. Default outbox allowlist is empty, so scan publish is direct unless a tenant/host lists `ScanRequestedEvent`. A bus outage can therefore skip scans (**Documented** trade-off).
+Scan requests are **not** on the Prism always-outbox list. To make scan publishing transactional, add `ScanRequestedEvent` to the outbox allowlist (host or tenant `MassTransit:Outbox`); consumers must then tolerate duplicates or the topic must have duplicate detection (see `known-pitfalls.md` #16).
 
 ## SignalR
 

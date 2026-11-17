@@ -35,13 +35,15 @@ Product branding is FlexForms. Many types still use the historical name **Extern
 1. Identify the feature (applications, templates, tenancy, files, Prism, auth, tenant admin).
 2. Read the matching file under [`.ai/features/`](.ai/features/) and [`.ai/known-pitfalls.md`](.ai/known-pitfalls.md).
 3. Open the cited source files. Treat this knowledge as a map, not a substitute for the code.
-4. If the task spans Web or Prism, read those repos’ `AGENTS.md` as well. Cross-repo flows: [`.ai/integrations.md`](.ai/integrations.md).
+4. If the task spans Web, Prism, the scanner, ClamAV or CoreLibs, start with [`.ai/ecosystem.md`](.ai/ecosystem.md) (the same file is in every repo), then read those repos’ `AGENTS.md`. API side of integrations: [`.ai/integrations.md`](.ai/integrations.md).
 
 ## Knowledge map
 
 | File | Use when |
 |------|----------|
 | [`.ai/README.md`](.ai/README.md) | Index of this knowledge base |
+| [`.ai/ecosystem.md`](.ai/ecosystem.md) | Whole-platform map (shared across all six repos): repos, topology, flows, topics, auth matrix, contracts, version matrix, cross-repo playbooks |
+| [`.ai/code-map.md`](.ai/code-map.md) | Projects, endpoints → policy → handler, domain events, key services, config |
 | [`.ai/architecture.md`](.ai/architecture.md) | Layers, entry points, dual databases, request pipeline |
 | [`.ai/domain-model.md`](.ai/domain-model.md) | Aggregates, value objects, revisions, status |
 | [`.ai/business-rules.md`](.ai/business-rules.md) | Invariants, submit gates, self-registration, live templates |
