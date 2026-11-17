@@ -8,12 +8,14 @@ using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Tests.Helpers;
 using GovUK.Dfe.FlexForms.Application.Users.Queries;
+using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
+using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
 using MockQueryable;
 using MockQueryable.NSubstitute;
 using NSubstitute;
@@ -221,6 +223,81 @@ public class GetAllUserPermissionsQueryHandlerTests
         // Assert
         Assert.False(result.IsSuccess);
         Assert.Contains("Test exception", result.Error);
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(UserCustomization))]
+    public async Task Handle_ContributorInvite_ShouldReturnInviteScopedApplicationKeys(
+        UserId userId,
+        UserCustomization userCustom,
+        [Frozen] IEaRepository<User> userRepo,
+        [Frozen] ICacheService<IRedisCacheType> cacheService,
+        [Frozen] ITenantContextAccessor tenantContextAccessor)
+    {
+        userCustom.OverrideId = userId;
+        userCustom.OverridePermissions = Array.Empty<Permission>();
+        var fixture = new Fixture().Customize(userCustom);
+        var user = fixture.Create<User>();
+
+        var role = new Role(user.RoleId, "Caseworker");
+        user.GetType().GetProperty("Role")!.SetValue(user, role);
+
+        var applicationId = Guid.NewGuid();
+        var invitePermission = new Permission(
+            new PermissionId(Guid.NewGuid()),
+            userId,
+            new ApplicationId(applicationId),
+            applicationId.ToString(),
+            ResourceType.Application,
+            AccessType.Read,
+            DateTime.UtcNow,
+            userId);
+        typeof(User).GetField("_permissions", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!
+            .SetValue(user, new List<Permission> { invitePermission });
+
+        var userQueryable = new List<User> { user }.AsQueryable().BuildMock();
+        userRepo.Query().Returns(userQueryable);
+
+        cacheService.GetOrAddAsync(
+            Arg.Any<string>(),
+            Arg.Any<Func<Task<Result<UserAuthorizationDto>>>>(),
+            nameof(GetAllUserPermissionsQueryHandler))
+            .Returns(call => call.Arg<Func<Task<Result<UserAuthorizationDto>>>>()());
+
+        var rolePermissions = new[]
+        {
+            new RolePermission(
+                new RolePermissionId(Guid.NewGuid()),
+                user.RoleId,
+                PermissionConstants.AnyResourceKey,
+                ResourceType.ApplicationFiles,
+                AccessType.Read,
+                DateTime.UtcNow)
+        };
+
+        var handler = new GetAllUserPermissionsQueryHandler(
+            userRepo,
+            cacheService,
+            ApplicationListingTestHelper.EnsureTenant(tenantContextAccessor),
+            CreateActiveMembershipService(user.RoleId),
+            CreateRolePermissionService(rolePermissions),
+            CreateTenantPermissionFilter());
+
+        var result = await handler.Handle(new GetAllUserPermissionsQuery(userId), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.Contains(
+            applicationId.ToString(),
+            result.Value!.InviteScopedApplicationKeys,
+            StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain(
+            result.Value.Permissions,
+            p => p.ResourceType.ToString().Equals("ContributorInvite", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(
+            result.Value.Permissions,
+            p => p.ResourceType == ResourceType.ApplicationFiles
+                 && p.ResourceKey.Equals(PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase)
+                 && p.AccessType == AccessType.Read);
     }
 
     [Theory]

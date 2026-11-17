@@ -8011,6 +8011,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "inviteScopedApplicationKeys": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         }
       },

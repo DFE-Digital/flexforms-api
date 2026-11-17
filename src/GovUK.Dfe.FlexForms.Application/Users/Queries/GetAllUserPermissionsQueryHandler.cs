@@ -115,6 +115,16 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                                 StringComparer.OrdinalIgnoreCase)
                             .ToDictionary(g => g.Key, g => g.First().ApplicationId!.Value, StringComparer.OrdinalIgnoreCase);
 
+                        var inviteScopedApplicationKeys = mergedClaims
+                            .Select(claim =>
+                                PermissionClaimMerger.TryGetInviteScopeApplicationId(claim, out var appKey)
+                                    ? appKey
+                                    : null)
+                            .Where(key => key is not null)
+                            .Select(key => key!)
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToArray();
+
                         var permissions = mergedClaims
                             .Select(claim => ParsePermissionClaim(claim, applicationIdsByKey))
                             .Where(p => p is not null)
@@ -144,7 +154,8 @@ namespace GovUK.Dfe.FlexForms.Application.Users.Queries
                         var userAuthzDto = new UserAuthorizationDto
                         {
                             Permissions = permissions,
-                            Roles = new List<string> { roleName }
+                            Roles = new List<string> { roleName },
+                            InviteScopedApplicationKeys = inviteScopedApplicationKeys
                         };
 
                         return Result<UserAuthorizationDto>.Success(userAuthzDto);

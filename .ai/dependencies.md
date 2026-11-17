@@ -16,7 +16,7 @@ Missing from this workspace (do not invent): tenant file-validation Function rep
 
 Packages are **independently versioned**. FlexForms pins different versions per project (e.g. Contracts `2.0.3`, Security `1.1.32`, Messaging `0.1.6`). Contracts 2.x is net10.0 only, which is why Api.Client no longer targets net8.0.
 
-Contracts after 2.0.2 adds `AddContributorRequest.Permissions` (`ContributorInvitePermissions`) for invite-time Application / ApplicationFiles grants. Bump Domain + Api.Client together, then Web.
+Contracts after 2.0.2 adds `AddContributorRequest.Permissions` (`ContributorInvitePermissions`) for invite-time Application / ApplicationFiles grants. Contracts **2.0.4** adds `UserAuthorizationDto.InviteScopedApplicationKeys` for invite-scope claim reconstruction. Bump Domain + Api.Client together, then Web.
 
 **Do not** replace NuGet with local `ProjectReference` to `DfE.CoreLibs` in normal work. Local assemblies version as `1.0.0.0`; published `GovUK.Dfe.CoreLibs.Notifications` may demand `Contracts 1.0.x.0` → `FileLoadException` at startup. **Verified** in README; **Historical** from Prism development.
 
