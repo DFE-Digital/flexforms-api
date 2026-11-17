@@ -65,5 +65,7 @@ public sealed class RedisAtomicCacheStore(
         return (long)result;
     }
 
+    public Task<TimeSpan?> GetTimeToLiveAsync(string key) => Database.KeyTimeToLiveAsync(FullKey(key));
+
     private static RedisKey FullKey(string key) => $"{FlexFormsCacheKeys.RedisKeyPrefix}{key}";
 }

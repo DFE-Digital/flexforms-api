@@ -25,6 +25,7 @@ public class SendTestAuthPasswordCommandHandlerTests
     private readonly ITestAuthPasswordService _passwordService = Substitute.For<ITestAuthPasswordService>();
     private readonly IEmailTemplateResolver _emailTemplateResolver = Substitute.For<IEmailTemplateResolver>();
     private readonly IEmailService _emailService = Substitute.For<IEmailService>();
+    private readonly ITestAuthSignInLockService _signInLockService = Substitute.For<ITestAuthSignInLockService>();
     private readonly SendTestAuthPasswordCommandHandler _handler;
 
     public SendTestAuthPasswordCommandHandlerTests()
@@ -42,7 +43,22 @@ public class SendTestAuthPasswordCommandHandlerTests
             _hostEnvironment,
             _passwordService,
             _emailTemplateResolver,
-            _emailService);
+            _emailService,
+            _signInLockService);
+    }
+
+    [Fact]
+    public async Task Handle_returns_conflict_and_sends_nothing_when_an_administrator_locked_the_email()
+    {
+        _signInLockService.IsManuallyLockedAsync(Email, Arg.Any<CancellationToken>()).Returns(true);
+
+        var result = await _handler.Handle(new SendTestAuthPasswordCommand($" {Email} "), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(DomainErrorCode.Conflict, result.ErrorCode);
+        Assert.Equal(TestAuthAuthenticatorCaller.SignInLockedMessage, result.Error);
+        await _passwordService.DidNotReceiveWithAnyArgs().IssueAsync(default!);
+        await _emailService.DidNotReceiveWithAnyArgs().SendEmailAsync(default!, default);
     }
 
     [Fact]

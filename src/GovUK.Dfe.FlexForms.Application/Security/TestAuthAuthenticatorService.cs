@@ -180,7 +180,7 @@ public sealed class TestAuthAuthenticatorService(
         return removed;
     }
 
-    public async Task<bool> VerifyAsync(string email, string code, CancellationToken cancellationToken = default)
+    public async Task<TestAuthSignInResult> VerifyAsync(string email, string code, CancellationToken cancellationToken = default)
     {
         var normalizedEmail = Normalize(email);
         var cacheKey = CreateCacheKey(normalizedEmail);
@@ -195,23 +195,44 @@ public sealed class TestAuthAuthenticatorService(
                 "Test authentication authenticator sign-in for {Email} refused: locked out after {FailedAttempts} attempts",
                 normalizedEmail,
                 MaxFailedAttempts);
-            return false;
+            return await TemporarilyLockedAsync(failuresKey);
         }
 
         var enrolment = await authenticatorStore.FindAsync(TenantId, normalizedEmail, cancellationToken);
         if (enrolment is null || !TryMatch(enrolment.Secret, code, out var timeStep))
-            return false;
+            return attempts >= MaxFailedAttempts ? await TemporarilyLockedAsync(failuresKey) : TestAuthSignInResult.Invalid;
 
         if (!await store.SetIfAbsentAsync(cacheKey + StepSuffix + timeStep.ToString(CultureInfo.InvariantCulture), [1], UsedCodeLifetime))
         {
             logger.LogWarning("Test authentication authenticator code for {Email} was already used", normalizedEmail);
-            return false;
+            return attempts >= MaxFailedAttempts ? await TemporarilyLockedAsync(failuresKey) : TestAuthSignInResult.Invalid;
         }
 
         await store.DeleteAsync(failuresKey);
         await authenticatorStore.MarkUsedAsync(TenantId, normalizedEmail, timeProvider.GetUtcNow().UtcDateTime, cancellationToken);
-        return true;
+        return TestAuthSignInResult.Valid;
     }
+
+    public async Task<TimeSpan?> GetTemporaryLockoutAsync(string email, CancellationToken cancellationToken = default)
+    {
+        var failuresKey = CreateCacheKey(Normalize(email)) + FailuresSuffix;
+        var raw = await store.GetAsync(failuresKey);
+        if (raw is null
+            || !long.TryParse(Encoding.UTF8.GetString(raw), NumberStyles.Integer, CultureInfo.InvariantCulture, out var attempts)
+            || attempts < MaxFailedAttempts)
+        {
+            return null;
+        }
+
+        return await store.GetTimeToLiveAsync(failuresKey) ?? LockoutWindow;
+    }
+
+    public Task<bool> ClearTemporaryLockoutAsync(string email, CancellationToken cancellationToken = default)
+        => store.DeleteAsync(CreateCacheKey(Normalize(email)) + FailuresSuffix);
+
+    // The window is fixed from the first counted attempt, so the time left comes from the key, not LockoutWindow.
+    private async Task<TestAuthSignInResult> TemporarilyLockedAsync(string failuresKey)
+        => new(false, TestAuthLockout.Temporary, await store.GetTimeToLiveAsync(failuresKey) ?? LockoutWindow);
 
     /// <summary>Builds the <c>otpauth://</c> URI authenticator apps read from the QR code.</summary>
     public static string BuildAuthenticatorUri(string issuer, string email, string sharedKey)

@@ -19,7 +19,8 @@ public sealed class RedeemTestAuthAuthenticatorInviteCommandHandler(
     ITenantContextAccessor tenantContextAccessor,
     IHostEnvironment hostEnvironment,
     ITestAuthAuthenticatorInviteService inviteService,
-    ITestAuthAuthenticatorService authenticatorService)
+    ITestAuthAuthenticatorService authenticatorService,
+    ITestAuthSignInLockService signInLockService)
     : IRequestHandler<RedeemTestAuthAuthenticatorInviteCommand, Result<BeginTestAuthAuthenticatorSetupResponse>>
 {
     public const string InvalidCodeMessage = "The setup code is incorrect, has expired or has already been used.";
@@ -33,6 +34,14 @@ public sealed class RedeemTestAuthAuthenticatorInviteCommandHandler(
             return Result<BeginTestAuthAuthenticatorSetupResponse>.Forbid(TestAuthAuthenticatorCaller.NotEnabledMessage);
 
         var email = request.Email.Trim();
+
+        // Checked before redeeming, so the code is not used up and still works once the user is unlocked.
+        if (await signInLockService.IsManuallyLockedAsync(email, cancellationToken))
+        {
+            logger.LogWarning("Test authentication setup code refused for {Email}: locked by an administrator", email);
+            return Result<BeginTestAuthAuthenticatorSetupResponse>.Conflict(TestAuthAuthenticatorCaller.SignInLockedMessage);
+        }
+
         if (!await inviteService.RedeemAsync(email, request.InviteCode))
         {
             logger.LogWarning("Invalid test authentication authenticator setup code entered for {Email}", email);

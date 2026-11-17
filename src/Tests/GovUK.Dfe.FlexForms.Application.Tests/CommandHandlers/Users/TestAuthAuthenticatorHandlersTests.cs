@@ -21,6 +21,7 @@ public class TestAuthAuthenticatorHandlersTests
     private readonly ITenantContextAccessor _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
     private readonly IHostEnvironment _hostEnvironment = Substitute.For<IHostEnvironment>();
     private readonly ITestAuthAuthenticatorService _service = Substitute.For<ITestAuthAuthenticatorService>();
+    private readonly ITestAuthSignInLockService _signInLockService = Substitute.For<ITestAuthSignInLockService>();
 
     public TestAuthAuthenticatorHandlersTests()
     {
@@ -34,7 +35,8 @@ public class TestAuthAuthenticatorHandlersTests
     [InlineData(false)]
     public async Task Verify_returns_outcome_from_service(bool isValid)
     {
-        _service.VerifyAsync(Email, "123456", Arg.Any<CancellationToken>()).Returns(isValid);
+        _service.VerifyAsync(Email, "123456", Arg.Any<CancellationToken>())
+            .Returns(isValid ? TestAuthSignInResult.Valid : TestAuthSignInResult.Invalid);
 
         var result = await VerifyHandler().Handle(
             new VerifyTestAuthAuthenticatorCodeCommand($" {Email} ", "123456"),
@@ -81,6 +83,34 @@ public class TestAuthAuthenticatorHandlersTests
         Assert.True(result.IsSuccess);
         Assert.Equal("KEY", result.Value!.SharedKey);
         Assert.Equal("otpauth://totp/x", result.Value.AuthenticatorUri);
+    }
+
+    [Fact]
+    public async Task Verify_reports_a_temporary_lockout_with_the_time_left()
+    {
+        _service.VerifyAsync(Email, "123456", Arg.Any<CancellationToken>())
+            .Returns(new TestAuthSignInResult(false, TestAuthLockout.Temporary, TimeSpan.FromSeconds(90.2)));
+
+        var result = await VerifyHandler().Handle(new VerifyTestAuthAuthenticatorCodeCommand(Email, "123456"), CancellationToken.None);
+
+        Assert.False(result.Value!.IsValid);
+        Assert.True(result.Value.IsLockedOut);
+        Assert.False(result.Value.IsPermanentLockout);
+        Assert.Equal(91, result.Value.RetryAfterSeconds);
+    }
+
+    [Fact]
+    public async Task Verify_refuses_a_manually_locked_email_without_counting_the_attempt()
+    {
+        _signInLockService.IsManuallyLockedAsync(Email, Arg.Any<CancellationToken>()).Returns(true);
+
+        var result = await VerifyHandler().Handle(new VerifyTestAuthAuthenticatorCodeCommand(Email, "123456"), CancellationToken.None);
+
+        Assert.False(result.Value!.IsValid);
+        Assert.True(result.Value.IsLockedOut);
+        Assert.True(result.Value.IsPermanentLockout);
+        Assert.Null(result.Value.RetryAfterSeconds);
+        await _service.DidNotReceiveWithAnyArgs().VerifyAsync(default!, default!, default);
     }
 
     [Fact]
@@ -219,7 +249,12 @@ public class TestAuthAuthenticatorHandlersTests
     }
 
     private VerifyTestAuthAuthenticatorCodeCommandHandler VerifyHandler()
-        => new(NullLogger<VerifyTestAuthAuthenticatorCodeCommandHandler>.Instance, _tenantContextAccessor, _hostEnvironment, _service);
+        => new(
+            NullLogger<VerifyTestAuthAuthenticatorCodeCommandHandler>.Instance,
+            _tenantContextAccessor,
+            _hostEnvironment,
+            _service,
+            _signInLockService);
 
     private BeginTestAuthAuthenticatorSetupCommandHandler BeginHandler()
         => new(_httpContextAccessor, _tenantContextAccessor, _hostEnvironment, _service);

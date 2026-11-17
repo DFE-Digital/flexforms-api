@@ -490,6 +490,16 @@ public class TestAuthPasswordServiceTests
             }
         }
 
+        public Task<TimeSpan?> GetTimeToLiveAsync(string key)
+        {
+            lock (_sync)
+            {
+                RemoveExpired();
+                return Task.FromResult<TimeSpan?>(
+                    _items.TryGetValue(key, out var item) ? item.ExpiresAt - timeProvider.GetUtcNow() : null);
+            }
+        }
+
         private void RemoveExpired()
         {
             var now = timeProvider.GetUtcNow();

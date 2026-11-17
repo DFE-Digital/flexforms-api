@@ -56,6 +56,13 @@ public sealed class InMemoryAtomicCacheStore : IAtomicCacheStore
         return Task.FromResult(long.Parse(Encoding.UTF8.GetString(updated.Value)));
     }
 
+    public Task<TimeSpan?> GetTimeToLiveAsync(string key)
+    {
+        RemoveIfExpired(key);
+        return Task.FromResult<TimeSpan?>(
+            _items.TryGetValue(key, out var item) ? item.ExpiresAt - DateTimeOffset.UtcNow : null);
+    }
+
     private void RemoveIfExpired(string key)
     {
         if (_items.TryGetValue(key, out var item) && item.ExpiresAt <= DateTimeOffset.UtcNow)

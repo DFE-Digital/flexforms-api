@@ -70,3 +70,4 @@ Source of truth: `Application/Security/TestAuthAuthenticatorInviteService.cs`, `
 
 - **"The setup code is incorrect, has expired or has already been used"**: check that the email was lower-cased before hashing, that the email hash is lower-case hex and the code hash is upper-case hex, that the tenant id is lower case, and that you wrote to the API's Redis database. Five wrong attempts also discard the code; run the script again for a new one.
 - **"Test authentication is not enabled for this service"**: the target tenant does not have Test Authentication enabled, or the environment is Production.
+- **"You cannot sign in with this email address because your account has been locked"**: an administrator has locked the user out of sign-in. Setup codes are refused (and left unused) while the lock is on. An administrator of that tenant can untick **Lock this user out of sign-in** on User Manager → Edit; the code then works again until it expires.
