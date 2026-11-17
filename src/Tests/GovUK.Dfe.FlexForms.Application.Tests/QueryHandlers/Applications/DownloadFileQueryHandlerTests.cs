@@ -107,7 +107,7 @@ public class DownloadFileQueryHandlerTests
         // Create a file with the matching ID
         var fileWithMatchingId = new File(
             new FileId(fileId), // Use the fileId parameter
-            file.ApplicationId,
+            applicationId,
             file.Name,
             file.Description,
             file.OriginalFileName,
@@ -407,7 +407,7 @@ public class DownloadFileQueryHandlerTests
         // Create a file with the matching ID
         var fileWithMatchingId = new File(
             new FileId(fileId), // Use the fileId parameter
-            file.ApplicationId,
+            applicationId,
             file.Name,
             file.Description,
             file.OriginalFileName,
@@ -487,7 +487,7 @@ public class DownloadFileQueryHandlerTests
         // Create a file with the matching ID
         var fileWithMatchingId = new File(
             new FileId(fileId), // Use the fileId parameter
-            file.ApplicationId,
+            applicationId,
             file.Name,
             file.Description,
             file.OriginalFileName,
@@ -567,7 +567,7 @@ public class DownloadFileQueryHandlerTests
         // Create a file with the matching ID
         var fileWithMatchingId = new File(
             new FileId(fileId), // Use the fileId parameter
-            file.ApplicationId,
+            applicationId,
             file.Name,
             file.Description,
             file.OriginalFileName,

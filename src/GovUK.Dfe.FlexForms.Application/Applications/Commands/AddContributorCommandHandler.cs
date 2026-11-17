@@ -207,7 +207,10 @@ public sealed class AddContributorCommandHandler(
             null,
             DateTime.UtcNow);
 
-        // Application permissions
+        // Re-invite replaces prior Application / ApplicationFiles grants on this application
+        // so fewer boxes ticked actually reduces access (AddPermission alone is additive).
+        userFactory.RemoveApplicationAndFilePermissions(existingContributor, applicationId);
+
         userFactory.AddPermissionToUser(
             existingContributor,
             applicationId.Value.ToString(),
@@ -217,7 +220,6 @@ public sealed class AddContributorCommandHandler(
             applicationId,
             DateTime.UtcNow);
 
-        // Application files permissions (omit when the invite grants none)
         if (fileAccess.Length > 0)
         {
             userFactory.AddPermissionToUser(

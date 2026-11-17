@@ -50,9 +50,11 @@ Per-template checks for non-admins (**Verified**):
 
 `GET /v1/Roles` stays **Admin/SuperAdmin only**. Template Studio does not call it for template managers (Web hides the contributor-role picker instead).
 
-Contributor invite checkboxes grant **user-level** Application / ApplicationFiles access on that application (`AddContributorRequest.Permissions`). Those grants apply even when the template membership role is view-only. A direct Read-only grant without Write still suppresses role Write/Delete for that same application (`PermissionClaimMerger`).
+Contributor invite checkboxes set the **effective** Application / ApplicationFiles grants for that application (`AddContributorRequest.Permissions`). They apply even when the template membership role is view-only. A direct Application grant on that application id means the invitee is invite-scoped: tenant-wide `Application` / `ApplicationFiles` **Any** claims do not fill in access the invite omitted (`PermissionClaimEvaluator.HasPermissionClaimOrTenantWide`). A direct Read-only grant without Write still suppresses role Write/Delete for that same application key (`PermissionClaimMerger`). Re-inviting replaces prior Application / ApplicationFiles grants on that application (additive-only would leave withdrawn boxes in place).
 
-Same-name orphan replacement on upload (`UploadFileCommandHandler`) requires **ApplicationFiles Delete** as well as Write. Write alone returns the same conflict as a non-orphaned collision, so an upload-only invitee cannot remove another user's pending file by filename.
+Same-name orphan replacement on upload (`UploadFileCommandHandler`) requires ApplicationFiles **Delete**, or that the orphan was uploaded by the same user. Write alone cannot remove another user's pending file by filename.
+
+File download/delete handlers require the file's application id to match the application id in the request.
 
 ## 7. Edge cases
 

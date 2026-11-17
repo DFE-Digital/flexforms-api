@@ -417,6 +417,56 @@ public class PermissionClaimEvaluatorTests
         Assert.True(PermissionClaimEvaluator.CanWriteFileValidation(user, Guid.NewGuid().ToString()));
     }
 
+    [Fact]
+    public void HasPermissionClaimOrTenantWide_DoesNotApplyApplicationFilesAny_WhenInviteScopedWithoutFileGrants()
+    {
+        var applicationId = Guid.NewGuid().ToString();
+        var user = CreateUserWithPermissionClaims(
+            $"Application:{applicationId}:Read",
+            "ApplicationFiles:Any:Read");
+
+        Assert.False(PermissionClaimEvaluator.HasPermissionClaimOrTenantWide(
+            user,
+            ResourceType.ApplicationFiles,
+            applicationId,
+            AccessType.Read));
+        Assert.True(PermissionClaimEvaluator.CanReadApplicationFiles(
+            CreateUserWithPermissionClaims("ApplicationFiles:Any:Read"),
+            Guid.NewGuid().ToString()));
+    }
+
+    [Fact]
+    public void HasPermissionClaimOrTenantWide_AllowsSpecificFileGrant_WhenInviteScoped()
+    {
+        var applicationId = Guid.NewGuid().ToString();
+        var user = CreateUserWithPermissionClaims(
+            $"Application:{applicationId}:Read",
+            $"ApplicationFiles:{applicationId}:Read",
+            "ApplicationFiles:Any:Read");
+
+        Assert.True(PermissionClaimEvaluator.HasPermissionClaimOrTenantWide(
+            user,
+            ResourceType.ApplicationFiles,
+            applicationId,
+            AccessType.Read));
+    }
+
+    [Fact]
+    public void HasPermissionClaimOrTenantWide_StillAppliesAny_OnApplicationsWithoutInviteScope()
+    {
+        var invitedApp = Guid.NewGuid().ToString();
+        var otherApp = Guid.NewGuid().ToString();
+        var user = CreateUserWithPermissionClaims(
+            $"Application:{invitedApp}:Read",
+            "ApplicationFiles:Any:Read");
+
+        Assert.True(PermissionClaimEvaluator.HasPermissionClaimOrTenantWide(
+            user,
+            ResourceType.ApplicationFiles,
+            otherApp,
+            AccessType.Read));
+    }
+
     private static ClaimsPrincipal CreateUserWithPermissionClaims(params string[] permissionValues)
     {
         var claims = permissionValues.Select(v => new Claim(PermissionClaimEvaluator.PermissionClaimType, v));

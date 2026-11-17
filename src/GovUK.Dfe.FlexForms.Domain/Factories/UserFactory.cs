@@ -521,6 +521,33 @@ public class UserFactory : IUserFactory
     }
 
     /// <inheritdoc />
+    public int RemoveApplicationAndFilePermissions(
+        User user,
+        ApplicationId applicationId)
+    {
+        if (user == null)
+            throw new ArgumentException("User cannot be null", nameof(user));
+        if (applicationId == null)
+            throw new ArgumentException("ApplicationId cannot be null", nameof(applicationId));
+
+        var key = applicationId.Value.ToString();
+        var toRemove = user.Permissions
+            .Where(p =>
+                p.ResourceType is ResourceType.Application or ResourceType.ApplicationFiles
+                && string.Equals(p.ResourceKey, key, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var removed = 0;
+        foreach (var permission in toRemove)
+        {
+            if (user.RemovePermission(permission))
+                removed++;
+        }
+
+        return removed;
+    }
+
+    /// <inheritdoc />
     public int RemoveTemplatePermissionsFromUser(
         User user,
         IEnumerable<TemplateId> templateIds)

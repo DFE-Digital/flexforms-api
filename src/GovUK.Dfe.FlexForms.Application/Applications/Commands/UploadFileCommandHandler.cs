@@ -108,19 +108,20 @@ public class UploadFileCommandHandler(
             
             if (existingFile != null)
             {
-                // Same-name collision: only replace when the existing file is orphaned (not in the
-                // latest response) AND the caller has ApplicationFiles Delete. Write alone must not
-                // delete another user's pending upload (invite can grant Upload without Delete).
+                // Same-name collision: replace only when the existing file is orphaned (not in the
+                // latest response) and the caller may remove it — ApplicationFiles Delete, or they
+                // uploaded the orphan themselves (re-upload after a failed pending upload).
                 var isOrphaned = string.IsNullOrEmpty(latestResponseBody) ||
                                  !latestResponseBody.Contains(
                                      existingFile.Id!.Value.ToString(),
                                      StringComparison.OrdinalIgnoreCase);
 
-                var canReplaceOrphan = isOrphaned &&
-                    permissionCheckerService.HasPermission(
-                        ResourceType.ApplicationFiles,
-                        request.ApplicationId.Value.ToString(),
-                        AccessType.Delete);
+                var canDeleteOrphan = permissionCheckerService.HasPermission(
+                    ResourceType.ApplicationFiles,
+                    request.ApplicationId.Value.ToString(),
+                    AccessType.Delete);
+                var isOwnOrphan = existingFile.UploadedBy == dbUser.Id;
+                var canReplaceOrphan = isOrphaned && (canDeleteOrphan || isOwnOrphan);
 
                 if (!canReplaceOrphan)
                 {

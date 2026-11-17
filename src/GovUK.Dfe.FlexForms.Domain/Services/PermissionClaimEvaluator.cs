@@ -222,14 +222,45 @@ public static class PermissionClaimEvaluator
     /// <summary>
     /// Returns true when the user has an exact or tenant-wide (<see cref="PermissionConstants.AnyResourceKey"/>)
     /// permission claim for the resource.
+    /// For Application / ApplicationFiles, a direct Application grant on that application id means the
+    /// invitee was scoped to that application: tenant-wide Any must not fill in access the invite omitted
+    /// (for example Caseworker <c>ApplicationFiles:Any:Read</c> when file boxes were unticked).
     /// </summary>
     public static bool HasPermissionClaimOrTenantWide(
         ClaimsPrincipal user,
         ResourceType resourceType,
         string resourceId,
-        AccessType accessType) =>
-        HasPermissionClaim(user, resourceType, resourceId, accessType)
-        || HasPermissionClaim(user, resourceType, PermissionConstants.AnyResourceKey, accessType);
+        AccessType accessType)
+    {
+        if (HasPermissionClaim(user, resourceType, resourceId, accessType))
+            return true;
+
+        if (!HasPermissionClaim(user, resourceType, PermissionConstants.AnyResourceKey, accessType))
+            return false;
+
+        if (resourceType is ResourceType.Application or ResourceType.ApplicationFiles
+            && HasDirectApplicationInviteScope(user, resourceId))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// True when the principal has any user-level Application claim for this application id
+    /// (typical after a contributor invite).
+    /// </summary>
+    public static bool HasDirectApplicationInviteScope(ClaimsPrincipal user, string applicationId)
+    {
+        if (string.IsNullOrWhiteSpace(applicationId))
+            return false;
+
+        var prefix = $"{ResourceType.Application}:{applicationId.Trim()}:";
+        return user.Claims.Any(c =>
+            c.Type == PermissionClaimType
+            && c.Value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>
     /// Returns true when the user has an exact permission claim for the resource.

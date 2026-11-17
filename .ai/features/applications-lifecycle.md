@@ -22,9 +22,9 @@ Web sends a **full** JSON body. Add-response (`AddApplicationResponseCommandHand
 
 `Application`, `ApplicationResponse`, `File`, contributors via permissions + `AddContributorCommandHandler`.
 
-Contributor invites (**Verified**, `ContributorInviteAccess`, `AddContributorCommandHandler`): template `contributorRoleId` still decides **tenant membership** only. When `AddContributorRequest.Permissions` is set, direct Application / ApplicationFiles grants come from those flags (Application Read always; files Read is implied by Upload or Delete). When `Permissions` is null, legacy behaviour remains (User role → full edit; other roles → read-only). User-level grants on that application allow Write even if the membership role is view-only.
+Contributor invites (**Verified**, `ContributorInviteAccess`, `AddContributorCommandHandler`): template `contributorRoleId` still decides **tenant membership** only. When `AddContributorRequest.Permissions` is set, direct Application / ApplicationFiles grants come from those flags (Application Read always; files Read is implied by Upload or Delete). When `Permissions` is null, legacy behaviour remains (User role → full edit; other roles → read-only). Re-invite **replaces** Application / ApplicationFiles grants on that application. Invite-scoped users do not keep role `ApplicationFiles:Any:Read` on that application when file boxes are unticked (`PermissionClaimEvaluator`).
 
-Same-name upload collision (**Verified**, `UploadFileCommandHandler`): an orphaned file (not referenced in the latest response) is replaced only when the caller has ApplicationFiles **Delete** as well as Write; otherwise the upload conflicts like a live duplicate.
+Same-name upload collision (**Verified**, `UploadFileCommandHandler`): an orphaned file is replaced when the caller has ApplicationFiles Delete, or when they uploaded the orphan themselves; otherwise the upload conflicts like a live duplicate.
 
 ## 5. Other repos
 

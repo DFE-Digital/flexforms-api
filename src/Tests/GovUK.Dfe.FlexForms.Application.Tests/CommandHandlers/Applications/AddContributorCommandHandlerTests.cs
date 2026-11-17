@@ -2126,4 +2126,110 @@ public class AddContributorCommandHandlerTests
             Arg.Any<CancellationToken>());
         await userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
+
+    [Fact]
+    public async Task Handle_ShouldReplacePriorApplicationAndFileGrants_WhenExistingContributorReInvitedWithFewerPermissions()
+    {
+        var command = new AddContributorCommand(
+            Guid.NewGuid(),
+            "Invited User",
+            "invited@example.com",
+            new ContributorInvitePermissions { ApplicationWrite = true });
+        var applicationRepo = Substitute.For<IEaRepository<Domain.Entities.Application>>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+        var permissionCheckerService = Substitute.For<IPermissionCheckerService>();
+        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var realUserFactory = new UserFactory();
+        var membershipService = CreateContributorMembershipService();
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        var ownerEmail = "owner@example.com";
+        httpContextAccessor.HttpContext.Returns(new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Email, ownerEmail)],
+                "TestAuth"))
+        });
+
+        var owner = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(Guid.NewGuid()),
+            "Owner",
+            ownerEmail,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var existingUser = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.UserRoleId),
+            command.Name,
+            command.Email,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var applicationId = new ApplicationId(command.ApplicationId);
+        realUserFactory.AddPermissionToUser(
+            existingUser,
+            applicationId.Value.ToString(),
+            ResourceType.Application,
+            [AccessType.Read, AccessType.Write],
+            owner.Id!,
+            applicationId,
+            DateTime.UtcNow);
+        realUserFactory.AddPermissionToUser(
+            existingUser,
+            applicationId.Value.ToString(),
+            ResourceType.ApplicationFiles,
+            [AccessType.Read, AccessType.Write, AccessType.Delete],
+            owner.Id!,
+            applicationId,
+            DateTime.UtcNow);
+
+        var templateId = new TemplateId(Guid.NewGuid());
+        var application = new Domain.Entities.Application(
+            applicationId,
+            "APP-001",
+            new TemplateVersionId(Guid.NewGuid()),
+            DateTime.UtcNow,
+            owner.Id!);
+        var templateVersion = new TemplateVersion(
+            new TemplateVersionId(Guid.NewGuid()),
+            templateId,
+            "1.0.0",
+            "{}",
+            DateTime.UtcNow,
+            owner.Id!);
+        application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
+
+        var users = new[] { owner, existingUser }.AsQueryable().BuildMockDbSet();
+        var applications = new[] { application }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        applicationRepo.Query().Returns(applications);
+        permissionCheckerService.IsApplicationOwner(application, owner.Id!.Value.ToString()).Returns(true);
+
+        var handler = new AddContributorCommandHandler(
+            applicationRepo,
+            userRepo,
+            httpContextAccessor,
+            permissionCheckerService,
+            realUserFactory,
+            Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            membershipService,
+            CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
+            unitOfWork);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        AssertApplicationAccess(existingUser, applicationId, expectWrite: true);
+        AssertFileAccess(existingUser, applicationId, expectRead: false, expectWrite: false, expectDelete: false);
+        AssertTemplateReadOnly(existingUser, templateId);
+    }
 } 
