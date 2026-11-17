@@ -222,14 +222,46 @@ public static class PermissionClaimEvaluator
     /// <summary>
     /// Returns true when the user has an exact or tenant-wide (<see cref="PermissionConstants.AnyResourceKey"/>)
     /// permission claim for the resource.
+    /// For Application / ApplicationFiles, a <see cref="PermissionClaimMerger"/> invite-scope marker means
+    /// the principal was contributor-invited to that application: tenant-wide Any must not fill in access
+    /// the invite omitted (for example Caseworker <c>ApplicationFiles:Any:Read</c> when file boxes were
+    /// unticked). Role concrete <c>Application:{id}</c> grants alone do not count as invite scope.
     /// </summary>
     public static bool HasPermissionClaimOrTenantWide(
         ClaimsPrincipal user,
         ResourceType resourceType,
         string resourceId,
-        AccessType accessType) =>
-        HasPermissionClaim(user, resourceType, resourceId, accessType)
-        || HasPermissionClaim(user, resourceType, PermissionConstants.AnyResourceKey, accessType);
+        AccessType accessType)
+    {
+        if (HasPermissionClaim(user, resourceType, resourceId, accessType))
+            return true;
+
+        if (!HasPermissionClaim(user, resourceType, PermissionConstants.AnyResourceKey, accessType))
+            return false;
+
+        if (resourceType is ResourceType.Application or ResourceType.ApplicationFiles
+            && HasContributorInviteScope(user, resourceId))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// True when merge emitted a contributor-invite scope marker for this application id
+    /// (<c>ContributorInvite:{id}:Scope</c>), from user-level Application grants only.
+    /// </summary>
+    public static bool HasContributorInviteScope(ClaimsPrincipal user, string applicationId)
+    {
+        if (string.IsNullOrWhiteSpace(applicationId))
+            return false;
+
+        var expected = PermissionClaimMerger.FormatInviteScopeClaim(applicationId);
+        return user.Claims.Any(c =>
+            c.Type == PermissionClaimType
+            && string.Equals(c.Value, expected, StringComparison.OrdinalIgnoreCase));
+    }
 
     /// <summary>
     /// Returns true when the user has an exact permission claim for the resource.

@@ -14,7 +14,9 @@ Missing from this workspace (do not invent): tenant file-validation Function rep
 
 ## CoreLibs versioning (critical)
 
-Packages are **independently versioned**. FlexForms pins different versions per project (e.g. Contracts `2.0.2`, Security `1.1.32`, Messaging `0.1.6`). Contracts 2.x is net10.0 only, which is why Api.Client no longer targets net8.0.
+Packages are **independently versioned**. Current FlexForms pins (nuget.org latest at last bump): Contracts `2.0.4`, Security `2.0.2`, Caching/Http/AsyncProcessing/Utilities/Testing `2.0.0`, Email/FileStorage/Notifications/Messaging.* `1.0.0`. Contracts 2.x is net10.0 only, which is why Api.Client no longer targets net8.0. Bumping CoreLibs also requires matching `Microsoft.Extensions.*` / AspNetCore / `Microsoft.Identity.Web` / JWT pins at **10.0.15** / **4.18.0** / **8.23.0** or NU1605 package-downgrade restore fails.
+
+Contracts after 2.0.2 adds `AddContributorRequest.Permissions` (`ContributorInvitePermissions`) for invite-time Application / ApplicationFiles grants. Contracts **2.0.4** adds `UserAuthorizationDto.InviteScopedApplicationKeys` for invite-scope claim reconstruction. Bump Domain + Api.Client together, then Web.
 
 **Do not** replace NuGet with local `ProjectReference` to `DfE.CoreLibs` in normal work. Local assemblies version as `1.0.0.0`; published `GovUK.Dfe.CoreLibs.Notifications` may demand `Contracts 1.0.x.0` → `FileLoadException` at startup. **Verified** in README; **Historical** from Prism development.
 

@@ -78,7 +78,7 @@ public class DownloadFileQueryHandler(
             var upload = new GetFileByIdQueryObject(new FileId(request.FileId))
                 .Apply(uploadRepository.Query())
                 .FirstOrDefault();
-            if (upload == null)
+            if (upload == null || upload.ApplicationId != request.ApplicationId)
                 return Result<DownloadFileResult>.NotFound("File not found");
 
             var storagePath = $"{upload.Path}/{upload.FileName}";

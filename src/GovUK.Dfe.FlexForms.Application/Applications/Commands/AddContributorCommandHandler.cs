@@ -13,6 +13,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Response;
 using GovUK.Dfe.FlexForms.Domain.Factories;
 using ApplicationId = GovUK.Dfe.FlexForms.Domain.ValueObjects.ApplicationId;
@@ -27,7 +28,8 @@ namespace GovUK.Dfe.FlexForms.Application.Applications.Commands;
 public sealed record AddContributorCommand(
     Guid ApplicationId,
     string Name,
-    string Email) : IRequest<Result<UserDto>>, IRateLimitedRequest;
+    string Email,
+    ContributorInvitePermissions? Permissions = null) : IRequest<Result<UserDto>>, IRateLimitedRequest;
 
 public sealed class AddContributorCommandHandler(
     IEaRepository<Domain.Entities.Application> applicationRepo,
@@ -112,6 +114,14 @@ public sealed class AddContributorCommandHandler(
                 .Apply(userRepo.Query())
                 .FirstOrDefaultAsync(cancellationToken);
 
+            // Re-invite replaces Application/ApplicationFiles grants; never do that to the owner.
+            if (existingContributor is not null && existingContributor.Id == application.CreatedBy)
+                return Result<UserDto>.Validation("Cannot invite the application owner as a contributor");
+
+            var (applicationAccess, fileAccess) = ContributorInviteAccess.ResolveAccess(
+                invite.Value!,
+                request.Permissions);
+
             if (existingContributor != null)
             {
                 return await HandleExistingContributor(
@@ -121,6 +131,8 @@ public sealed class AddContributorCommandHandler(
                     dbUser,
                     currentTenant.Id,
                     invite.Value!,
+                    applicationAccess,
+                    fileAccess,
                     cancellationToken);
             }
 
@@ -139,7 +151,9 @@ public sealed class AddContributorCommandHandler(
                 application.TemplateVersion!.TemplateId,
                 now,
                 currentTenant.Id,
-                invite.Value!.ApplicationReadOnly);
+                applicationReadOnly: false,
+                applicationAccess: applicationAccess,
+                fileAccess: fileAccess);
 
             await userRepo.AddAsync(contributor, cancellationToken);
 
@@ -183,15 +197,10 @@ public sealed class AddContributorCommandHandler(
         User dbUser,
         Guid tenantId,
         ContributorInviteDecision invite,
+        AccessType[] applicationAccess,
+        AccessType[] fileAccess,
         CancellationToken cancellationToken)
     {
-        var applicationAccess = invite.ApplicationReadOnly
-            ? new[] { AccessType.Read }
-            : new[] { AccessType.Read, AccessType.Write };
-        var fileAccess = invite.ApplicationReadOnly
-            ? new[] { AccessType.Read }
-            : new[] { AccessType.Read, AccessType.Write, AccessType.Delete };
-
         // Ensure self-service endpoints (e.g. GetMyPermissions) work for invited contributors
         userFactory.AddPermissionToUser(
             existingContributor,
@@ -202,7 +211,10 @@ public sealed class AddContributorCommandHandler(
             null,
             DateTime.UtcNow);
 
-        // Application permissions
+        // Re-invite replaces prior Application / ApplicationFiles grants on this application
+        // so fewer boxes ticked actually reduces access (AddPermission alone is additive).
+        userFactory.RemoveApplicationAndFilePermissions(existingContributor, applicationId);
+
         userFactory.AddPermissionToUser(
             existingContributor,
             applicationId.Value.ToString(),
@@ -212,15 +224,17 @@ public sealed class AddContributorCommandHandler(
             applicationId,
             DateTime.UtcNow);
 
-        // Application files permissions
-        userFactory.AddPermissionToUser(
-            existingContributor,
-            applicationId.Value.ToString(),
-            ResourceType.ApplicationFiles,
-            fileAccess,
-            dbUser.Id!,
-            applicationId,
-            DateTime.UtcNow);
+        if (fileAccess.Length > 0)
+        {
+            userFactory.AddPermissionToUser(
+                existingContributor,
+                applicationId.Value.ToString(),
+                ResourceType.ApplicationFiles,
+                fileAccess,
+                dbUser.Id!,
+                applicationId,
+                DateTime.UtcNow);
+        }
 
         // Notifications permissions
         userFactory.AddPermissionToUser(

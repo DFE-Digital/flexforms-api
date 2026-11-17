@@ -143,4 +143,85 @@ public class PermissionClaimMergerTests
         Assert.Contains("User:Alice@Example.com:Read", claims, StringComparer.OrdinalIgnoreCase);
         Assert.Contains("User:alice@example.com:Write", claims, StringComparer.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void Merge_EmitsInviteScopeMarker_OnlyFromUserApplicationGrants()
+    {
+        var applicationId = Guid.NewGuid().ToString();
+        var role = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.Application, applicationId, AccessType.Read),
+            new PermissionClaimMerger.Grant(ResourceType.ApplicationFiles, "Any", AccessType.Read)
+        };
+        var user = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.Application, applicationId, AccessType.Read)
+        };
+
+        var claims = PermissionClaimMerger.Merge(role, user);
+
+        Assert.Contains(PermissionClaimMerger.FormatInviteScopeClaim(applicationId), claims);
+        Assert.Contains("ApplicationFiles:Any:Read", claims);
+    }
+
+    [Fact]
+    public void Merge_DoesNotEmitInviteScope_WhenOnlyRoleHasConcreteApplicationGrant()
+    {
+        var applicationId = Guid.NewGuid().ToString();
+        var role = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.Application, applicationId, AccessType.Read),
+            new PermissionClaimMerger.Grant(ResourceType.ApplicationFiles, "Any", AccessType.Read)
+        };
+
+        var claims = PermissionClaimMerger.Merge(role, []);
+
+        Assert.DoesNotContain(
+            PermissionClaimMerger.FormatInviteScopeClaim(applicationId),
+            claims,
+            StringComparer.OrdinalIgnoreCase);
+        Assert.Contains("ApplicationFiles:Any:Read", claims);
+    }
+
+    [Fact]
+    public void Merge_SuppressesConcreteRoleFileGrants_WhenInviteOmitsThem()
+    {
+        var applicationId = Guid.NewGuid().ToString();
+        var role = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.ApplicationFiles, applicationId, AccessType.Read),
+            new PermissionClaimMerger.Grant(ResourceType.ApplicationFiles, applicationId, AccessType.Write)
+        };
+        var user = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.Application, applicationId, AccessType.Read)
+        };
+
+        var claims = PermissionClaimMerger.Merge(role, user);
+
+        Assert.DoesNotContain($"ApplicationFiles:{applicationId}:Read", claims, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain($"ApplicationFiles:{applicationId}:Write", claims, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains(PermissionClaimMerger.FormatInviteScopeClaim(applicationId), claims);
+    }
+
+    [Fact]
+    public void Merge_KeepsInviteFileGrants_AndSuppressesExtraRoleFileAccess()
+    {
+        var applicationId = Guid.NewGuid().ToString();
+        var role = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.ApplicationFiles, applicationId, AccessType.Read),
+            new PermissionClaimMerger.Grant(ResourceType.ApplicationFiles, applicationId, AccessType.Delete)
+        };
+        var user = new[]
+        {
+            new PermissionClaimMerger.Grant(ResourceType.Application, applicationId, AccessType.Read),
+            new PermissionClaimMerger.Grant(ResourceType.ApplicationFiles, applicationId, AccessType.Read)
+        };
+
+        var claims = PermissionClaimMerger.Merge(role, user);
+
+        Assert.Contains($"ApplicationFiles:{applicationId}:Read", claims, StringComparer.OrdinalIgnoreCase);
+        Assert.DoesNotContain($"ApplicationFiles:{applicationId}:Delete", claims, StringComparer.OrdinalIgnoreCase);
+    }
 }

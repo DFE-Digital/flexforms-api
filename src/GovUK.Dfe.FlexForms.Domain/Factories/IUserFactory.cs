@@ -18,7 +18,9 @@ public interface IUserFactory
         TemplateId templateId,
         DateTime? createdOn = null,
         Guid? tenantId = null,
-        bool applicationReadOnly = false);
+        bool applicationReadOnly = false,
+        AccessType[]? applicationAccess = null,
+        AccessType[]? fileAccess = null);
 
     User CreateUser(
         UserId id,
@@ -112,6 +114,14 @@ public interface IUserFactory
     bool RemovePermissionFromUser(
         User user,
         Permission permission);
+
+    /// <summary>
+    /// Removes direct Application and ApplicationFiles grants for one application (idempotent).
+    /// Used when re-inviting so the new invite flags replace prior access rather than only adding.
+    /// </summary>
+    int RemoveApplicationAndFilePermissions(
+        User user,
+        ApplicationId applicationId);
 
     /// <summary>
     /// Removes template permissions for the given template IDs from the user (idempotent).

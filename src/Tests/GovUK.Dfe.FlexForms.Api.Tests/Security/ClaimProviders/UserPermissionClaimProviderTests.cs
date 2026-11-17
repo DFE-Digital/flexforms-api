@@ -455,10 +455,11 @@ public class UserPermissionClaimProviderTests
         // Act
         var result = (await _provider.GetClaimsAsync(principal)).ToList();
 
-        // Assert
-        Assert.Single(result);
-        Assert.Equal("permission", result[0].Type);
-        Assert.Equal($"Application:{resourceKey}:Read", result[0].Value);
+        // Assert — Application user grant also emits ContributorInvite:{key}:Scope
+        Assert.Equal(2, result.Count);
+        Assert.All(result, c => Assert.Equal("permission", c.Type));
+        Assert.Contains(result, c => c.Value == $"Application:{resourceKey}:Read");
+        Assert.Contains(result, c => c.Value == PermissionClaimMerger.FormatInviteScopeClaim(resourceKey));
     }
 
     [Theory, AutoData]
@@ -591,9 +592,10 @@ public class UserPermissionClaimProviderTests
         var result = (await _provider.GetClaimsAsync(principal)).ToList();
 
         // Assert
-        Assert.Equal(2, result.Count);
+        Assert.Equal(3, result.Count);
         Assert.Contains(result, c => c.Type == "permission" && c.Value == $"Application:{resourceKey}:Read");
         Assert.Contains(result, c => c.Type == "permission" && c.Value == $"Template:{templateId}:Write");
+        Assert.Contains(result, c => c.Type == "permission" && c.Value == PermissionClaimMerger.FormatInviteScopeClaim(resourceKey));
     }
 
     [Fact]
@@ -663,9 +665,11 @@ public class UserPermissionClaimProviderTests
         var result = (await _provider.GetClaimsAsync(principal)).ToList();
 
         // Assert
-        Assert.Equal(2, result.Count);
+        Assert.Equal(4, result.Count);
         Assert.Contains(result, c => c.Type == "permission" && c.Value == "Application:app1:Read");
         Assert.Contains(result, c => c.Type == "permission" && c.Value == "Application:app2:Write");
+        Assert.Contains(result, c => c.Type == "permission" && c.Value == PermissionClaimMerger.FormatInviteScopeClaim("app1"));
+        Assert.Contains(result, c => c.Type == "permission" && c.Value == PermissionClaimMerger.FormatInviteScopeClaim("app2"));
     }
 
     [Fact]

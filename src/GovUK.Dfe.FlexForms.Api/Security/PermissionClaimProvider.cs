@@ -4,6 +4,7 @@ using GovUK.Dfe.FlexForms.Application.Users.Queries;
 using GovUK.Dfe.FlexForms.Application.Users.QueryObjects;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
+using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using MediatR;
 using Microsoft.AspNetCore.Http;
@@ -98,6 +99,12 @@ namespace GovUK.Dfe.FlexForms.Api.Security
                         $"{p.ResourceType}:{p.ResourceKey}:{p.AccessType}"
                     )
                 ));
+
+                claims.AddRange(result.Value.InviteScopedApplicationKeys
+                    .Where(key => !string.IsNullOrWhiteSpace(key))
+                    .Select(key => new Claim(
+                        "permission",
+                        PermissionClaimMerger.FormatInviteScopeClaim(key))));
             }
 
             return claims;

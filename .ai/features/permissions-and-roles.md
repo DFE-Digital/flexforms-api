@@ -50,6 +50,12 @@ Per-template checks for non-admins (**Verified**):
 
 `GET /v1/Roles` stays **Admin/SuperAdmin only**. Template Studio does not call it for template managers (Web hides the contributor-role picker instead).
 
+Contributor invite checkboxes set the **effective** Application / ApplicationFiles grants for that application (`AddContributorRequest.Permissions`). They apply even when the template membership role is view-only. Merge emits a `ContributorInvite:{appId}:Scope` marker from **user-level** Application grants only (not from role concrete `Application:{id}` grants). That marker makes tenant-wide `Application` / `ApplicationFiles` **Any** ignore that application (`PermissionClaimEvaluator`); concrete role `ApplicationFiles:{id}` grants are also suppressed unless the invite granted the same access (`PermissionClaimMerger`). GetMyPermissions carries the keys as `UserAuthorizationDto.InviteScopedApplicationKeys` so Web and Entra app-only claim reconstruction re-emit the markers (DTO `permissions` alone would drop them). A direct Read-only grant without Write still suppresses role Write/Delete for that same application key. Re-inviting replaces prior Application / ApplicationFiles grants on that application.
+
+Same-name orphan replacement on upload (`UploadFileCommandHandler`) requires ApplicationFiles **Delete**, or that the orphan was uploaded by the same user. Write alone cannot remove another user's pending file by filename.
+
+File download/delete handlers require the file's application id to match the application id in the request.
+
 ## 7. Edge cases
 
 Listing applications by many template GUIDs historically broke EF `Contains` on value objects — use query objects that EF can translate.

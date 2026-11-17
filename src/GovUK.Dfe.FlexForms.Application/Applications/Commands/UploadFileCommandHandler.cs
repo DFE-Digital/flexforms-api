@@ -108,33 +108,40 @@ public class UploadFileCommandHandler(
             
             if (existingFile != null)
             {
-                // Check if the existing file is orphaned (not referenced in the latest ApplicationResponse)
+                // Same-name collision: replace only when the existing file is orphaned (not in the
+                // latest response) and the caller may remove it — ApplicationFiles Delete, or they
+                // uploaded the orphan themselves (re-upload after a failed pending upload).
                 var isOrphaned = string.IsNullOrEmpty(latestResponseBody) ||
                                  !latestResponseBody.Contains(
                                      existingFile.Id!.Value.ToString(),
                                      StringComparison.OrdinalIgnoreCase);
 
-                if (isOrphaned)
-                {
-                    // Auto-delete the orphaned file before uploading the new one
-                    var orphanedStoragePath = $"{application.ApplicationReference}/{existingFile.FileName}";
-                    try
-                    {
-                        await fileStorageService.DeleteAsync(orphanedStoragePath, cancellationToken);
-                    }
-                    catch
-                    {
-                        // Storage deletion failure is acceptable - file may not exist on disk
-                    }
+                var canDeleteOrphan = permissionCheckerService.HasPermission(
+                    ResourceType.ApplicationFiles,
+                    request.ApplicationId.Value.ToString(),
+                    AccessType.Delete);
+                var isOwnOrphan = existingFile.UploadedBy == dbUser.Id;
+                var canReplaceOrphan = isOrphaned && (canDeleteOrphan || isOwnOrphan);
 
-                    fileFactory.DeleteFile(existingFile);
-                    await uploadRepository.RemoveAsync(existingFile, cancellationToken);
-                    // Don't commit yet - will commit together with the new file upload
-                }
-                else
+                if (!canReplaceOrphan)
                 {
-                    return Result<UploadDto>.Conflict("The selected file has already been uploaded. Upload a file with a different name.");
+                    return Result<UploadDto>.Conflict(
+                        "The selected file has already been uploaded. Upload a file with a different name.");
                 }
+
+                var orphanedStoragePath = $"{application.ApplicationReference}/{existingFile.FileName}";
+                try
+                {
+                    await fileStorageService.DeleteAsync(orphanedStoragePath, cancellationToken);
+                }
+                catch
+                {
+                    // Storage deletion failure is acceptable - file may not exist on disk
+                }
+
+                fileFactory.DeleteFile(existingFile);
+                await uploadRepository.RemoveAsync(existingFile, cancellationToken);
+                // Don't commit yet - will commit together with the new file upload
             }
 
             // Upload file to the storage

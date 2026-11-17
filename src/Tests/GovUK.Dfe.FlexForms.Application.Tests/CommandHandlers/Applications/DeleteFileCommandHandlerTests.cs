@@ -113,7 +113,7 @@ public class DeleteFileCommandHandlerTests
         // Create a file with the same ID as the fileId parameter
         var fileWithMatchingId = new File(
             new FileId(fileId), // Use the same ID as the parameter
-            file.ApplicationId,
+            new ApplicationId(applicationId),
             file.Name,
             file.Description,
             file.OriginalFileName,
@@ -146,6 +146,72 @@ public class DeleteFileCommandHandlerTests
         _fileFactory.Received(1).DeleteFile(fileWithMatchingId);
         await _fileRepository.Received(1).RemoveAsync(fileWithMatchingId, Arg.Any<CancellationToken>());
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(ApplicationCustomization), typeof(UserCustomization))]
+    public async Task Handle_Should_Return_NotFound_When_File_Belongs_To_Different_Application(
+        Domain.Entities.Application application,
+        User user,
+        File file,
+        long fileSize,
+        Guid fileId,
+        Guid applicationId)
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Email, "test@example.com")],
+            "Test"));
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var userWithMatchingEmail = new User(
+            user.Id!,
+            user.RoleId,
+            user.Name,
+            "test@example.com",
+            user.CreatedOn,
+            user.CreatedBy,
+            user.LastModifiedOn,
+            user.LastModifiedBy,
+            user.ExternalProviderId,
+            user.Permissions);
+        _userRepository.Query().Returns(new List<User> { userWithMatchingEmail }.AsQueryable().BuildMock());
+
+        var applicationWithMatchingId = new Domain.Entities.Application(
+            new ApplicationId(applicationId),
+            application.ApplicationReference,
+            application.TemplateVersionId,
+            application.CreatedOn,
+            application.CreatedBy,
+            application.Status,
+            application.LastModifiedOn,
+            application.LastModifiedBy);
+        _applicationRepo.Query().Returns(
+            new List<Domain.Entities.Application> { applicationWithMatchingId }.AsQueryable().BuildMock());
+
+        var otherApplicationId = new ApplicationId(Guid.NewGuid());
+        var fileOnOtherApplication = new File(
+            new FileId(fileId),
+            otherApplicationId,
+            file.Name,
+            file.Description,
+            file.OriginalFileName,
+            file.FileName,
+            file.Path,
+            file.UploadedOn,
+            file.UploadedBy,
+            fileSize);
+        _fileRepository.Query().Returns(new List<File> { fileOnOtherApplication }.AsQueryable().BuildMock());
+
+        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, applicationId.ToString(), AccessType.Delete)
+            .Returns(true);
+
+        var result = await _handler.Handle(new DeleteFileCommand(fileId, applicationId), CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("File not found", result.Error);
+        _fileFactory.DidNotReceive().DeleteFile(Arg.Any<File>());
+        await _fileRepository.DidNotReceive().RemoveAsync(Arg.Any<File>(), Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -290,7 +356,7 @@ public class DeleteFileCommandHandlerTests
 
         var fileWithMatchingId = new File(
             new FileId(fileId),
-            file.ApplicationId,
+            new ApplicationId(applicationId),
             file.Name,
             file.Description,
             file.OriginalFileName,
@@ -494,7 +560,7 @@ public class DeleteFileCommandHandlerTests
         // Create a file with the same ID as the fileId parameter
         var fileWithMatchingId = new File(
             new FileId(fileId), // Use the same ID as the parameter
-            file.ApplicationId,
+            new ApplicationId(applicationId),
             file.Name,
             file.Description,
             file.OriginalFileName,
@@ -576,7 +642,7 @@ public class DeleteFileCommandHandlerTests
         // Create a file with the same ID as the fileId parameter
         var fileWithMatchingId = new File(
             new FileId(fileId), // Use the same ID as the parameter
-            file.ApplicationId,
+            new ApplicationId(applicationId),
             file.Name,
             file.Description,
             file.OriginalFileName,
@@ -663,7 +729,7 @@ public class DeleteFileCommandHandlerTests
         // Create a file with the same ID as the fileId parameter
         var fileWithMatchingId = new File(
             new FileId(fileId), // Use the same ID as the parameter
-            file.ApplicationId,
+            new ApplicationId(applicationId),
             file.Name,
             file.Description,
             file.OriginalFileName,
@@ -742,7 +808,7 @@ public class DeleteFileCommandHandlerTests
         // Create a file with the same ID as the fileId parameter
         var fileWithMatchingId = new File(
             new FileId(fileId), // Use the same ID as the parameter
-            file.ApplicationId,
+            new ApplicationId(applicationId),
             file.Name,
             file.Description,
             file.OriginalFileName,

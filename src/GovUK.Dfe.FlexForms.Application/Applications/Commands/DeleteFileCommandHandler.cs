@@ -83,7 +83,7 @@ public class DeleteFileCommandHandler(
             var upload = await new GetFileByIdQueryObject(new FileId(request.FileId))
                 .Apply(fileRepository.Query())
                 .FirstOrDefaultAsync(cancellationToken);
-            if (upload == null)
+            if (upload == null || upload.ApplicationId != applicationId)
                 return Result<bool>.NotFound("File not found");
 
             var storagePath = $"{application.ApplicationReference}/{upload.FileName}";

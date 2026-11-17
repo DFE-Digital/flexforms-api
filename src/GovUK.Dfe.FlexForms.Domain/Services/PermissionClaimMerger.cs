@@ -13,21 +13,68 @@ namespace GovUK.Dfe.FlexForms.Domain.Services;
 /// Write or Delete grant, suppresses the role's Write and Delete grants for
 /// that same application. That keeps a view-only contributor invite read-only
 /// when the assigned role also contains edit grants for that application.
+/// When the user has any concrete Application grant on an application id
+/// (contributor invite), role ApplicationFiles grants for that same id are
+/// suppressed unless the user also has the matching file grant — so unticked
+/// file boxes are not filled by a concrete role file Read. Tenant-wide
+/// <c>ApplicationFiles:Any</c> stays in the claim set for other applications;
+/// <see cref="PermissionClaimEvaluator"/> uses invite-scope marker claims to
+/// ignore Any on invite-scoped applications only.
 /// Tenant Admin and SuperAdmin still edit through their role, which is checked
 /// separately from these claims.
 /// Template (form) access is stored as <see cref="ResourceType.Template"/> user grants.
 /// </summary>
 public static class PermissionClaimMerger
 {
+    public const string InviteScopeResourceType = "ContributorInvite";
+    public const string InviteScopeAccessMarker = "Scope";
+
     public readonly record struct Grant(ResourceType ResourceType, string ResourceKey, AccessType AccessType);
+
+    public static string FormatInviteScopeClaim(string applicationId) =>
+        $"{InviteScopeResourceType}:{applicationId.Trim()}:{InviteScopeAccessMarker}";
+
+    public static bool IsInviteScopeClaim(string claimValue)
+    {
+        var parts = claimValue.Split(':', 3);
+        return parts.Length == 3
+               && string.Equals(parts[0], InviteScopeResourceType, StringComparison.OrdinalIgnoreCase)
+               && string.Equals(parts[2], InviteScopeAccessMarker, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool TryGetInviteScopeApplicationId(string claimValue, out string applicationId)
+    {
+        applicationId = string.Empty;
+        var parts = claimValue.Split(':', 3);
+        if (parts.Length != 3
+            || !string.Equals(parts[0], InviteScopeResourceType, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(parts[2], InviteScopeAccessMarker, StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(parts[1]))
+        {
+            return false;
+        }
+
+        applicationId = parts[1].Trim();
+        return true;
+    }
 
     public static IReadOnlyList<string> Merge(
         IEnumerable<Grant> roleGrants,
         IEnumerable<Grant> userGrants)
     {
+        var userGrantList = userGrants.ToList();
         var userGrantsByAccessType = new HashSet<(ResourceType Type, string Key, AccessType AccessType)>(
-            userGrants.Select(g => (g.ResourceType, NormalizeKey(g.ResourceKey), g.AccessType)),
+            userGrantList.Select(g => (g.ResourceType, NormalizeKey(g.ResourceKey), g.AccessType)),
             TypeKeyAccessComparer.Instance);
+
+        var inviteScopedApplicationIds = userGrantList
+            .Where(g => g.ResourceType == ResourceType.Application
+                        && !string.Equals(
+                            NormalizeKey(g.ResourceKey),
+                            PermissionConstants.AnyResourceKey,
+                            StringComparison.OrdinalIgnoreCase))
+            .Select(g => NormalizeKey(g.ResourceKey))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var claims = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -35,14 +82,19 @@ public static class PermissionClaimMerger
         {
             var key = (grant.ResourceType, NormalizeKey(grant.ResourceKey), grant.AccessType);
             if (userGrantsByAccessType.Contains(key)
-                || IsSuppressedByReadOnlyGrant(grant, userGrantsByAccessType))
+                || IsSuppressedByReadOnlyGrant(grant, userGrantsByAccessType)
+                || IsSuppressedByInviteFileRestriction(grant, inviteScopedApplicationIds, userGrantsByAccessType))
                 continue;
 
             claims.Add(Format(grant.ResourceType, grant.ResourceKey, grant.AccessType));
         }
 
-        foreach (var grant in userGrants)
+        foreach (var grant in userGrantList)
             claims.Add(Format(grant.ResourceType, grant.ResourceKey, grant.AccessType));
+
+        // Provenance markers: only emitted from user-level Application grants (invite), never from role.
+        foreach (var applicationId in inviteScopedApplicationIds)
+            claims.Add(FormatInviteScopeClaim(applicationId));
 
         return claims.ToList();
     }
@@ -65,6 +117,28 @@ public static class PermissionClaimMerger
             return false;
 
         return !userGrantsByAccessType.Contains((grant.ResourceType, key, grant.AccessType));
+    }
+
+    /// <summary>
+    /// On an invite-scoped application, concrete role ApplicationFiles grants do not apply
+    /// unless the invite also granted that access. <c>Any</c> is left to the evaluator + scope marker.
+    /// </summary>
+    private static bool IsSuppressedByInviteFileRestriction(
+        Grant grant,
+        HashSet<string> inviteScopedApplicationIds,
+        HashSet<(ResourceType Type, string Key, AccessType AccessType)> userGrantsByAccessType)
+    {
+        if (grant.ResourceType != ResourceType.ApplicationFiles)
+            return false;
+
+        var key = NormalizeKey(grant.ResourceKey);
+        if (string.Equals(key, PermissionConstants.AnyResourceKey, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        if (!inviteScopedApplicationIds.Contains(key))
+            return false;
+
+        return !userGrantsByAccessType.Contains((ResourceType.ApplicationFiles, key, grant.AccessType));
     }
 
     private static string NormalizeKey(string key) => key.Trim();
