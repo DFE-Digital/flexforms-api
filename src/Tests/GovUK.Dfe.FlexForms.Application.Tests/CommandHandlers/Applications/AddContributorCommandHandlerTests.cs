@@ -1744,6 +1744,78 @@ public class AddContributorCommandHandlerTests
     }
 
     [Fact]
+    public async Task Handle_ShouldReturnValidation_WhenInvitingApplicationOwnerEmail()
+    {
+        const string ownerEmail = "owner@example.com";
+        var command = new AddContributorCommand(Guid.NewGuid(), "Owner", ownerEmail);
+        var applicationRepo = Substitute.For<IEaRepository<Domain.Entities.Application>>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+        var permissionCheckerService = Substitute.For<IPermissionCheckerService>();
+        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var userFactory = Substitute.For<IUserFactory>();
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        httpContextAccessor.HttpContext.Returns(new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Email, ownerEmail)],
+                "TestAuth"))
+        });
+
+        var owner = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(Guid.NewGuid()),
+            "Owner",
+            ownerEmail,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var application = new Domain.Entities.Application(
+            new ApplicationId(command.ApplicationId),
+            "APP-001",
+            new TemplateVersionId(Guid.NewGuid()),
+            DateTime.UtcNow,
+            owner.Id!);
+        var templateVersion = new TemplateVersion(
+            new TemplateVersionId(Guid.NewGuid()),
+            new TemplateId(Guid.NewGuid()),
+            "1.0.0",
+            "{}",
+            DateTime.UtcNow,
+            owner.Id!);
+        application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
+
+        var users = new[] { owner }.AsQueryable().BuildMockDbSet();
+        var applications = new[] { application }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        applicationRepo.Query().Returns(applications);
+        permissionCheckerService.IsApplicationOwner(application, owner.Id!.Value.ToString()).Returns(true);
+
+        var handler = new AddContributorCommandHandler(
+            applicationRepo,
+            userRepo,
+            httpContextAccessor,
+            permissionCheckerService,
+            userFactory,
+            Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            CreateContributorMembershipService(),
+            CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
+            unitOfWork);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal("Cannot invite the application owner as a contributor", result.Error);
+        userFactory.DidNotReceive().RemoveApplicationAndFilePermissions(Arg.Any<User>(), Arg.Any<ApplicationId>());
+        await userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+        await unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
     public async Task Handle_ShouldReturnValidation_WhenReadOnlyInviteRoleGrantsApplicationWrite()
     {
         var command = new AddContributorCommand(Guid.NewGuid(), "Invited User", "invited@example.com");

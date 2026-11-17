@@ -114,6 +114,10 @@ public sealed class AddContributorCommandHandler(
                 .Apply(userRepo.Query())
                 .FirstOrDefaultAsync(cancellationToken);
 
+            // Re-invite replaces Application/ApplicationFiles grants; never do that to the owner.
+            if (existingContributor is not null && existingContributor.Id == application.CreatedBy)
+                return Result<UserDto>.Validation("Cannot invite the application owner as a contributor");
+
             var (applicationAccess, fileAccess) = ContributorInviteAccess.ResolveAccess(
                 invite.Value!,
                 request.Permissions);
