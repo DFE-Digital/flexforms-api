@@ -423,6 +423,7 @@ public class PermissionClaimEvaluatorTests
         var applicationId = Guid.NewGuid().ToString();
         var user = CreateUserWithPermissionClaims(
             $"Application:{applicationId}:Read",
+            PermissionClaimMerger.FormatInviteScopeClaim(applicationId),
             "ApplicationFiles:Any:Read");
 
         Assert.False(PermissionClaimEvaluator.HasPermissionClaimOrTenantWide(
@@ -442,6 +443,23 @@ public class PermissionClaimEvaluatorTests
         var user = CreateUserWithPermissionClaims(
             $"Application:{applicationId}:Read",
             $"ApplicationFiles:{applicationId}:Read",
+            PermissionClaimMerger.FormatInviteScopeClaim(applicationId),
+            "ApplicationFiles:Any:Read");
+
+        Assert.True(PermissionClaimEvaluator.HasPermissionClaimOrTenantWide(
+            user,
+            ResourceType.ApplicationFiles,
+            applicationId,
+            AccessType.Read));
+    }
+
+    [Fact]
+    public void HasPermissionClaimOrTenantWide_StillAppliesAny_WhenOnlyRoleHasConcreteApplicationGrant()
+    {
+        // Role Application:{id}:Read must not be mistaken for invite scope.
+        var applicationId = Guid.NewGuid().ToString();
+        var user = CreateUserWithPermissionClaims(
+            $"Application:{applicationId}:Read",
             "ApplicationFiles:Any:Read");
 
         Assert.True(PermissionClaimEvaluator.HasPermissionClaimOrTenantWide(
@@ -458,6 +476,7 @@ public class PermissionClaimEvaluatorTests
         var otherApp = Guid.NewGuid().ToString();
         var user = CreateUserWithPermissionClaims(
             $"Application:{invitedApp}:Read",
+            PermissionClaimMerger.FormatInviteScopeClaim(invitedApp),
             "ApplicationFiles:Any:Read");
 
         Assert.True(PermissionClaimEvaluator.HasPermissionClaimOrTenantWide(

@@ -222,9 +222,10 @@ public static class PermissionClaimEvaluator
     /// <summary>
     /// Returns true when the user has an exact or tenant-wide (<see cref="PermissionConstants.AnyResourceKey"/>)
     /// permission claim for the resource.
-    /// For Application / ApplicationFiles, a direct Application grant on that application id means the
-    /// invitee was scoped to that application: tenant-wide Any must not fill in access the invite omitted
-    /// (for example Caseworker <c>ApplicationFiles:Any:Read</c> when file boxes were unticked).
+    /// For Application / ApplicationFiles, a <see cref="PermissionClaimMerger"/> invite-scope marker means
+    /// the principal was contributor-invited to that application: tenant-wide Any must not fill in access
+    /// the invite omitted (for example Caseworker <c>ApplicationFiles:Any:Read</c> when file boxes were
+    /// unticked). Role concrete <c>Application:{id}</c> grants alone do not count as invite scope.
     /// </summary>
     public static bool HasPermissionClaimOrTenantWide(
         ClaimsPrincipal user,
@@ -239,7 +240,7 @@ public static class PermissionClaimEvaluator
             return false;
 
         if (resourceType is ResourceType.Application or ResourceType.ApplicationFiles
-            && HasDirectApplicationInviteScope(user, resourceId))
+            && HasContributorInviteScope(user, resourceId))
         {
             return false;
         }
@@ -248,18 +249,18 @@ public static class PermissionClaimEvaluator
     }
 
     /// <summary>
-    /// True when the principal has any user-level Application claim for this application id
-    /// (typical after a contributor invite).
+    /// True when merge emitted a contributor-invite scope marker for this application id
+    /// (<c>ContributorInvite:{id}:Scope</c>), from user-level Application grants only.
     /// </summary>
-    public static bool HasDirectApplicationInviteScope(ClaimsPrincipal user, string applicationId)
+    public static bool HasContributorInviteScope(ClaimsPrincipal user, string applicationId)
     {
         if (string.IsNullOrWhiteSpace(applicationId))
             return false;
 
-        var prefix = $"{ResourceType.Application}:{applicationId.Trim()}:";
+        var expected = PermissionClaimMerger.FormatInviteScopeClaim(applicationId);
         return user.Claims.Any(c =>
             c.Type == PermissionClaimType
-            && c.Value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+            && string.Equals(c.Value, expected, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
