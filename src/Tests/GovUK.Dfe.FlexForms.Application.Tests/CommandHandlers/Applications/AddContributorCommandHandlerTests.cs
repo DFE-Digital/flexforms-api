@@ -11,6 +11,7 @@ using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Tests.Common.Customizations.Entities;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -88,21 +89,67 @@ public class AddContributorCommandHandlerTests
 
     private static void AssertApplicationInviteIsReadOnly(User user, ApplicationId applicationId)
     {
+        AssertApplicationAccess(user, applicationId, expectWrite: false);
+        AssertFileAccess(user, applicationId, expectRead: true, expectWrite: false, expectDelete: false);
+    }
+
+    private static void AssertApplicationAccess(User user, ApplicationId applicationId, bool expectWrite)
+    {
         var appKey = applicationId.Value.ToString();
         var applicationPermissions = user.Permissions
             .Where(p => p.ResourceType == ResourceType.Application && p.ResourceKey == appKey)
             .Select(p => p.AccessType)
             .ToList();
         Assert.Contains(AccessType.Read, applicationPermissions);
-        Assert.DoesNotContain(AccessType.Write, applicationPermissions);
+        if (expectWrite)
+            Assert.Contains(AccessType.Write, applicationPermissions);
+        else
+            Assert.DoesNotContain(AccessType.Write, applicationPermissions);
+    }
 
+    private static void AssertFileAccess(
+        User user,
+        ApplicationId applicationId,
+        bool expectRead,
+        bool expectWrite,
+        bool expectDelete)
+    {
+        var appKey = applicationId.Value.ToString();
         var filePermissions = user.Permissions
             .Where(p => p.ResourceType == ResourceType.ApplicationFiles && p.ResourceKey == appKey)
             .Select(p => p.AccessType)
             .ToList();
-        Assert.Contains(AccessType.Read, filePermissions);
-        Assert.DoesNotContain(AccessType.Write, filePermissions);
-        Assert.DoesNotContain(AccessType.Delete, filePermissions);
+
+        if (!expectRead && !expectWrite && !expectDelete)
+        {
+            Assert.Empty(filePermissions);
+            return;
+        }
+
+        if (expectRead)
+            Assert.Contains(AccessType.Read, filePermissions);
+        else
+            Assert.DoesNotContain(AccessType.Read, filePermissions);
+
+        if (expectWrite)
+            Assert.Contains(AccessType.Write, filePermissions);
+        else
+            Assert.DoesNotContain(AccessType.Write, filePermissions);
+
+        if (expectDelete)
+            Assert.Contains(AccessType.Delete, filePermissions);
+        else
+            Assert.DoesNotContain(AccessType.Delete, filePermissions);
+    }
+
+    private static void AssertTemplateReadOnly(User user, TemplateId templateId)
+    {
+        var templatePermissions = user.Permissions
+            .Where(p => p.ResourceType == ResourceType.Template && p.ResourceKey == templateId.Value.ToString())
+            .Select(p => p.AccessType)
+            .ToList();
+        Assert.Contains(AccessType.Read, templatePermissions);
+        Assert.DoesNotContain(AccessType.Write, templatePermissions);
     }
 
     /// <summary>
@@ -1777,5 +1824,306 @@ public class AddContributorCommandHandlerTests
         Assert.False(result.IsSuccess);
         Assert.Equal(ContributorInviteAccess.RoleGrantsEditAccess, result.Error);
         await unitOfWork.DidNotReceive().CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldPersistAllFalsePermissions_WhenNewContributorInvited()
+    {
+        var permissions = new ContributorInvitePermissions();
+        var command = new AddContributorCommand(
+            Guid.NewGuid(),
+            "Invited User",
+            "invited@example.com",
+            permissions);
+        var applicationRepo = Substitute.For<IEaRepository<Domain.Entities.Application>>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+        var permissionCheckerService = Substitute.For<IPermissionCheckerService>();
+        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var realUserFactory = new UserFactory();
+        var membershipService = CreateContributorMembershipService();
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        var ownerEmail = "owner@example.com";
+        httpContextAccessor.HttpContext.Returns(new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Email, ownerEmail)],
+                "TestAuth"))
+        });
+
+        var owner = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(Guid.NewGuid()),
+            "Owner",
+            ownerEmail,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var applicationId = new ApplicationId(command.ApplicationId);
+        var templateId = new TemplateId(Guid.NewGuid());
+        var application = new Domain.Entities.Application(
+            applicationId,
+            "APP-001",
+            new TemplateVersionId(Guid.NewGuid()),
+            DateTime.UtcNow,
+            owner.Id!);
+        var templateVersion = new TemplateVersion(
+            new TemplateVersionId(Guid.NewGuid()),
+            templateId,
+            "1.0.0",
+            "{}",
+            DateTime.UtcNow,
+            owner.Id!);
+        application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
+
+        var users = new[] { owner }.AsQueryable().BuildMockDbSet();
+        var applications = new[] { application }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        applicationRepo.Query().Returns(applications);
+        permissionCheckerService.IsApplicationOwner(application, owner.Id!.Value.ToString()).Returns(true);
+
+        User? addedContributor = null;
+        userRepo.AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                addedContributor = ci.Arg<User>();
+                return addedContributor;
+            });
+
+        var handler = new AddContributorCommandHandler(
+            applicationRepo,
+            userRepo,
+            httpContextAccessor,
+            permissionCheckerService,
+            realUserFactory,
+            Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            membershipService,
+            CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
+            unitOfWork);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.NotNull(addedContributor);
+        AssertApplicationAccess(addedContributor, applicationId, expectWrite: false);
+        AssertFileAccess(addedContributor, applicationId, expectRead: false, expectWrite: false, expectDelete: false);
+        AssertTemplateReadOnly(addedContributor, templateId);
+        await membershipService.Received(1).UpsertMembershipAsync(
+            TestTenantId,
+            addedContributor.Id!,
+            RoleNames.User,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldPersistSelectiveWriteAndUploadWithoutDelete_WhenNewContributorInvited()
+    {
+        var permissions = new ContributorInvitePermissions
+        {
+            ApplicationWrite = true,
+            ApplicationFilesWrite = true
+        };
+        var command = new AddContributorCommand(
+            Guid.NewGuid(),
+            "Invited User",
+            "invited@example.com",
+            permissions);
+        var applicationRepo = Substitute.For<IEaRepository<Domain.Entities.Application>>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+        var permissionCheckerService = Substitute.For<IPermissionCheckerService>();
+        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var realUserFactory = new UserFactory();
+        var membershipService = CreateContributorMembershipService();
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        var ownerEmail = "owner@example.com";
+        httpContextAccessor.HttpContext.Returns(new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Email, ownerEmail)],
+                "TestAuth"))
+        });
+
+        var owner = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(Guid.NewGuid()),
+            "Owner",
+            ownerEmail,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var applicationId = new ApplicationId(command.ApplicationId);
+        var templateId = new TemplateId(Guid.NewGuid());
+        var application = new Domain.Entities.Application(
+            applicationId,
+            "APP-001",
+            new TemplateVersionId(Guid.NewGuid()),
+            DateTime.UtcNow,
+            owner.Id!);
+        var templateVersion = new TemplateVersion(
+            new TemplateVersionId(Guid.NewGuid()),
+            templateId,
+            "1.0.0",
+            "{}",
+            DateTime.UtcNow,
+            owner.Id!);
+        application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
+
+        var users = new[] { owner }.AsQueryable().BuildMockDbSet();
+        var applications = new[] { application }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        applicationRepo.Query().Returns(applications);
+        permissionCheckerService.IsApplicationOwner(application, owner.Id!.Value.ToString()).Returns(true);
+
+        User? addedContributor = null;
+        userRepo.AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>())
+            .Returns(ci =>
+            {
+                addedContributor = ci.Arg<User>();
+                return addedContributor;
+            });
+
+        var handler = new AddContributorCommandHandler(
+            applicationRepo,
+            userRepo,
+            httpContextAccessor,
+            permissionCheckerService,
+            realUserFactory,
+            Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            membershipService,
+            CreateTenantPermissionFilter(),
+            Substitute.For<ITenantRoleService>(),
+            CreateRolePermissionService(),
+            unitOfWork);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.NotNull(addedContributor);
+        AssertApplicationAccess(addedContributor, applicationId, expectWrite: true);
+        AssertFileAccess(addedContributor, applicationId, expectRead: true, expectWrite: true, expectDelete: false);
+        AssertTemplateReadOnly(addedContributor, templateId);
+        await membershipService.Received(1).UpsertMembershipAsync(
+            TestTenantId,
+            addedContributor.Id!,
+            RoleNames.User,
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldPersistExplicitPermissionsOnExistingUser_WithCaseworkerMembership()
+    {
+        const string caseworkerRoleName = "Caseworker";
+        var permissions = new ContributorInvitePermissions
+        {
+            ApplicationWrite = true,
+            ApplicationFilesRead = true,
+            ApplicationFilesDelete = true
+        };
+        var command = new AddContributorCommand(
+            Guid.NewGuid(),
+            "Invited User",
+            "invited@example.com",
+            permissions);
+        var applicationRepo = Substitute.For<IEaRepository<Domain.Entities.Application>>();
+        var userRepo = Substitute.For<IEaRepository<User>>();
+        var permissionCheckerService = Substitute.For<IPermissionCheckerService>();
+        var unitOfWork = Substitute.For<IUnitOfWork>();
+        var realUserFactory = new UserFactory();
+        var membershipService = CreateContributorMembershipService();
+        var contributorRoleId = new RoleId(Guid.NewGuid());
+
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        var ownerEmail = "owner@example.com";
+        httpContextAccessor.HttpContext.Returns(new DefaultHttpContext
+        {
+            User = new ClaimsPrincipal(new ClaimsIdentity(
+                [new Claim(ClaimTypes.Email, ownerEmail)],
+                "TestAuth"))
+        });
+
+        var owner = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(Guid.NewGuid()),
+            "Owner",
+            ownerEmail,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var existingUser = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.UserRoleId),
+            command.Name,
+            command.Email,
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+
+        var applicationId = new ApplicationId(command.ApplicationId);
+        var templateId = new TemplateId(Guid.NewGuid());
+        var application = new Domain.Entities.Application(
+            applicationId,
+            "APP-001",
+            new TemplateVersionId(Guid.NewGuid()),
+            DateTime.UtcNow,
+            owner.Id!);
+        var templateVersion = new TemplateVersion(
+            new TemplateVersionId(Guid.NewGuid()),
+            templateId,
+            "1.0.0",
+            $$"""{"contributorRoleId":"{{contributorRoleId.Value}}"}""",
+            DateTime.UtcNow,
+            owner.Id!);
+        application.GetType().GetProperty("TemplateVersion")?.SetValue(application, templateVersion);
+
+        var users = new[] { owner, existingUser }.AsQueryable().BuildMockDbSet();
+        var applications = new[] { application }.AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        applicationRepo.Query().Returns(applications);
+        permissionCheckerService.IsApplicationOwner(application, owner.Id!.Value.ToString()).Returns(true);
+
+        var tenantRoleService = Substitute.For<ITenantRoleService>();
+        tenantRoleService
+            .GetByIdAsync(Arg.Any<Guid>(), Arg.Any<RoleId>(), Arg.Any<CancellationToken>())
+            .Returns(new Role(contributorRoleId, caseworkerRoleName, TestTenantId));
+
+        var handler = new AddContributorCommandHandler(
+            applicationRepo,
+            userRepo,
+            httpContextAccessor,
+            permissionCheckerService,
+            realUserFactory,
+            Substitute.For<IUserCacheInvalidator>(),
+            CreateContributorTenantContext(),
+            membershipService,
+            CreateTenantPermissionFilter(),
+            tenantRoleService,
+            CreateRolePermissionService(CaseworkerStyleReadOnlyRolePermissions(contributorRoleId)),
+            unitOfWork);
+
+        var result = await handler.Handle(command, CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        AssertApplicationAccess(existingUser, applicationId, expectWrite: true);
+        // Delete implies Read even when ApplicationFilesRead was also set
+        AssertFileAccess(existingUser, applicationId, expectRead: true, expectWrite: false, expectDelete: true);
+        AssertTemplateReadOnly(existingUser, templateId);
+        await membershipService.Received(1).UpsertMembershipAsync(
+            TestTenantId,
+            existingUser.Id!,
+            caseworkerRoleName,
+            Arg.Any<CancellationToken>());
+        await userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
     }
 } 

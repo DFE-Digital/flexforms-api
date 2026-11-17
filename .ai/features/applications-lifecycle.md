@@ -24,6 +24,8 @@ Web sends a **full** JSON body. Add-response (`AddApplicationResponseCommandHand
 
 Contributor invites (**Verified**, `ContributorInviteAccess`, `AddContributorCommandHandler`): template `contributorRoleId` still decides **tenant membership** only. When `AddContributorRequest.Permissions` is set, direct Application / ApplicationFiles grants come from those flags (Application Read always; files Read is implied by Upload or Delete). When `Permissions` is null, legacy behaviour remains (User role → full edit; other roles → read-only). User-level grants on that application allow Write even if the membership role is view-only.
 
+Same-name upload collision (**Verified**, `UploadFileCommandHandler`): an orphaned file (not referenced in the latest response) is replaced only when the caller has ApplicationFiles **Delete** as well as Write; otherwise the upload conflicts like a live duplicate.
+
 ## 5. Other repos
 
 Web form engine orchestrates pages then calls these APIs. Prism consumes revisioned events.

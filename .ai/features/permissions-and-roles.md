@@ -52,6 +52,8 @@ Per-template checks for non-admins (**Verified**):
 
 Contributor invite checkboxes grant **user-level** Application / ApplicationFiles access on that application (`AddContributorRequest.Permissions`). Those grants apply even when the template membership role is view-only. A direct Read-only grant without Write still suppresses role Write/Delete for that same application (`PermissionClaimMerger`).
 
+Same-name orphan replacement on upload (`UploadFileCommandHandler`) requires **ApplicationFiles Delete** as well as Write. Write alone returns the same conflict as a non-orphaned collision, so an upload-only invitee cannot remove another user's pending file by filename.
+
 ## 7. Edge cases
 
 Listing applications by many template GUIDs historically broke EF `Contains` on value objects — use query objects that EF can translate.

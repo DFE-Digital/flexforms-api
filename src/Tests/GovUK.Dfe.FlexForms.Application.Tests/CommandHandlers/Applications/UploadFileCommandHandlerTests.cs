@@ -524,7 +524,10 @@ public class UploadFileCommandHandlerTests
         var uploadQueryable = new List<File> { existingFileWithMatchingProperties }.AsQueryable().BuildMock();
         _uploadRepository.Query().Returns(uploadQueryable);
 
-        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, applicationWithMatchingId.Id!.Value.ToString(), AccessType.Write)
+        var appIdKey = applicationWithMatchingId.Id!.Value.ToString();
+        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, appIdKey, AccessType.Write)
+            .Returns(true);
+        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, appIdKey, AccessType.Delete)
             .Returns(true);
 
         _fileStorageService.DeleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -646,7 +649,10 @@ public class UploadFileCommandHandlerTests
         var uploadQueryable = new List<File> { existingFileWithMatchingProperties }.AsQueryable().BuildMock();
         _uploadRepository.Query().Returns(uploadQueryable);
 
-        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, applicationWithMatchingId.Id!.Value.ToString(), AccessType.Write)
+        var appIdKey = applicationWithMatchingId.Id!.Value.ToString();
+        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, appIdKey, AccessType.Write)
+            .Returns(true);
+        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, appIdKey, AccessType.Delete)
             .Returns(true);
 
         _fileStorageService.DeleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
@@ -686,6 +692,86 @@ public class UploadFileCommandHandlerTests
         // Verify new file was uploaded
         await _uploadRepository.Received(1).AddAsync(uploadedFile, Arg.Any<CancellationToken>());
         await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Theory]
+    [CustomAutoData(typeof(ApplicationCustomization), typeof(UserCustomization))]
+    public async Task Handle_Should_Return_Conflict_When_Orphaned_File_Exists_But_Caller_Lacks_Delete(
+        Domain.Entities.Application application,
+        User user,
+        File existingFile,
+        ApplicationId applicationId,
+        string name,
+        string description,
+        string originalFileName)
+    {
+        var httpContext = new DefaultHttpContext();
+        httpContext.User = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Email, "test@example.com")],
+            "Bearer",
+            ClaimTypes.Name,
+            ClaimTypes.Role));
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+
+        var userWithMatchingEmail = new User(
+            user.Id!,
+            user.RoleId,
+            user.Name,
+            "test@example.com",
+            user.CreatedOn,
+            user.CreatedBy,
+            user.LastModifiedOn,
+            user.LastModifiedBy,
+            user.ExternalProviderId,
+            user.Permissions);
+        _userRepository.Query().Returns(new List<User> { userWithMatchingEmail }.AsQueryable().BuildMock());
+
+        var hashedFileName = FileNameHasher.HashFileName(originalFileName);
+        var existingFileWithMatchingProperties = new File(
+            existingFile.Id!,
+            applicationId,
+            existingFile.Name,
+            existingFile.Description,
+            existingFile.OriginalFileName,
+            hashedFileName,
+            existingFile.Path,
+            existingFile.UploadedOn,
+            existingFile.UploadedBy,
+            existingFile.FileSize);
+
+        var applicationWithMatchingId = new Domain.Entities.Application(
+            applicationId,
+            application.ApplicationReference,
+            application.TemplateVersionId,
+            application.CreatedOn,
+            application.CreatedBy,
+            application.Status,
+            application.LastModifiedOn,
+            application.LastModifiedBy);
+        _applicationRepository.Query().Returns(
+            new List<Domain.Entities.Application> { applicationWithMatchingId }.AsQueryable().BuildMock());
+        _uploadRepository.Query().Returns(
+            new List<File> { existingFileWithMatchingProperties }.AsQueryable().BuildMock());
+
+        var appIdKey = applicationWithMatchingId.Id!.Value.ToString();
+        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, appIdKey, AccessType.Write)
+            .Returns(true);
+        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, appIdKey, AccessType.Delete)
+            .Returns(false);
+
+        var testStream = new MemoryStream(System.Text.Encoding.UTF8.GetBytes("test file content"));
+        var command = new UploadFileCommand(applicationId, name, description, originalFileName, testStream);
+
+        var result = await _handler.Handle(command, CancellationToken.None);
+
+        Assert.False(result.IsSuccess);
+        Assert.Equal(
+            "The selected file has already been uploaded. Upload a file with a different name.",
+            result.Error);
+        _fileFactory.DidNotReceive().DeleteFile(Arg.Any<File>());
+        await _uploadRepository.DidNotReceive().RemoveAsync(Arg.Any<File>(), Arg.Any<CancellationToken>());
+        await _fileStorageService.DidNotReceive().DeleteAsync(Arg.Any<string>(), Arg.Any<CancellationToken>());
+        await _uploadRepository.DidNotReceive().AddAsync(Arg.Any<File>(), Arg.Any<CancellationToken>());
     }
 
     [Theory]
@@ -756,7 +842,10 @@ public class UploadFileCommandHandlerTests
         var uploadQueryable = new List<File> { existingFileWithMatchingProperties }.AsQueryable().BuildMock();
         _uploadRepository.Query().Returns(uploadQueryable);
 
-        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, applicationWithMatchingId.Id!.Value.ToString(), AccessType.Write)
+        var appIdKey = applicationWithMatchingId.Id!.Value.ToString();
+        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, appIdKey, AccessType.Write)
+            .Returns(true);
+        _permissionCheckerService.HasPermission(ResourceType.ApplicationFiles, appIdKey, AccessType.Delete)
             .Returns(true);
 
         // Simulate storage delete failure for orphaned file
