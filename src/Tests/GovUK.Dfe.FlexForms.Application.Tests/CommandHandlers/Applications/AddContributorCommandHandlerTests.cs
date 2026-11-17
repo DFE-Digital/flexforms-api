@@ -105,6 +105,12 @@ public class AddContributorCommandHandlerTests
         Assert.DoesNotContain(AccessType.Delete, filePermissions);
     }
 
+    /// <summary>
+    /// AutoFixture builds a non-null Permissions object; null restores template-role legacy grants.
+    /// </summary>
+    private static AddContributorCommand WithoutInvitePermissions(AddContributorCommand command) =>
+        command with { Permissions = null };
+
     [Theory]
     [CustomAutoData(typeof(ApplicationCustomization))]
     public async Task Handle_ShouldAddNewContributor_WhenValidRequest(
@@ -116,6 +122,7 @@ public class AddContributorCommandHandlerTests
         IUserFactory userFactory)
     {
         // Arrange
+        command = WithoutInvitePermissions(command);
         var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         var httpContext = new DefaultHttpContext();
         var email = "test@example.com";
@@ -187,7 +194,9 @@ public class AddContributorCommandHandlerTests
             templateVersion.TemplateId,
             Arg.Any<DateTime>(),
             Arg.Any<Guid?>(),
-            Arg.Any<bool>())
+            Arg.Any<bool>(),
+            Arg.Any<AccessType[]?>(),
+            Arg.Any<AccessType[]?>())
             .Returns(contributor);
 
         var handler = new AddContributorCommandHandler(
@@ -236,6 +245,7 @@ public class AddContributorCommandHandlerTests
         IUserFactory userFactory)
     {
         // Arrange
+        command = WithoutInvitePermissions(command);
         var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         var httpContext = new DefaultHttpContext();
         var email = "test@example.com";
@@ -391,6 +401,7 @@ public class AddContributorCommandHandlerTests
         IUserFactory userFactory)
     {
         // Arrange
+        command = WithoutInvitePermissions(command);
         var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         var httpContext = new DefaultHttpContext();
         var email = "test@example.com";
@@ -546,6 +557,7 @@ public class AddContributorCommandHandlerTests
         IPermissionCheckerService permissionCheckerService,
         IUnitOfWork unitOfWork)
     {
+        command = WithoutInvitePermissions(command);
         var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         var httpContext = new DefaultHttpContext();
         var ownerEmail = "owner@example.com";
@@ -1099,6 +1111,7 @@ public class AddContributorCommandHandlerTests
         IUserFactory userFactory)
     {
         // Arrange
+        command = WithoutInvitePermissions(command);
         var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         var httpContext = new DefaultHttpContext();
         var externalId = "external-user-id";
@@ -1168,7 +1181,9 @@ public class AddContributorCommandHandlerTests
             templateVersion.TemplateId,
             Arg.Any<DateTime>(),
             Arg.Any<Guid?>(),
-            Arg.Any<bool>())
+            Arg.Any<bool>(),
+            Arg.Any<AccessType[]?>(),
+            Arg.Any<AccessType[]?>())
             .Returns(contributor);
 
         var handler = new AddContributorCommandHandler(
@@ -1208,6 +1223,7 @@ public class AddContributorCommandHandlerTests
         IUserFactory userFactory)
     {
         // Arrange
+        command = WithoutInvitePermissions(command);
         var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         var httpContext = new DefaultHttpContext();
         var externalId = "external-user-id";
@@ -1277,7 +1293,9 @@ public class AddContributorCommandHandlerTests
             templateVersion.TemplateId,
             Arg.Any<DateTime>(),
             Arg.Any<Guid?>(),
-            Arg.Any<bool>())
+            Arg.Any<bool>(),
+            Arg.Any<AccessType[]?>(),
+            Arg.Any<AccessType[]?>())
             .Returns(contributor);
 
         var handler = new AddContributorCommandHandler(
@@ -1388,6 +1406,7 @@ public class AddContributorCommandHandlerTests
         IUserFactory userFactory)
     {
         // Arrange
+        command = WithoutInvitePermissions(command);
         var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
         var httpContext = new DefaultHttpContext();
         var email = "test@example.com";
@@ -1456,7 +1475,9 @@ public class AddContributorCommandHandlerTests
             templateVersion.TemplateId,
             Arg.Any<DateTime>(),
             Arg.Any<Guid?>(),
-            Arg.Any<bool>())
+            Arg.Any<bool>(),
+            Arg.Any<AccessType[]?>(),
+            Arg.Any<AccessType[]?>())
             .Returns(contributor);
 
         var handler = new AddContributorCommandHandler(
