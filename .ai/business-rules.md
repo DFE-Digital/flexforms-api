@@ -45,7 +45,7 @@ Merged from `RolePermissions` + user `Permissions` (`UserPermissionClaimProvider
 
 - Single submit (`Application.Submit` throws if already submitted).
 - File-validation gate (`ApplicationFileValidationPolicy`): `Off` | `FailOnInvalid` | `RequirePassed`.
-- `RequirePassed` can strand applicants if the tenant validation function is down. There is **no** timeout escape hatch yet (**Documented** in README as a later increment).
+- Choose `RequirePassed` only when the tenant validation function runs with availability matching FlexForms, because pending files block submit. Prefer `FailOnInvalid` otherwise.
 - Infected files are deleted before they can remain on a submitted application.
 
 ## Files vs tenant validation

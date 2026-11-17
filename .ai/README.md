@@ -23,6 +23,9 @@ The API is the system of record for FlexForms. Web renders forms; Prism reports;
 | Permissions / roles | `features/permissions-and-roles.md` |
 | Local run / migrations | `development-workflows.md` |
 | “Why was this designed this way?” | `decisions/`, `history-lessons.md` |
+| Outbound tenant events (EventTriggers / EventMappings / SchemaEvents) | `features/event-triggers.md` |
+| Anything cross-repo, contracts, topics, auth matrix | `ecosystem.md` |
+| Where is X in the code? | `code-map.md` |
 
 ## Existing human documentation (do not replace)
 
@@ -39,4 +42,4 @@ These remain the detailed operator/developer manuals. `.ai/` files summarise and
 
 Do not duplicate Prism SQL views or Web form-engine internals here. Capture only the API side of those contracts, plus pointers.
 
-A future shared `flexforms-knowledge` repository should hold: platform map, Service Bus topic catalogue, Entra app-role matrix, and incident post-mortems. Until it exists, those live in each repo’s `.ai/` plus [`history-lessons.md`](history-lessons.md).
+The platform map, Service Bus topic catalogue, Entra app-role matrix, shared contracts, version matrix and cross-repo change playbooks live in [`ecosystem.md`](ecosystem.md), an identical copy of which is kept in every repository's `.ai/`. Keep the copies in step. Incident lessons stay in each repo's [`history-lessons.md`](history-lessons.md).

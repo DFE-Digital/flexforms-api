@@ -36,7 +36,7 @@ The callback's `message` is stored **as sent** (trimmed, max `File.ValidationMes
 - SAS must remain valid through download+scan (typically 1h).
 - Scanner Redis cache by `FileHash` can replay a result for a new requester (routing stamps tenant/user on cache hit).
 - Local instance-id filter on consumers.
-- Hard-coded test filename in scanner fakes infection (**scanner repo**).
+- The scanner contains a test hook used by end-to-end infection tests (**scanner repo**, see its `AGENTS.md`).
 
 ## 8. Tests
 

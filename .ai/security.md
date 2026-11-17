@@ -34,7 +34,7 @@ Issuer mismatches: CoreLibs may try multiple OIDC providers; wrong-provider atte
 
 - Signing key must be ≥16 bytes (32+ recommended). Short keys throw `SymmetricSecurityKey` size errors.
 - OTP generate/verify is **API-owned** (Redis TTL + Notify). Web mints the test JWT after verify. Cooldown, attempt count and consumption go through `IAtomicCacheStore`; never move them back to read-then-write. Each password has its own id and attempt counter, and is consumed or invalidated only by compare-and-delete against the entry the request read (`.ai/known-pitfalls.md` item 35).
-- `TenantSettingsReader` merges Shared then target; **`Web` sorts after `Shared` and wins**. Editing only Shared leaves a stale Web row in control.
+- A category must live under `Shared` **or** under app targets (`Api`/`Web`), never both. Writes that would overlap are rejected (`Domain/Tenancy/TenantSettingTargetOverlap.cs`, used by `UpsertTenantSettingCommandHandler`, `TenantSettingsWriterService`, `TenantCreatorService`, `TenantConfigurationPromotionService`). Rows that already overlap (older data, direct SQL) behave differently per reader: the API catalogue refresh fails, and `TenantSettingsReader` (`/v1/tenant-config`, effective config, health) orders by Target name, so `Web` overrides `Shared` but `Shared` overrides `Api`. Editing only one of two overlapping rows can leave the other in control (**Verified**).
 - OTP endpoints must remain behind `ServiceCallers` + environment gate. Fail closed in Production.
 
 ### Authenticator app (TOTP) alternative
