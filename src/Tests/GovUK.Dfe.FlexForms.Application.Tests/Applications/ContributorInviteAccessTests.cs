@@ -1,4 +1,5 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.FlexForms.Application.Applications;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
@@ -119,5 +120,51 @@ public class ContributorInviteAccessTests
             ContributorInviteAccess.EnsureRoleCompatibleWithReadOnlyInvite(permissions));
 
         Assert.Equal(ContributorInviteAccess.RoleGrantsEditAccess, error.Message);
+    }
+
+    [Fact]
+    public void ResolveAccess_WithoutPermissions_UsesLegacyRoleDecision()
+    {
+        var readOnly = new ContributorInviteDecision(true, "Caseworker");
+        var (app, files) = ContributorInviteAccess.ResolveAccess(readOnly, null);
+
+        Assert.Equal([AccessType.Read], app);
+        Assert.Equal([AccessType.Read], files);
+
+        var editable = new ContributorInviteDecision(false, RoleNames.User);
+        (app, files) = ContributorInviteAccess.ResolveAccess(editable, null);
+
+        Assert.Equal([AccessType.Read, AccessType.Write], app);
+        Assert.Equal([AccessType.Read, AccessType.Write, AccessType.Delete], files);
+    }
+
+    [Fact]
+    public void ResolveAccess_WithPermissions_AlwaysGrantsApplicationRead_AndIgnoresRoleReadOnly()
+    {
+        var invite = new ContributorInviteDecision(true, "Caseworker");
+        var (app, files) = ContributorInviteAccess.ResolveAccess(
+            invite,
+            new ContributorInvitePermissions { ApplicationWrite = true });
+
+        Assert.Equal([AccessType.Read, AccessType.Write], app);
+        Assert.Empty(files);
+    }
+
+    [Fact]
+    public void ResolveAccess_UploadOrDeleteImpliesFilesRead()
+    {
+        var invite = new ContributorInviteDecision(false, RoleNames.User);
+        var (app, files) = ContributorInviteAccess.ResolveAccess(
+            invite,
+            new ContributorInvitePermissions { ApplicationFilesWrite = true });
+
+        Assert.Equal([AccessType.Read], app);
+        Assert.Equal([AccessType.Read, AccessType.Write], files);
+
+        (_, files) = ContributorInviteAccess.ResolveAccess(
+            invite,
+            new ContributorInvitePermissions { ApplicationFilesDelete = true });
+
+        Assert.Equal([AccessType.Read, AccessType.Delete], files);
     }
 }

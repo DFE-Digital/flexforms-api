@@ -18,7 +18,9 @@ public interface IUserFactory
         TemplateId templateId,
         DateTime? createdOn = null,
         Guid? tenantId = null,
-        bool applicationReadOnly = false);
+        bool applicationReadOnly = false,
+        AccessType[]? applicationAccess = null,
+        AccessType[]? fileAccess = null);
 
     User CreateUser(
         UserId id,

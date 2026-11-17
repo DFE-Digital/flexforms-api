@@ -22,6 +22,8 @@ Web sends a **full** JSON body. Add-response (`AddApplicationResponseCommandHand
 
 `Application`, `ApplicationResponse`, `File`, contributors via permissions + `AddContributorCommandHandler`.
 
+Contributor invites (**Verified**, `ContributorInviteAccess`, `AddContributorCommandHandler`): template `contributorRoleId` still decides **tenant membership** only. When `AddContributorRequest.Permissions` is set, direct Application / ApplicationFiles grants come from those flags (Application Read always; files Read is implied by Upload or Delete). When `Permissions` is null, legacy behaviour remains (User role → full edit; other roles → read-only). User-level grants on that application allow Write even if the membership role is view-only.
+
 ## 5. Other repos
 
 Web form engine orchestrates pages then calls these APIs. Prism consumes revisioned events.

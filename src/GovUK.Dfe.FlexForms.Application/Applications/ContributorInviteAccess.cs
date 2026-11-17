@@ -1,5 +1,6 @@
 using System.Text.Json;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Models.Request;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 
@@ -86,6 +87,42 @@ public static class ContributorInviteAccess
                 throw new InvalidOperationException(RoleGrantsEditAccess);
             }
         }
+    }
+
+    /// <summary>
+    /// Resolves direct Application / ApplicationFiles grants for an invite.
+    /// When <paramref name="permissions"/> is set, those flags win (Application Read always).
+    /// Upload or delete without read also grants files Read so the invitee can see the files.
+    /// When null, falls back to the template-role decision (full edit vs read-only).
+    /// </summary>
+    public static (AccessType[] Application, AccessType[] Files) ResolveAccess(
+        ContributorInviteDecision invite,
+        ContributorInvitePermissions? permissions)
+    {
+        if (permissions is null)
+        {
+            return invite.ApplicationReadOnly
+                ? ([AccessType.Read], [AccessType.Read])
+                : ([AccessType.Read, AccessType.Write],
+                    [AccessType.Read, AccessType.Write, AccessType.Delete]);
+        }
+
+        var application = new List<AccessType> { AccessType.Read };
+        if (permissions.ApplicationWrite)
+            application.Add(AccessType.Write);
+
+        var files = new List<AccessType>();
+        var filesRead = permissions.ApplicationFilesRead
+                        || permissions.ApplicationFilesWrite
+                        || permissions.ApplicationFilesDelete;
+        if (filesRead)
+            files.Add(AccessType.Read);
+        if (permissions.ApplicationFilesWrite)
+            files.Add(AccessType.Write);
+        if (permissions.ApplicationFilesDelete)
+            files.Add(AccessType.Delete);
+
+        return (application.ToArray(), files.ToArray());
     }
 }
 

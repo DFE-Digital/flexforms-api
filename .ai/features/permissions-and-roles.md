@@ -50,6 +50,8 @@ Per-template checks for non-admins (**Verified**):
 
 `GET /v1/Roles` stays **Admin/SuperAdmin only**. Template Studio does not call it for template managers (Web hides the contributor-role picker instead).
 
+Contributor invite checkboxes grant **user-level** Application / ApplicationFiles access on that application (`AddContributorRequest.Permissions`). Those grants apply even when the template membership role is view-only. A direct Read-only grant without Write still suppresses role Write/Delete for that same application (`PermissionClaimMerger`).
+
 ## 7. Edge cases
 
 Listing applications by many template GUIDs historically broke EF `Contains` on value objects — use query objects that EF can translate.

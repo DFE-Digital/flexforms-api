@@ -286,7 +286,7 @@ public class ApplicationsController(ISender sender) : ControllerBase
         [FromBody] AddContributorRequest request,
         CancellationToken cancellationToken)
     {
-        var command = new AddContributorCommand(applicationId, request.Name, request.Email);
+        var command = new AddContributorCommand(applicationId, request.Name, request.Email, request.Permissions);
         var result = await sender.Send(command, cancellationToken);
 
         return new ObjectResult(result)

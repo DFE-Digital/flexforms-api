@@ -22,7 +22,9 @@ public class UserFactory : IUserFactory
         TemplateId templateId,
         DateTime? createdOn = null,
         Guid? tenantId = null,
-        bool applicationReadOnly = false)
+        bool applicationReadOnly = false,
+        AccessType[]? applicationAccess = null,
+        AccessType[]? fileAccess = null)
     {
         if (id == null)
             throw new ArgumentException("Id cannot be null", nameof(id));
@@ -49,10 +51,10 @@ public class UserFactory : IUserFactory
             throw new ArgumentException("TemplateId cannot be null", nameof(templateId));
 
         var when = createdOn ?? DateTime.UtcNow;
-        var applicationAccess = applicationReadOnly
+        applicationAccess ??= applicationReadOnly
             ? new[] { AccessType.Read }
             : new[] { AccessType.Read, AccessType.Write };
-        var fileAccess = applicationReadOnly
+        fileAccess ??= applicationReadOnly
             ? new[] { AccessType.Read }
             : new[] { AccessType.Read, AccessType.Write, AccessType.Delete };
         
@@ -88,15 +90,18 @@ public class UserFactory : IUserFactory
             applicationId,
             when);
 
-        // Application files permissions
-        AddPermissionToUser(
-            contributor,
-            applicationId.Value.ToString(),
-            ResourceType.ApplicationFiles,
-            fileAccess,
-            createdBy,
-            applicationId,
-            when);
+        // Application files permissions (omit when the invite grants none)
+        if (fileAccess.Length > 0)
+        {
+            AddPermissionToUser(
+                contributor,
+                applicationId.Value.ToString(),
+                ResourceType.ApplicationFiles,
+                fileAccess,
+                createdBy,
+                applicationId,
+                when);
+        }
 
         // Notifications permissions
         AddPermissionToUser(

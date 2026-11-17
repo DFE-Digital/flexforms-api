@@ -8305,6 +8305,32 @@
           },
           "email": {
             "type": "string"
+          },
+          "permissions": {
+            "nullable": true,
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ContributorInvitePermissions"
+              }
+            ]
+          }
+        }
+      },
+      "ContributorInvitePermissions": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "applicationWrite": {
+            "type": "boolean"
+          },
+          "applicationFilesRead": {
+            "type": "boolean"
+          },
+          "applicationFilesWrite": {
+            "type": "boolean"
+          },
+          "applicationFilesDelete": {
+            "type": "boolean"
           }
         }
       },
