@@ -131,12 +131,12 @@ public class TestAuthAuthenticatorServiceTests
 
         var second = await _service.BeginSetupAsync(Email, Issuer);
 
-        Assert.True(await _service.VerifyAsync(Email, CodeFor(first)));
+        Assert.True(await VerifyAsync(Email, CodeFor(first)));
         _timeProvider.Advance(TimeSpan.FromSeconds(30));
         Assert.True(await _service.ConfirmSetupAsync(Email, CodeFor(second.SharedKey)));
         _timeProvider.Advance(TimeSpan.FromSeconds(30));
-        Assert.False(await _service.VerifyAsync(Email, CodeFor(first)));
-        Assert.True(await _service.VerifyAsync(Email, CodeFor(second.SharedKey)));
+        Assert.False(await VerifyAsync(Email, CodeFor(first)));
+        Assert.True(await VerifyAsync(Email, CodeFor(second.SharedKey)));
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class TestAuthAuthenticatorServiceTests
         var sharedKey = await EnrolAsync();
         _timeProvider.Advance(TimeSpan.FromMinutes(1));
 
-        Assert.True(await _service.VerifyAsync(Email, CodeFor(sharedKey)));
+        Assert.True(await VerifyAsync(Email, CodeFor(sharedKey)));
         Assert.Equal(_timeProvider.GetUtcNow().UtcDateTime, _authenticators.LastUsed[(_tenantId, Email)]);
     }
 
@@ -156,8 +156,8 @@ public class TestAuthAuthenticatorServiceTests
         _timeProvider.Advance(TimeSpan.FromMinutes(1));
         var code = CodeFor(sharedKey);
 
-        Assert.True(await _service.VerifyAsync(Email, code));
-        Assert.False(await _service.VerifyAsync(Email, code));
+        Assert.True(await VerifyAsync(Email, code));
+        Assert.False(await VerifyAsync(Email, code));
     }
 
     [Fact]
@@ -169,7 +169,7 @@ public class TestAuthAuthenticatorServiceTests
         _authenticators.HoldFindsUntil(3);
 
         // All three have looked up the enrolment and matched the code before any of them marks it used.
-        var results = await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => _service.VerifyAsync(Email, code)));
+        var results = await Task.WhenAll(Enumerable.Range(0, 3).Select(_ => VerifyAsync(Email, code)));
 
         Assert.Single(results, ok => ok);
     }
@@ -270,8 +270,8 @@ public class TestAuthAuthenticatorServiceTests
         var previousStepCode = CodeFor(sharedKey, _timeProvider.GetUtcNow().AddSeconds(-30));
         var twoStepsOldCode = CodeFor(sharedKey, _timeProvider.GetUtcNow().AddSeconds(-60));
 
-        Assert.False(await _service.VerifyAsync(Email, twoStepsOldCode));
-        Assert.True(await _service.VerifyAsync(Email, previousStepCode));
+        Assert.False(await VerifyAsync(Email, twoStepsOldCode));
+        Assert.True(await VerifyAsync(Email, previousStepCode));
     }
 
     [Fact]
@@ -280,7 +280,7 @@ public class TestAuthAuthenticatorServiceTests
         var sharedKey = await EnrolAsync();
         _timeProvider.Advance(TimeSpan.FromMinutes(1));
 
-        Assert.True(await _service.VerifyAsync($"  {Email.ToUpperInvariant()} ", $" {CodeFor(sharedKey)} "));
+        Assert.True(await VerifyAsync($"  {Email.ToUpperInvariant()} ", $" {CodeFor(sharedKey)} "));
     }
 
     [Theory]
@@ -292,13 +292,13 @@ public class TestAuthAuthenticatorServiceTests
     {
         await EnrolAsync();
 
-        Assert.False(await _service.VerifyAsync(Email, code));
+        Assert.False(await VerifyAsync(Email, code));
     }
 
     [Fact]
     public async Task VerifyAsync_returns_false_when_not_enrolled()
     {
-        Assert.False(await _service.VerifyAsync(Email, "123456"));
+        Assert.False(await VerifyAsync(Email, "123456"));
     }
 
     [Fact]
@@ -307,9 +307,61 @@ public class TestAuthAuthenticatorServiceTests
         var sharedKey = await EnrolAsync();
         _timeProvider.Advance(TimeSpan.FromMinutes(1));
         for (var i = 0; i < TestAuthAuthenticatorService.MaxFailedAttempts; i++)
-            Assert.False(await _service.VerifyAsync(Email, WrongCode(sharedKey)));
+            Assert.False(await VerifyAsync(Email, WrongCode(sharedKey)));
 
-        Assert.False(await _service.VerifyAsync(Email, CodeFor(sharedKey)));
+        Assert.False(await VerifyAsync(Email, CodeFor(sharedKey)));
+    }
+
+    [Fact]
+    public async Task VerifyAsync_reports_lockout_on_the_last_allowed_failure_with_time_left_from_the_first()
+    {
+        var sharedKey = await EnrolAsync();
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+
+        for (var i = 0; i < TestAuthAuthenticatorService.MaxFailedAttempts - 1; i++)
+        {
+            var early = await _service.VerifyAsync(Email, WrongCode(sharedKey));
+            Assert.Equal(TestAuthLockout.None, early.Lockout);
+            _timeProvider.Advance(TimeSpan.FromMinutes(1));
+        }
+
+        var last = await _service.VerifyAsync(Email, WrongCode(sharedKey));
+        Assert.False(last.IsValid);
+        Assert.Equal(TestAuthLockout.Temporary, last.Lockout);
+        // Four minutes passed since the first failure started the 15 minute window.
+        Assert.Equal(TestAuthAuthenticatorService.LockoutWindow - TimeSpan.FromMinutes(4), last.RetryAfter);
+
+        var refused = await _service.VerifyAsync(Email, CodeFor(sharedKey));
+        Assert.Equal(TestAuthLockout.Temporary, refused.Lockout);
+        Assert.Equal(last.RetryAfter, refused.RetryAfter);
+    }
+
+    [Fact]
+    public async Task GetTemporaryLockoutAsync_is_null_until_the_limit_then_reports_time_left()
+    {
+        var sharedKey = await EnrolAsync();
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+
+        for (var i = 0; i < TestAuthAuthenticatorService.MaxFailedAttempts - 1; i++)
+            await VerifyAsync(Email, WrongCode(sharedKey));
+        Assert.Null(await _service.GetTemporaryLockoutAsync(Email));
+
+        await VerifyAsync(Email, WrongCode(sharedKey));
+        Assert.Equal(TestAuthAuthenticatorService.LockoutWindow, await _service.GetTemporaryLockoutAsync(Email.ToUpperInvariant()));
+    }
+
+    [Fact]
+    public async Task ClearTemporaryLockoutAsync_lets_the_user_sign_in_straight_away()
+    {
+        var sharedKey = await EnrolAsync();
+        _timeProvider.Advance(TimeSpan.FromMinutes(1));
+        for (var i = 0; i <= TestAuthAuthenticatorService.MaxFailedAttempts; i++)
+            await VerifyAsync(Email, WrongCode(sharedKey));
+
+        Assert.True(await _service.ClearTemporaryLockoutAsync(Email));
+
+        Assert.Null(await _service.GetTemporaryLockoutAsync(Email));
+        Assert.True(await VerifyAsync(Email, CodeFor(sharedKey)));
     }
 
     [Fact]
@@ -318,23 +370,23 @@ public class TestAuthAuthenticatorServiceTests
         var sharedKey = await EnrolAsync();
         _timeProvider.Advance(TimeSpan.FromMinutes(1));
         for (var i = 0; i <= TestAuthAuthenticatorService.MaxFailedAttempts; i++)
-            await _service.VerifyAsync(Email, WrongCode(sharedKey));
+            await VerifyAsync(Email, WrongCode(sharedKey));
 
         _timeProvider.Advance(TestAuthAuthenticatorService.LockoutWindow);
 
-        Assert.True(await _service.VerifyAsync(Email, CodeFor(sharedKey)));
+        Assert.True(await VerifyAsync(Email, CodeFor(sharedKey)));
     }
 
     [Fact]
     public async Task VerifyAsync_counts_attempts_for_emails_without_enrolment()
     {
         for (var i = 0; i < TestAuthAuthenticatorService.MaxFailedAttempts; i++)
-            await _service.VerifyAsync(Email, "123456");
+            await VerifyAsync(Email, "123456");
 
         var sharedKey = await EnrolAsync();
         _timeProvider.Advance(TimeSpan.FromSeconds(30));
 
-        Assert.False(await _service.VerifyAsync(Email, CodeFor(sharedKey)));
+        Assert.False(await VerifyAsync(Email, CodeFor(sharedKey)));
     }
 
     [Fact]
@@ -343,14 +395,14 @@ public class TestAuthAuthenticatorServiceTests
         var sharedKey = await EnrolAsync();
         _timeProvider.Advance(TimeSpan.FromMinutes(1));
         for (var i = 0; i < TestAuthAuthenticatorService.MaxFailedAttempts - 1; i++)
-            await _service.VerifyAsync(Email, WrongCode(sharedKey));
-        Assert.True(await _service.VerifyAsync(Email, CodeFor(sharedKey)));
+            await VerifyAsync(Email, WrongCode(sharedKey));
+        Assert.True(await VerifyAsync(Email, CodeFor(sharedKey)));
 
         _timeProvider.Advance(TimeSpan.FromSeconds(30));
         for (var i = 0; i < TestAuthAuthenticatorService.MaxFailedAttempts - 1; i++)
-            await _service.VerifyAsync(Email, WrongCode(sharedKey));
+            await VerifyAsync(Email, WrongCode(sharedKey));
 
-        Assert.True(await _service.VerifyAsync(Email, CodeFor(sharedKey)));
+        Assert.True(await VerifyAsync(Email, CodeFor(sharedKey)));
     }
 
     [Fact]
@@ -361,7 +413,7 @@ public class TestAuthAuthenticatorServiceTests
 
         UseTenant(Guid.NewGuid());
 
-        Assert.False(await _service.VerifyAsync(Email, CodeFor(sharedKey)));
+        Assert.False(await VerifyAsync(Email, CodeFor(sharedKey)));
     }
 
     [Fact]
@@ -373,7 +425,7 @@ public class TestAuthAuthenticatorServiceTests
         Assert.False(await _service.RemoveAsync(Email));
         Assert.Null(await _service.GetEnrolledOnAsync(Email));
         _timeProvider.Advance(TimeSpan.FromSeconds(30));
-        Assert.False(await _service.VerifyAsync(Email, CodeFor(sharedKey)));
+        Assert.False(await VerifyAsync(Email, CodeFor(sharedKey)));
     }
 
     [Fact]
@@ -425,6 +477,9 @@ public class TestAuthAuthenticatorServiceTests
 
         Assert.True(await _service.ConfirmSetupAsync(Email, CodeFor(setup.SharedKey)));
     }
+
+    private async Task<bool> VerifyAsync(string email, string code)
+        => (await _service.VerifyAsync(email, code)).IsValid;
 
     private async Task<string> EnrolAsync()
     {

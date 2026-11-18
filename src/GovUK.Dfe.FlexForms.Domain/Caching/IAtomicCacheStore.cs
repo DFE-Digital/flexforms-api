@@ -28,4 +28,9 @@ public interface IAtomicCacheStore
 
     /// <summary>Increments a counter, setting <paramref name="expiry"/> when the counter is created.</summary>
     Task<long> IncrementAsync(string key, TimeSpan expiry);
+
+    /// <summary>
+    /// Returns how long until the key expires, or <c>null</c> when it does not exist or has no expiry.
+    /// </summary>
+    Task<TimeSpan?> GetTimeToLiveAsync(string key);
 }

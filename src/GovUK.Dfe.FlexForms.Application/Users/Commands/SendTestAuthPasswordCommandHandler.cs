@@ -19,7 +19,8 @@ public sealed class SendTestAuthPasswordCommandHandler(
     IHostEnvironment hostEnvironment,
     ITestAuthPasswordService testAuthPasswordService,
     IEmailTemplateResolver emailTemplateResolver,
-    IEmailService emailService) : IRequestHandler<SendTestAuthPasswordCommand, Result<bool>>
+    IEmailService emailService,
+    ITestAuthSignInLockService signInLockService) : IRequestHandler<SendTestAuthPasswordCommand, Result<bool>>
 {
     public const string EnvironmentPlaceholder = "environment";
     public const string TempPasswordPlaceholder = "temp_password";
@@ -36,6 +37,13 @@ public sealed class SendTestAuthPasswordCommandHandler(
                 request.Email,
                 hostEnvironment.EnvironmentName);
             return Result<bool>.Forbid("Test authentication is not enabled for this tenant.");
+        }
+
+        // No password is issued or emailed to a locked email. Conflict maps to 423 Locked in TokensController.
+        if (await signInLockService.IsManuallyLockedAsync(request.Email.Trim(), cancellationToken))
+        {
+            logger.LogWarning("Test authentication password not sent to {Email}: locked by an administrator", request.Email);
+            return Result<bool>.Conflict(TestAuthAuthenticatorCaller.SignInLockedMessage);
         }
 
         var emailTemplateId = await emailTemplateResolver.ResolveTenantEmailTemplateAsync(EmailTypes.TestAuthPassword);

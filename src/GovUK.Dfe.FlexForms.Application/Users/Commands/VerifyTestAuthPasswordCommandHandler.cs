@@ -14,7 +14,8 @@ public sealed class VerifyTestAuthPasswordCommandHandler(
     ILogger<VerifyTestAuthPasswordCommandHandler> logger,
     ITenantContextAccessor tenantContextAccessor,
     IHostEnvironment hostEnvironment,
-    ITestAuthPasswordService testAuthPasswordService)
+    ITestAuthPasswordService testAuthPasswordService,
+    ITestAuthSignInLockService signInLockService)
     : IRequestHandler<VerifyTestAuthPasswordCommand, Result<VerifyTestAuthPasswordResponse>>
 {
     public async Task<Result<VerifyTestAuthPasswordResponse>> Handle(
@@ -30,7 +31,14 @@ public sealed class VerifyTestAuthPasswordCommandHandler(
             return Result<VerifyTestAuthPasswordResponse>.Forbid("Test authentication is not enabled for this tenant.");
         }
 
-        var isValid = await testAuthPasswordService.VerifyAsync(request.Email.Trim(), request.Password);
+        var email = request.Email.Trim();
+        if (await signInLockService.IsManuallyLockedAsync(email, cancellationToken))
+        {
+            logger.LogWarning("Test authentication password sign-in refused for {Email}: locked by an administrator", email);
+            return Result<VerifyTestAuthPasswordResponse>.Success(TestAuthSignInResult.ManuallyLocked.ToResponse());
+        }
+
+        var isValid = await testAuthPasswordService.VerifyAsync(email, request.Password);
 
         if (isValid)
         {

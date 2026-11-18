@@ -56,7 +56,7 @@ A user who has enrolled an authenticator app for their email **in this tenant** 
 - TOTP: SHA1, 6 digits, 30 second step, ±1 step drift (Otp.NET). Starting setup again does not disable the current enrolment until a new code is confirmed.
 - Saving an enrolment is a compare-and-swap. Each row records the `SetupId` of the setup that produced it (an EF concurrency token, so updates and deletes are `WHERE SetupId = value read`), and each pending setup records the `SetupId` it replaces (`ReplacesSetupId`, null when there was none). Confirm only saves while that is still current, so a delayed confirmation cannot overwrite a newer enrolment or recreate a removed one; it returns false instead. Never go back to an unconditional upsert.
 - Removing an authenticator keeps the row as a tombstone (`RemovedAtUtc` set, secret wiped, new `SetupId`) instead of deleting it. A deleted row would look like "never enrolled", so a first-time setup that began before an enrol-then-remove could insert its older secret. Lookups ignore tombstones; a new setup expects the tombstone's `SetupId` and revives the row. Remove always advances the generation, creating a tombstone even when nothing was enrolled, so a first-time setup being confirmed cannot enrol after the user asked to remove.
-- The login check counts every attempt before comparing, including for emails with no enrolment, so the response does not reveal who has enrolled. 5 attempts within 15 minutes lock that email out of authenticator sign-in (email OTP still works). Each code is accepted once (SET NX per time step). Same `IAtomicCacheStore` rules as the OTP (`.ai/known-pitfalls.md` item 35).
+- The login check counts every attempt before comparing, including for emails with no enrolment, so the response does not reveal who has enrolled. After 5 attempts without success the email is temporarily locked out of authenticator sign-in (email OTP still works). The 15 minute window starts at the **first** counted attempt (TTL set only when the counter is created), so the wait after the fifth failure is between 0 and 15 minutes. `VerifyAsync` returns `TestAuthSignInResult`: on the fifth failure and on every refused attempt it reports `TestAuthLockout.Temporary` with the time left from the key's TTL (`IAtomicCacheStore.GetTimeToLiveAsync`), which Web shows to the user (`VerifyTestAuthPasswordResponse.IsLockedOut` + `RetryAfterSeconds`). Each code is accepted once (SET NX per time step). Same `IAtomicCacheStore` rules as the OTP (`.ai/known-pitfalls.md` item 35).
 - Rows are not removed when an EA user is deleted, and a removed authenticator stays as a tombstone holding the email (no secret). Delete rows by tenant + email directly in SQL when personal data must go; that is safe outside an in-progress setup.
 
 ### Administrator-issued setup codes
@@ -76,6 +76,24 @@ For users who cannot receive the first email, an administrator creates a one-tim
 - The anonymous confirm only completes a pending enrolment that was started from a code (`PendingSetupEntry.FromInvite`), and checks that before counting attempts, so it cannot touch a signed-in user's own pending setup.
 - Confirming replaces any existing enrolment, so a setup code is also how an administrator helps a user who lost their device.
 - Codes are tenant-scoped, so Web can only create them for the admin's own tenant. For another tenant, someone with Redis write access can create one by hand: [`docs/test-auth-authenticator-setup-codes.md`](../docs/test-auth-authenticator-setup-codes.md). The runbook generates a fresh random code; never document a fixed example code someone could copy. Keep that runbook in step with the key and value format in `TestAuthAuthenticatorInviteService`. Never insert `TestAuthAuthenticators` rows by hand (the secret must be Data Protection ciphertext).
+
+### Administrator sign-in locks
+
+**Verified** in `Application/Security/TestAuthSignInLockService.cs`, `Application/Users/TestAuthSignInLockAdminGuard.cs`, `SetTestAuthSignInLockCommandHandler`, `ClearTestAuthTemporaryLockoutCommandHandler`, `GetTestAuthSignInLockQueryHandler`, `Infrastructure/Services/TestAuthSignInLockStore.cs`.
+
+An administrator can lock a tenant user out of **every** Test Authentication sign-in method until they unlock them. The lock never expires.
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /v1/users/{userId}/test-auth-sign-in-lock` | `CanManageUsers` | Manual lock (when, by whom) and temporary authenticator lockout (time left) → `TestAuthSignInLockStatusResponse` |
+| `PUT /v1/users/{userId}/test-auth-sign-in-lock` | `CanManageUsers`, `[RateLimit(10, 60)]` | `SetTestAuthSignInLockRequest.IsLocked` locks or unlocks. Unlocking also clears the temporary lockout |
+| `DELETE /v1/users/{userId}/test-auth-sign-in-lock/temporary` | `CanManageUsers`, `[RateLimit(10, 60)]` | "Unlock now": clears only the Redis failure counter; a manual lock stays |
+
+- Locks live in `tenantconfig.TestAuthSignInLocks` (unique per `TenantId` + normalised email), **not** on the `TestAuthAuthenticators` row: enrolling, replacing and removing an authenticator rewrite that row and must never clear a lock.
+- Every anonymous Test Auth entry point checks the lock **before** doing anything else: `test-auth-password` (send) returns **423 Locked** and issues and emails nothing; `test-auth-password/verify`, `test-auth-authenticator/verify` and `invite/confirm` return `IsValid=false, IsLockedOut=true, IsPermanentLockout=true` without counting the attempt; `invite/redeem` returns **423** without consuming the code. `TokensController.ToErrorResult` maps `DomainErrorCode.Conflict` to 423, and those handlers only return Conflict for a lock. Keep any new Test Auth sign-in path behind the same check.
+- The admin endpoints use the same rules as setup codes: interactive users only (`GetInteractiveUserEmail`), the target must have an active membership in the tenant (or be a platform SuperAdmin), only a SuperAdmin can change another administrator's lock, and nobody can lock themselves out. Every change is written to `TenantAccessAudits` (`TestAuthSignInLocked`, `TestAuthSignInUnlocked`, `TestAuthTemporaryLockoutCleared`).
+- A lock stops new sign-ins only. It does not end an existing Web session or revoke tokens already issued.
+- The message shown to a locked user tells them to contact their tenant administrator. Keep it the same for every locked email and never include who locked them or why.
 
 ## Rate limits and revocation across replicas
 

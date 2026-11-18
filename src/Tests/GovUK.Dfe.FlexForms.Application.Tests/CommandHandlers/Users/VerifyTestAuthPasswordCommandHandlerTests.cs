@@ -17,6 +17,7 @@ public class VerifyTestAuthPasswordCommandHandlerTests
     private readonly ITenantContextAccessor _tenantContextAccessor = Substitute.For<ITenantContextAccessor>();
     private readonly IHostEnvironment _hostEnvironment = Substitute.For<IHostEnvironment>();
     private readonly ITestAuthPasswordService _passwordService = Substitute.For<ITestAuthPasswordService>();
+    private readonly ITestAuthSignInLockService _signInLockService = Substitute.For<ITestAuthSignInLockService>();
     private readonly VerifyTestAuthPasswordCommandHandler _handler;
 
     public VerifyTestAuthPasswordCommandHandlerTests()
@@ -28,7 +29,8 @@ public class VerifyTestAuthPasswordCommandHandlerTests
             NullLogger<VerifyTestAuthPasswordCommandHandler>.Instance,
             _tenantContextAccessor,
             _hostEnvironment,
-            _passwordService);
+            _passwordService,
+            _signInLockService);
     }
 
     [Theory]
@@ -42,6 +44,19 @@ public class VerifyTestAuthPasswordCommandHandlerTests
 
         Assert.True(result.IsSuccess);
         Assert.Equal(isValid, result.Value!.IsValid);
+    }
+
+    [Fact]
+    public async Task Handle_refuses_a_manually_locked_email_without_checking_the_password()
+    {
+        _signInLockService.IsManuallyLockedAsync(Email, Arg.Any<CancellationToken>()).Returns(true);
+
+        var result = await _handler.Handle(new VerifyTestAuthPasswordCommand(Email, Password), CancellationToken.None);
+
+        Assert.True(result.IsSuccess);
+        Assert.False(result.Value!.IsValid);
+        Assert.True(result.Value.IsPermanentLockout);
+        await _passwordService.DidNotReceiveWithAnyArgs().VerifyAsync(default!, default!);
     }
 
     [Fact]

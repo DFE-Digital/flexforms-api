@@ -23,5 +23,6 @@ Those ADRs still say “External Applications” — historical product name. De
 | CoreLibs NuGet, not project references | [`corelibs-nuget-not-project-refs.md`](corelibs-nuget-not-project-refs.md) |
 | New tenant writes only the minimum settings | [`new-tenant-minimum-settings.md`](new-tenant-minimum-settings.md) |
 | Test Auth authenticator enrolments in TenantConfig | [`test-auth-authenticator-app.md`](test-auth-authenticator-app.md) |
+| Test Auth administrator sign-in locks | [`test-auth-sign-in-locks.md`](test-auth-sign-in-locks.md) |
 
 When recording a new decision: context, decision, alternatives **only if known**, consequences, code references. Do not invent historical alternatives.

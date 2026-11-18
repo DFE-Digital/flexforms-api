@@ -33,6 +33,7 @@ public class TestAuthAuthenticatorInviteHandlersTests
     private readonly ITestAuthAuthenticatorInviteService _inviteService = Substitute.For<ITestAuthAuthenticatorInviteService>();
     private readonly ITestAuthAuthenticatorService _authenticatorService = Substitute.For<ITestAuthAuthenticatorService>();
     private readonly ITenantAccessAuditWriter _auditWriter = Substitute.For<ITenantAccessAuditWriter>();
+    private readonly ITestAuthSignInLockService _signInLockService = Substitute.For<ITestAuthSignInLockService>();
     private readonly List<User> _users = [];
 
     public TestAuthAuthenticatorInviteHandlersTests()
@@ -219,6 +220,33 @@ public class TestAuthAuthenticatorInviteHandlersTests
     }
 
     [Fact]
+    public async Task Redeem_keeps_the_code_and_returns_conflict_when_an_administrator_locked_the_email()
+    {
+        _signInLockService.IsManuallyLockedAsync(TesterEmail, Arg.Any<CancellationToken>()).Returns(true);
+
+        var result = await RedeemHandler().Handle(
+            new RedeemTestAuthAuthenticatorInviteCommand(TesterEmail, "ABCDE-FGHJK"),
+            CancellationToken.None);
+
+        Assert.Equal(DomainErrorCode.Conflict, result.ErrorCode);
+        await _inviteService.DidNotReceiveWithAnyArgs().RedeemAsync(default!, default!);
+        await _authenticatorService.DidNotReceiveWithAnyArgs().BeginInviteSetupAsync(default!, default!, default);
+    }
+
+    [Fact]
+    public async Task Confirm_refuses_a_manually_locked_email()
+    {
+        _signInLockService.IsManuallyLockedAsync(TesterEmail, Arg.Any<CancellationToken>()).Returns(true);
+
+        var result = await ConfirmHandler().Handle(
+            new ConfirmTestAuthAuthenticatorInviteSetupCommand(TesterEmail, "123456"),
+            CancellationToken.None);
+
+        Assert.True(result.Value!.IsPermanentLockout);
+        await _authenticatorService.DidNotReceiveWithAnyArgs().ConfirmInviteSetupAsync(default!, default!, default);
+    }
+
+    [Fact]
     public async Task Redeem_is_forbidden_when_test_auth_disabled()
     {
         SetTenant(testAuthEnabled: false);
@@ -274,14 +302,16 @@ public class TestAuthAuthenticatorInviteHandlersTests
             _tenantContextAccessor,
             _hostEnvironment,
             _inviteService,
-            _authenticatorService);
+            _authenticatorService,
+            _signInLockService);
 
     private ConfirmTestAuthAuthenticatorInviteSetupCommandHandler ConfirmHandler()
         => new(
             NullLogger<ConfirmTestAuthAuthenticatorInviteSetupCommandHandler>.Instance,
             _tenantContextAccessor,
             _hostEnvironment,
-            _authenticatorService);
+            _authenticatorService,
+            _signInLockService);
 
     private User AddUser(string email, Guid roleId)
     {

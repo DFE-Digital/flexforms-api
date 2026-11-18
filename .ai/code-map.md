@@ -49,6 +49,7 @@ GET `Templates` (CanListTemplates, `GetAccessibleTemplatesQuery`); POST `Templat
 | GET `me/permissions` | `[Authorize]` |
 | GET/POST/DELETE `me/test-auth-authenticator`, POST `.../setup`, `.../setup/confirm` | `[Authorize]` (+ rate limit) |
 | POST `Users/test-auth-authenticator-invites` | CanManageUsers |
+| GET/PUT `Users/{userId}/test-auth-sign-in-lock`, DELETE `.../temporary` | CanManageUsers (+ rate limit on PUT/DELETE) |
 | POST `Users/register` | ServiceCallers |
 | POST `Users/roles`, GET `Users/access-audit`, GET `Users/tenant`, GET/PUT `Users/{id}/permissions`, PUT `Users/{id}/templates`, DELETE `Users/{id}/tenant` | CanManageUsers |
 | GET `Users/created-applications` | Roles SuperAdmin, Admin |
