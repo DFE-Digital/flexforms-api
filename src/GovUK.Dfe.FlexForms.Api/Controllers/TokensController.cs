@@ -44,13 +44,15 @@ namespace GovUK.Dfe.FlexForms.Api.Controllers
 
         /// <summary>
         /// Generates a 6 digit Test Authentication one-time password and emails it to the user.
-        /// The password is valid for one hour.
+        /// The password is valid for one hour. Returns 423 without emailing anything when an administrator has locked
+        /// the email out.
         /// </summary>
         [HttpPost("test-auth-password")]
         [SwaggerResponse(202, "One-time password emailed to the user.")]
         [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
         [SwaggerResponse(401, "Unauthorized - no valid service token", typeof(ExceptionResponse))]
         [SwaggerResponse(403, "Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+        [SwaggerResponse(423, "An administrator has locked this email out of Test Authentication sign-in.", typeof(ExceptionResponse))]
         [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
         [Authorize(Policy = "ServiceCallers")]
         public async Task<IActionResult> SendTestAuthPassword(
@@ -124,6 +126,7 @@ namespace GovUK.Dfe.FlexForms.Api.Controllers
         [SwaggerResponse(400, "Invalid request data, or the setup code is incorrect, expired or used.", typeof(ExceptionResponse))]
         [SwaggerResponse(401, "Unauthorized - no valid service token", typeof(ExceptionResponse))]
         [SwaggerResponse(403, "Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+        [SwaggerResponse(423, "An administrator has locked this email out of Test Authentication sign-in.", typeof(ExceptionResponse))]
         [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
         [Authorize(Policy = "ServiceCallers")]
         public async Task<ActionResult<BeginTestAuthAuthenticatorSetupResponse>> RedeemTestAuthAuthenticatorInvite(
@@ -169,6 +172,10 @@ namespace GovUK.Dfe.FlexForms.Api.Controllers
         {
             if (errorCode == DomainErrorCode.Forbidden)
                 return StatusCode(StatusCodes.Status403Forbidden, new ExceptionResponse { Message = error });
+
+            // Test Authentication handlers only return Conflict when an administrator has locked the email out.
+            if (errorCode == DomainErrorCode.Conflict)
+                return StatusCode(StatusCodes.Status423Locked, new ExceptionResponse { Message = error });
 
             return BadRequest(new ExceptionResponse { Message = error });
         }

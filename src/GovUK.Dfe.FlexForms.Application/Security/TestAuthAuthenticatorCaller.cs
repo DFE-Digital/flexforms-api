@@ -15,6 +15,12 @@ internal static class TestAuthAuthenticatorCaller
     public const string NotEnabledMessage = "Test authentication is not enabled for this tenant.";
     public const string InteractiveUsersOnlyMessage = "Only signed-in users can manage their own authenticator app.";
 
+    /// <summary>
+    /// Returned (as 423 Locked) when an administrator has locked the email out of Test Authentication sign-in.
+    /// </summary>
+    public const string SignInLockedMessage =
+        "Sign-in for this email address has been locked. Contact your tenant administrator.";
+
     /// <summary>The label authenticator apps show for this service, for example <c>Transfers (Test)</c>.</summary>
     public static string BuildIssuer(TenantConfiguration tenant, IHostEnvironment hostEnvironment)
         => $"{Users.Commands.SendTestAuthPasswordCommandHandler.ResolveServiceName(tenant)} ({hostEnvironment.EnvironmentName})";

@@ -19,7 +19,8 @@ public sealed class ConfirmTestAuthAuthenticatorInviteSetupCommandHandler(
     ILogger<ConfirmTestAuthAuthenticatorInviteSetupCommandHandler> logger,
     ITenantContextAccessor tenantContextAccessor,
     IHostEnvironment hostEnvironment,
-    ITestAuthAuthenticatorService authenticatorService)
+    ITestAuthAuthenticatorService authenticatorService,
+    ITestAuthSignInLockService signInLockService)
     : IRequestHandler<ConfirmTestAuthAuthenticatorInviteSetupCommand, Result<VerifyTestAuthPasswordResponse>>
 {
     public async Task<Result<VerifyTestAuthPasswordResponse>> Handle(
@@ -30,6 +31,12 @@ public sealed class ConfirmTestAuthAuthenticatorInviteSetupCommandHandler(
             return Result<VerifyTestAuthPasswordResponse>.Forbid(TestAuthAuthenticatorCaller.NotEnabledMessage);
 
         var email = request.Email.Trim();
+        if (await signInLockService.IsManuallyLockedAsync(email, cancellationToken))
+        {
+            logger.LogWarning("Authenticator setup from a setup code refused for {Email}: locked by an administrator", email);
+            return Result<VerifyTestAuthPasswordResponse>.Success(TestAuthSignInResult.ManuallyLocked.ToResponse());
+        }
+
         var enrolled = await authenticatorService.ConfirmInviteSetupAsync(email, request.Code, cancellationToken);
 
         if (!enrolled)

@@ -130,6 +130,72 @@ public class UsersController(ISender sender) : ControllerBase
     }
 
     /// <summary>
+    /// Whether a tenant user is locked out of Test Authentication sign-in: by an administrator (never expires) or
+    /// temporarily, after too many wrong authenticator app codes.
+    /// </summary>
+    [HttpGet("{userId:guid}/test-auth-sign-in-lock")]
+    [SwaggerResponse(200, "Lock status.", typeof(TestAuthSignInLockStatusResponse))]
+    [SwaggerResponse(401, "Unauthorized no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Not allowed, or Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "User not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize(Policy = "CanManageUsers")]
+    public async Task<ActionResult<TestAuthSignInLockStatusResponse>> GetTestAuthSignInLockAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+        => ToActionResult(await sender.Send(new GetTestAuthSignInLockQuery(userId), cancellationToken));
+
+    /// <summary>
+    /// Locks a tenant user out of every Test Authentication sign-in method until an administrator unlocks them, or
+    /// unlocks them. Unlocking also ends any temporary lockout. Only a SuperAdmin can change another administrator's
+    /// lock, and nobody can lock themselves out.
+    /// </summary>
+    [HttpPut("{userId:guid}/test-auth-sign-in-lock")]
+    [SwaggerResponse(200, "Lock status after the change.", typeof(TestAuthSignInLockStatusResponse))]
+    [SwaggerResponse(400, "Invalid request data.", typeof(ExceptionResponse))]
+    [SwaggerResponse(401, "Unauthorized no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Not allowed, or Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "User not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize(Policy = "CanManageUsers")]
+    public async Task<ActionResult<TestAuthSignInLockStatusResponse>> SetTestAuthSignInLockAsync(
+        Guid userId,
+        [FromBody] SetTestAuthSignInLockRequest request,
+        CancellationToken cancellationToken)
+        => ToActionResult(await sender.Send(new SetTestAuthSignInLockCommand(userId, request.IsLocked), cancellationToken));
+
+    /// <summary>
+    /// Ends a tenant user's temporary authenticator app lockout (too many wrong codes) straight away. A lock set by an
+    /// administrator is left in place.
+    /// </summary>
+    [HttpDelete("{userId:guid}/test-auth-sign-in-lock/temporary")]
+    [SwaggerResponse(200, "Lock status after clearing.", typeof(TestAuthSignInLockStatusResponse))]
+    [SwaggerResponse(401, "Unauthorized no valid user token", typeof(ExceptionResponse))]
+    [SwaggerResponse(403, "Not allowed, or Test Authentication is not enabled for this tenant.", typeof(ExceptionResponse))]
+    [SwaggerResponse(404, "User not found.", typeof(ExceptionResponse))]
+    [SwaggerResponse(429, "Too Many Requests.", typeof(ExceptionResponse))]
+    [SwaggerResponse(500, "Internal server error.", typeof(ExceptionResponse))]
+    [Authorize(Policy = "CanManageUsers")]
+    public async Task<ActionResult<TestAuthSignInLockStatusResponse>> ClearTestAuthTemporaryLockoutAsync(
+        Guid userId,
+        CancellationToken cancellationToken)
+        => ToActionResult(await sender.Send(new ClearTestAuthTemporaryLockoutCommand(userId), cancellationToken));
+
+    private ActionResult<T> ToActionResult<T>(Result<T> result)
+    {
+        if (result.IsSuccess)
+            return Ok(result.Value);
+
+        return result.ErrorCode switch
+        {
+            DomainErrorCode.Forbidden => StatusCode(StatusCodes.Status403Forbidden, new ExceptionResponse { Message = result.Error }),
+            DomainErrorCode.NotFound => NotFound(new ExceptionResponse { Message = result.Error }),
+            _ => BadRequest(new ExceptionResponse { Message = result.Error })
+        };
+    }
+
+    /// <summary>
     /// Create and registers a new user using the data in the provided External-IDP token.
     /// </summary>
     [HttpPost("register")]

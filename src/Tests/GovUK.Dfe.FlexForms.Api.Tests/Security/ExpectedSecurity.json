@@ -32,6 +32,21 @@
     },
     {
       "Controller": "UsersController",
+      "Action": "GetTestAuthSignInLockAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
+    },
+    {
+      "Controller": "UsersController",
+      "Action": "SetTestAuthSignInLockAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
+    },
+    {
+      "Controller": "UsersController",
+      "Action": "ClearTestAuthTemporaryLockoutAsync",
+      "ExpectedSecurity": "Authorize: Policy=CanManageUsers"
+    },
+    {
+      "Controller": "UsersController",
       "Action": "RegisterUserAsync",
       "ExpectedSecurity": "Authorize: Policy=ServiceCallers"
     },

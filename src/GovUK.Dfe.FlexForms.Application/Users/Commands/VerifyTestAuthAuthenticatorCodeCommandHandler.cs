@@ -14,7 +14,8 @@ public sealed class VerifyTestAuthAuthenticatorCodeCommandHandler(
     ILogger<VerifyTestAuthAuthenticatorCodeCommandHandler> logger,
     ITenantContextAccessor tenantContextAccessor,
     IHostEnvironment hostEnvironment,
-    ITestAuthAuthenticatorService authenticatorService)
+    ITestAuthAuthenticatorService authenticatorService,
+    ITestAuthSignInLockService signInLockService)
     : IRequestHandler<VerifyTestAuthAuthenticatorCodeCommand, Result<VerifyTestAuthPasswordResponse>>
 {
     public async Task<Result<VerifyTestAuthPasswordResponse>> Handle(
@@ -30,13 +31,22 @@ public sealed class VerifyTestAuthAuthenticatorCodeCommandHandler(
             return Result<VerifyTestAuthPasswordResponse>.Forbid(TestAuthAuthenticatorCaller.NotEnabledMessage);
         }
 
-        var isValid = await authenticatorService.VerifyAsync(request.Email.Trim(), request.Code, cancellationToken);
+        var email = request.Email.Trim();
 
-        if (isValid)
+        // Checked before the attempt is counted: a locked user is refused whatever they enter.
+        if (await signInLockService.IsManuallyLockedAsync(email, cancellationToken))
+        {
+            logger.LogWarning("Test authentication authenticator sign-in refused for {Email}: locked by an administrator", email);
+            return Result<VerifyTestAuthPasswordResponse>.Success(TestAuthSignInResult.ManuallyLocked.ToResponse());
+        }
+
+        var result = await authenticatorService.VerifyAsync(email, request.Code, cancellationToken);
+
+        if (result.IsValid)
             logger.LogInformation("Test authentication authenticator code verified for {Email}", request.Email);
         else
             logger.LogWarning("Invalid test authentication authenticator code entered for {Email}", request.Email);
 
-        return Result<VerifyTestAuthPasswordResponse>.Success(new VerifyTestAuthPasswordResponse(isValid));
+        return Result<VerifyTestAuthPasswordResponse>.Success(result.ToResponse());
     }
 }

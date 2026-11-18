@@ -107,6 +107,8 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddScoped<ITestAuthPasswordService, TestAuthPasswordService>();
             services.AddScoped<ITestAuthAuthenticatorService, TestAuthAuthenticatorService>();
             services.AddScoped<ITestAuthAuthenticatorInviteService, TestAuthAuthenticatorInviteService>();
+            services.AddScoped<ITestAuthSignInLockService, TestAuthSignInLockService>();
+            services.AddScoped<GovUK.Dfe.FlexForms.Application.Users.TestAuthSignInLockAdminGuard>();
 
             // Outbound mapped event publishing. Scoped so every lookup uses the request's tenant settings.
             services.AddScoped<IFieldMappingValueExtractor, FieldMappingValueExtractor>();

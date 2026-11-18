@@ -803,7 +803,8 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>
         /// Generates a 6 digit Test Authentication one-time password and emails it to the user.
-        /// <br/>The password is valid for one hour.
+        /// <br/>The password is valid for one hour. Returns 423 without emailing anything when an administrator has locked
+        /// <br/>the email out.
         /// </summary>
         /// <returns>One-time password emailed to the user.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
@@ -913,6 +914,34 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Contracts
         /// <returns>Setup code created.</returns>
         /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
         System.Threading.Tasks.Task<CreateTestAuthAuthenticatorInviteResponse> CreateTestAuthAuthenticatorInviteAsync(CreateTestAuthAuthenticatorInviteRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Whether a tenant user is locked out of Test Authentication sign-in: by an administrator (never expires) or
+        /// <br/>temporarily, after too many wrong authenticator app codes.
+        /// </summary>
+        /// <returns>Lock status.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TestAuthSignInLockStatusResponse> GetTestAuthSignInLockAsync(System.Guid userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Locks a tenant user out of every Test Authentication sign-in method until an administrator unlocks them, or
+        /// <br/>unlocks them. Unlocking also ends any temporary lockout. Only a SuperAdmin can change another administrator's
+        /// <br/>lock, and nobody can lock themselves out.
+        /// </summary>
+        /// <returns>Lock status after the change.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TestAuthSignInLockStatusResponse> SetTestAuthSignInLockAsync(System.Guid userId, SetTestAuthSignInLockRequest request, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
+
+        /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
+        /// <summary>
+        /// Ends a tenant user's temporary authenticator app lockout (too many wrong codes) straight away. A lock set by an
+        /// <br/>administrator is left in place.
+        /// </summary>
+        /// <returns>Lock status after clearing.</returns>
+        /// <exception cref="ExternalApplicationsException">A server side error occurred.</exception>
+        System.Threading.Tasks.Task<TestAuthSignInLockStatusResponse> ClearTestAuthTemporaryLockoutAsync(System.Guid userId, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken));
 
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
         /// <summary>

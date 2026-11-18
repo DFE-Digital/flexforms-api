@@ -38,10 +38,21 @@ public interface ITestAuthAuthenticatorService
     Task<bool> RemoveAsync(string email, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Checks a sign-in code. Each code is accepted once, and repeated failures lock the email out for
-    /// <see cref="TestAuthAuthenticatorService.LockoutWindow"/>.
+    /// Checks a sign-in code. Each code is accepted once. After <see cref="TestAuthAuthenticatorService.MaxFailedAttempts"/>
+    /// attempts without success the email is locked out until <see cref="TestAuthAuthenticatorService.LockoutWindow"/>
+    /// after the first of them; the result then reports <see cref="TestAuthLockout.Temporary"/> and the time left.
+    /// Does not check administrator locks: callers check <see cref="ITestAuthSignInLockService"/> first.
     /// </summary>
-    Task<bool> VerifyAsync(string email, string code, CancellationToken cancellationToken = default);
+    Task<TestAuthSignInResult> VerifyAsync(string email, string code, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns how long until authenticator sign-in for <paramref name="email"/> unlocks, or <c>null</c> when it is not
+    /// temporarily locked out.
+    /// </summary>
+    Task<TimeSpan?> GetTemporaryLockoutAsync(string email, CancellationToken cancellationToken = default);
+
+    /// <summary>Clears the failed-attempt count, ending any temporary lockout. Returns <c>true</c> when there was a count.</summary>
+    Task<bool> ClearTemporaryLockoutAsync(string email, CancellationToken cancellationToken = default);
 }
 
 public sealed record TestAuthAuthenticatorSetup(string SharedKey, string AuthenticatorUri);

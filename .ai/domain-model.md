@@ -23,7 +23,9 @@ There is **no** `TemplatePermission.cs` entity today. README ER diagram still me
 
 ## Tenancy entities (`tenantconfig`)
 
-`TenantEntity`, `TenantSettingEntity`, `TenantHostnameEntity`, `TenantFrontendOriginEntity`, `TenantPrincipalEntity`, `TenantSettingAuditEntity` under `Domain/Tenancy/Entities/`.
+`TenantEntity`, `TenantSettingEntity`, `TenantHostnameEntity`, `TenantFrontendOriginEntity`, `TenantPrincipalEntity`, `TenantSettingAuditEntity`, `TestAuthAuthenticatorEntity`, `TestAuthSignInLockEntity` under `Domain/Tenancy/Entities/`.
+
+`TestAuthSignInLockEntity` (**Verified**): one row per `(TenantId, NormalizedEmail)` (unique index) while an administrator has locked that email out of Test Authentication sign-in, with `LockedAtUtc` and `LockedByEmail`. Unlocking deletes the row. Migration `AddTestAuthSignInLocks`.
 
 Settings uniqueness: **`(TenantId, Category, Target)`** with Target `Shared` | `Api` | `Web`.
 
