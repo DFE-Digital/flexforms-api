@@ -37,6 +37,17 @@ Product branding is FlexForms. Many types still use the historical name **Extern
 3. Open the cited source files. Treat this knowledge as a map, not a substitute for the code.
 4. If the task spans Web, Prism, the scanner, ClamAV or CoreLibs, start with [`.ai/ecosystem.md`](.ai/ecosystem.md) (the same file is in every repo), then read those repos’ `AGENTS.md`. API side of integrations: [`.ai/integrations.md`](.ai/integrations.md).
 
+## Planning checklist
+
+Before you propose a plan (plan mode or not), check each of these and cite what you found:
+
+1. **Read first.** Open the matching `.ai/features/` file and `.ai/known-pitfalls.md`, and name them in the plan.
+2. **Trace errors from where they are thrown to where they are handled, across repos.** An API status code passes through Api.Client handlers (`TokenExchangeHandler`, `UserAutoRegistrationHandler`) and Web code that swallows or rewrites errors before a user sees anything. Read the methods on that path, not just the catch blocks around them. Web lists them in its `.ai/architecture.md` (Error boundaries) and `.ai/features/auth-and-bootstrap.md` (First request after sign-in).
+3. **Reuse before adding.** Look for an existing handler, query object, service or pattern that already does the job, and say which one you reuse.
+4. **Check deployed contracts.** Api.Client ships as a NuGet package and Web pins a version, so the client already in production keeps running after the API deploys. Before changing an API message, `ErrorId`, status code or DTO that a client matches on, check what the published client does. `TokenExchangeErrors.NotTenantMemberMarker` is one example.
+5. **Verify generated-client behaviour in `Api.Client/Generated/Client.g.cs`.** Statuses the endpoint does not declare throw an untyped `ExternalApplicationsException`, with the body only in `Response`.
+6. **Fix stale docs you notice** while planning (trust code over docs).
+
 ## Knowledge map
 
 | File | Use when |
