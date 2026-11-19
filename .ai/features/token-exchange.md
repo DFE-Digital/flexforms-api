@@ -32,7 +32,7 @@ Production blocks Test Auth. Self-registration template grants as in business-ru
 - Web Target overriding Shared TestAuthentication.
 - Multi-provider IDX log noise.
 - SuperAdmin elevation and Test Auth paths — re-read the handler and its tests before changing who may exchange.
-- No active membership (and not platform SuperAdmin) → `Forbid` "User is not a member of tenant '…'". Keep the phrase `TokenExchangeErrors.NotTenantMemberMarker` ("not a member of tenant"): Api.Client `UserAutoRegistrationHandler` uses it to auto-register, and `TokenExchangeHandler` uses it to return a 403 with `ErrorId` `TokenExchangeErrors.NoTenantMembershipErrorId` (`Exchange-403-NoTenantMembership`) and a user-facing message, instead of the synthetic 401. That path does not set the forced-logout flag. Web shows the reason on its Forbidden page. Deployed clients match the phrase, so changing the API wording breaks them; `ExchangeTokenQueryHandlerTests` guards it.
+- No EA user → `NotFound` "User not found for email …". No active membership (and not platform SuperAdmin) → `Forbid` "User is not a member of tenant '…'". Keep both markers (`TokenExchangeErrors.UserNotFoundMarker` / `NotTenantMemberMarker`): `UserAutoRegistrationHandler` uses them to auto-register when enabled, and `TokenExchangeHandler.IsDeniedTenantAccess` turns either into a 403 with `ErrorId` `Exchange-403-NoTenantMembership` (no forced logout) so Web shows Forbidden. A 404 that was left as a synthetic 401 sent users to `/Logout?reason=auth_failed` on Azure even though Test Auth had succeeded. Deployed clients match the phrases, so changing the API wording breaks them; `ExchangeTokenQueryHandlerTests` guards the membership phrase.
 
 ## 8. Tests
 

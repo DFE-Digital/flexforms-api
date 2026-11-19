@@ -110,14 +110,14 @@ public class TokenExchangeHandler(
                     request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", exchange.AccessToken);
                     return await base.SendAsync(request, cancellationToken);
                 }
-                else if (exchange.NotTenantMember)
+                else if (exchange.DeniedTenantAccess)
                 {
-                    // Authorisation, not authentication: the sign-in is valid but the user has no
-                    // membership in this tenant. Do not set the forced-logout flag (that signs the
-                    // user out and sends them to "/", which silently signs them in again and loops).
-                    // Return a 403 that Web recognises by ErrorId so it can show the reason.
+                    // Authorisation, not authentication: IdP/Test Auth succeeded but the EA user is
+                    // missing or has no membership in this tenant. Do not set the forced-logout flag
+                    // (that signs the user out and sends them to "/", which silently signs them in
+                    // again and loops). Return a 403 that Web recognises by ErrorId.
                     logger.LogWarning(
-                        "Token exchange denied for user {UserEmail}: no membership in the current tenant",
+                        "Token exchange denied for user {UserEmail}: not authorised for the current tenant",
                         userName);
                     tokenStore.ClearToken();
                     return NoTenantMembershipResponse(request);
@@ -151,10 +151,10 @@ public class TokenExchangeHandler(
         }
     }
 
-    private readonly record struct ExchangeOutcome(string? AccessToken, bool NotTenantMember)
+    private readonly record struct ExchangeOutcome(string? AccessToken, bool DeniedTenantAccess)
     {
         public static ExchangeOutcome Failed => new(null, false);
-        public static ExchangeOutcome NoMembership => new(null, true);
+        public static ExchangeOutcome Denied => new(null, true);
     }
 
     private async Task<ExchangeOutcome> ExchangeTokenAsync(string externalIdpToken)
@@ -186,12 +186,11 @@ public class TokenExchangeHandler(
                 return ExchangeOutcome.Failed;
             }
         }
-        catch (ExternalApplicationsException ex)
-            when (ex.StatusCode == (int)HttpStatusCode.Forbidden
-                  && TokenExchangeErrors.IsNotTenantMemberResponse(ex.Response))
+        catch (ExternalApplicationsException ex) when (TokenExchangeErrors.IsDeniedTenantAccess(ex))
         {
-            // Expected for users who signed in to a tenant they do not belong to; not an error.
-            return ExchangeOutcome.NoMembership;
+            // Expected when Test Auth / IdP succeeds but the EA user is unknown or has no
+            // membership in this tenant (404 user not found, or 403 not a member).
+            return ExchangeOutcome.Denied;
         }
         catch (Exception ex)
         {
@@ -220,19 +219,19 @@ public class TokenExchangeHandler(
 
     private HttpResponseMessage UnauthorizedResponse(HttpRequestMessage request)
     {
-        var response = new HttpResponseMessage(HttpStatusCode.Unauthorized);
-        
         var errorResponse = new ExceptionResponse
         {
+            StatusCode = (int)HttpStatusCode.Unauthorized,
             ExceptionType = "Unauthorized",
             Message = "Authentication tokens are invalid or expired",
             Timestamp = DateTime.UtcNow,
             ErrorId = "Exchange-401"
         };
 
-        var json = JsonSerializer.Serialize(errorResponse);
-        response.Content = new StringContent(json, Encoding.UTF8, "application/json");
-        
-        return response;
+        return new HttpResponseMessage(HttpStatusCode.Unauthorized)
+        {
+            RequestMessage = request,
+            Content = new StringContent(JsonSerializer.Serialize(errorResponse), Encoding.UTF8, "application/json")
+        };
     }
 }
