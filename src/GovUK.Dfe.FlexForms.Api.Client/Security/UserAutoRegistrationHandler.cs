@@ -138,8 +138,7 @@ public class UserAutoRegistrationHandler : DelegatingHandler
                     && content.Contains("does not exist", StringComparison.OrdinalIgnoreCase));
 
             // Existing users without TenantMembership: "User is not a member of tenant '...'"
-            var isNotTenantMember =
-                content.Contains("not a member of tenant", StringComparison.OrdinalIgnoreCase);
+            var isNotTenantMember = TokenExchangeErrors.IsNotTenantMemberResponse(content);
 
             return isUserNotFound || isNotTenantMember;
         }
