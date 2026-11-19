@@ -104,11 +104,23 @@ public class TokenExchangeHandler(
             // Try to exchange for OBO token
             if (tokenState.ExternalIdpToken.IsValid && !string.IsNullOrEmpty(tokenState.ExternalIdpToken.Value))
             {
-                var oboToken = await ExchangeTokenAsync(tokenState.ExternalIdpToken.Value);
-                if (!string.IsNullOrEmpty(oboToken))
+                var exchange = await ExchangeTokenAsync(tokenState.ExternalIdpToken.Value);
+                if (!string.IsNullOrEmpty(exchange.AccessToken))
                 {
-                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", oboToken);
+                    request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", exchange.AccessToken);
                     return await base.SendAsync(request, cancellationToken);
+                }
+                else if (exchange.NotTenantMember)
+                {
+                    // Authorisation, not authentication: the sign-in is valid but the user has no
+                    // membership in this tenant. Do not set the forced-logout flag (that signs the
+                    // user out and sends them to "/", which silently signs them in again and loops).
+                    // Return a 403 that Web recognises by ErrorId so it can show the reason.
+                    logger.LogWarning(
+                        "Token exchange denied for user {UserEmail}: no membership in the current tenant",
+                        userName);
+                    tokenStore.ClearToken();
+                    return NoTenantMembershipResponse(request);
                 }
                 else
                 {
@@ -139,7 +151,13 @@ public class TokenExchangeHandler(
         }
     }
 
-    private async Task<string?> ExchangeTokenAsync(string externalIdpToken)
+    private readonly record struct ExchangeOutcome(string? AccessToken, bool NotTenantMember)
+    {
+        public static ExchangeOutcome Failed => new(null, false);
+        public static ExchangeOutcome NoMembership => new(null, true);
+    }
+
+    private async Task<ExchangeOutcome> ExchangeTokenAsync(string externalIdpToken)
     {
         try
         {
@@ -147,7 +165,7 @@ public class TokenExchangeHandler(
             var azureToken = await tokenAcquisitionService.GetTokenAsync();
             if (string.IsNullOrEmpty(azureToken))
             {
-                return null;
+                return ExchangeOutcome.Failed;
             }
 
             // Create exchange request
@@ -160,19 +178,44 @@ public class TokenExchangeHandler(
             {
                 // Store the new OBO token
                 tokenStore.SetToken(result.AccessToken);
-                
-                return result.AccessToken;
+
+                return new ExchangeOutcome(result.AccessToken, false);
             }
             else
             {
-                return null;
+                return ExchangeOutcome.Failed;
             }
+        }
+        catch (ExternalApplicationsException ex)
+            when (ex.StatusCode == (int)HttpStatusCode.Forbidden
+                  && TokenExchangeErrors.IsNotTenantMemberResponse(ex.Response))
+        {
+            // Expected for users who signed in to a tenant they do not belong to; not an error.
+            return ExchangeOutcome.NoMembership;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to exchange external IDP token for OBO token");
-            return null;
+            return ExchangeOutcome.Failed;
         }
+    }
+
+    private static HttpResponseMessage NoTenantMembershipResponse(HttpRequestMessage request)
+    {
+        var errorResponse = new ExceptionResponse
+        {
+            StatusCode = (int)HttpStatusCode.Forbidden,
+            ExceptionType = "Forbidden",
+            Message = TokenExchangeErrors.NoTenantMembershipMessage,
+            Timestamp = DateTime.UtcNow,
+            ErrorId = TokenExchangeErrors.NoTenantMembershipErrorId
+        };
+
+        return new HttpResponseMessage(HttpStatusCode.Forbidden)
+        {
+            RequestMessage = request,
+            Content = new StringContent(JsonSerializer.Serialize(errorResponse), Encoding.UTF8, "application/json")
+        };
     }
 
     private HttpResponseMessage UnauthorizedResponse(HttpRequestMessage request)

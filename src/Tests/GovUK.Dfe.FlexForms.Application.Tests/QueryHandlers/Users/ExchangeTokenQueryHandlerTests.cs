@@ -419,6 +419,10 @@ public class ExchangeTokenQueryHandlerTests
 
         Assert.False(result.IsSuccess);
         Assert.Contains("not a member", result.Error, StringComparison.OrdinalIgnoreCase);
+        // Deployed Api.Client versions (auto-registration and the no-membership 403) match this phrase.
+        Assert.True(
+            GovUK.Dfe.FlexForms.Api.Client.Security.TokenExchangeErrors.IsNotTenantMemberResponse(result.Error),
+            "Exchange Forbid message must keep the phrase Api.Client matches on.");
     }
 
     [Theory]
