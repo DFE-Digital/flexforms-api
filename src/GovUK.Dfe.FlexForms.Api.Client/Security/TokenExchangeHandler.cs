@@ -220,19 +220,19 @@ public class TokenExchangeHandler(
 
     private HttpResponseMessage UnauthorizedResponse(HttpRequestMessage request)
     {
-        var response = new HttpResponseMessage(HttpStatusCode.Unauthorized);
-        
         var errorResponse = new ExceptionResponse
         {
+            StatusCode = (int)HttpStatusCode.Unauthorized,
             ExceptionType = "Unauthorized",
             Message = "Authentication tokens are invalid or expired",
             Timestamp = DateTime.UtcNow,
             ErrorId = "Exchange-401"
         };
 
-        var json = JsonSerializer.Serialize(errorResponse);
-        response.Content = new StringContent(json, Encoding.UTF8, "application/json");
-        
-        return response;
+        return new HttpResponseMessage(HttpStatusCode.Unauthorized)
+        {
+            RequestMessage = request,
+            Content = new StringContent(JsonSerializer.Serialize(errorResponse), Encoding.UTF8, "application/json")
+        };
     }
 }
