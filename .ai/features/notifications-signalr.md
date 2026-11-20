@@ -21,7 +21,7 @@ CoreLibs `Notification` / `NotificationDto`. Categories include `malware-detecti
 
 ## 5. Other repos
 
-Web: `FrontHubTicketController`, `wwwroot/js/notifications.js`. Cypress disables the hub.
+Web: `FrontHubTicketController`, `wwwroot/js/notifications.js`. Playwright sets `window.Cypress` so the page skips the hub (the flag name is left over from the removed Cypress suite).
 
 ## 6. Rules
 
