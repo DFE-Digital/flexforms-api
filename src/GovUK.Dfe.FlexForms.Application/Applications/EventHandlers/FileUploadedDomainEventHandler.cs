@@ -12,6 +12,8 @@ using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Helpers;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Interfaces;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using GovUK.Dfe.FlexForms.Domain.Entities;
 using GovUK.Dfe.FlexForms.Domain.Interfaces.Repositories;
@@ -27,7 +29,8 @@ public sealed class FileUploadedDomainEventHandler(
     IEnumerable<IAzureSpecificOperations> azureSpecificOperations,
     IApplicationRepository applicationRepository,
     IEaRepository<User> userRepository,
-    IEventTriggerDispatcher eventTriggerDispatcher)
+    IEventTriggerDispatcher eventTriggerDispatcher,
+    IHostEnvironment hostEnvironment)
     : BaseEventHandler<Domain.Events.FileUploadedDomainEvent>(logger)
 {
     protected override async Task HandleEvent(
@@ -44,6 +47,8 @@ public sealed class FileUploadedDomainEventHandler(
         var tenant = tenantContextAccessor.CurrentTenant
             ?? throw new InvalidOperationException("Tenant context is required to publish file upload events.");
 
+        var provider = tenant.Settings.GetValue<string>("FileStorage:Provider");
+
         // Prefer tenant Azure credentials (TenantConfig) for SAS. Fall back to host DI only when
         // the tenant is not Azure-backed (e.g. Local host Hybrid registration).
         var tenantAzure = tenantAzureFileStorageFactory.GetAzureOperationsOrNull(tenant);
@@ -52,18 +57,18 @@ public sealed class FileUploadedDomainEventHandler(
 
         string sasUri;
         bool isAzureFileShare;
-        if (azureOps is null)
+        if (ShouldUseLocalFileUri(provider, azureOps, hostEnvironment))
         {
-            var localPath = Path.Combine(Directory.GetCurrentDirectory(), "Uploads", fileUrl);
-            sasUri = $"file:///{localPath.Replace("\\", "/")}";
+            sasUri = BuildLocalFileUri(tenant, fileUrl);
             isAzureFileShare = false;
             logger.LogInformation(
-                "Local FileStorage provider — using file URI for scan request: {SasUri}",
-                sasUri);
+                "Disk FileStorage (Provider={Provider}, Environment={Environment}) — using file URI for scan request",
+                provider ?? "(unset)",
+                hostEnvironment.EnvironmentName);
         }
         else
         {
-            sasUri = await azureOps.GenerateSasTokenAsync(
+            sasUri = await azureOps!.GenerateSasTokenAsync(
                 fileUrl, DateTimeOffset.UtcNow.AddHours(1), "r", cancellationToken);
             isAzureFileShare = true;
             logger.LogInformation(
@@ -262,5 +267,45 @@ public sealed class FileUploadedDomainEventHandler(
                 userId.Value);
             return null;
         }
+    }
+
+    /// <summary>
+    /// Local provider is always disk-only. Hybrid on Development/Local skips Azure SAS because
+    /// TenantConfig often mirrors Container Apps (Hybrid + Azure credentials) while the laptop
+    /// has no Azure Files mount — uploads land on <c>Local.BaseDirectory</c> only.
+    /// </summary>
+    internal static bool ShouldUseLocalFileUri(
+        string? provider,
+        IAzureSpecificOperations? azureOps,
+        IHostEnvironment hostEnvironment)
+    {
+        if (string.Equals(provider, "Local", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (string.Equals(provider, "Hybrid", StringComparison.OrdinalIgnoreCase)
+            && IsDeveloperHost(hostEnvironment))
+            return true;
+
+        return azureOps is null;
+    }
+
+    private static bool IsDeveloperHost(IHostEnvironment hostEnvironment) =>
+        hostEnvironment.IsDevelopment()
+        || hostEnvironment.IsEnvironment("Local");
+
+    /// <summary>
+    /// Builds a <c>file://</c> URI under the tenant disk base directory (not host cwd/Uploads).
+    /// </summary>
+    internal static string BuildLocalFileUri(TenantConfiguration tenant, string relativeFilePath)
+    {
+        var baseDirectory = tenant.Settings.GetValue<string>("FileStorage:Local:BaseDirectory");
+        if (string.IsNullOrWhiteSpace(baseDirectory))
+            baseDirectory = Path.Combine(Directory.GetCurrentDirectory(), "Uploads");
+
+        var combined = Path.Combine(
+            baseDirectory,
+            relativeFilePath.Replace('/', Path.DirectorySeparatorChar));
+        var fullPath = Path.GetFullPath(combined);
+        return new Uri(fullPath).AbsoluteUri;
     }
 }

@@ -37,6 +37,7 @@ The callback's `message` is stored **as sent** (trimmed, max `File.ValidationMes
 - Scanner Redis cache by `FileHash` can replay a result for a new requester (routing stamps tenant/user on cache hit).
 - Local instance-id filter on consumers.
 - The scanner contains a test hook used by end-to-end infection tests (**scanner repo**, see its `AGENTS.md`).
+- **Hybrid vs Local for scan URI** (**Verified**, `FileUploadedDomainEventHandler`): Provider `Local` always publishes a `file://` URI under `FileStorage:Local:BaseDirectory`. Provider `Hybrid` normally mints Azure SAS (Container Apps mount + ClamAV HTTP download). On Development/Local hosts, Hybrid also uses `file://` so laptop runs against shared TenantConfig do not depend on Azure storage keys. Remote scanners cannot fetch `file://`.
 
 ## 8. Tests
 

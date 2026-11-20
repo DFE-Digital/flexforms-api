@@ -13,6 +13,7 @@ using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Interfaces;
 using GovUK.Dfe.CoreLibs.Messaging.MassTransit.Models;
 using GovUK.Dfe.CoreLibs.Testing.AutoFixture.Attributes;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MockQueryable;
 using NSubstitute;
@@ -32,6 +33,7 @@ public class FileUploadedDomainEventHandlerTests
     private readonly IApplicationRepository _applicationRepository;
     private readonly IEaRepository<User> _userRepository;
     private readonly IEventTriggerDispatcher _eventTriggerDispatcher;
+    private readonly IHostEnvironment _hostEnvironment;
     private readonly FileUploadedDomainEventHandler _handler;
 
     public FileUploadedDomainEventHandlerTests()
@@ -44,21 +46,29 @@ public class FileUploadedDomainEventHandlerTests
         _applicationRepository = Substitute.For<IApplicationRepository>();
         _userRepository = Substitute.For<IEaRepository<User>>();
         _eventTriggerDispatcher = Substitute.For<IEventTriggerDispatcher>();
+        _hostEnvironment = Substitute.For<IHostEnvironment>();
+        _hostEnvironment.EnvironmentName.Returns(Environments.Production);
 
         _applicationRepository.Query().Returns(Array.Empty<Domain.Entities.Application>().AsQueryable());
         _userRepository.Query().Returns(Array.Empty<User>().AsQueryable());
         _tenantAzureFactory.GetAzureOperationsOrNull(Arg.Any<TenantConfiguration>()).Returns((IAzureSpecificOperations?)null);
 
-        _handler = new FileUploadedDomainEventHandler(
+        _handler = CreateHandler([_azureOps], _hostEnvironment);
+    }
+
+    private FileUploadedDomainEventHandler CreateHandler(
+        IEnumerable<IAzureSpecificOperations> azureOps,
+        IHostEnvironment environment) =>
+        new(
             _logger,
             _eventPublisher,
             _tenantContextAccessor,
             _tenantAzureFactory,
-            [_azureOps],
+            azureOps,
             _applicationRepository,
             _userRepository,
-            _eventTriggerDispatcher);
-    }
+            _eventTriggerDispatcher,
+            environment);
 
     [Fact]
     public async Task Handle_ShouldThrow_WhenTenantContextIsNull()
@@ -111,6 +121,7 @@ public class FileUploadedDomainEventHandlerTests
     [Fact]
     public async Task Handle_ShouldUseSas_WhenAzureOpsRegistered_EvenInHybridStyleSetup()
     {
+        // No Provider (or non-Local) + Production: host azure ops still mint SAS.
         var tenantConfig = new TenantConfiguration(
             Guid.NewGuid(), "TestTenant",
             new ConfigurationBuilder().Build(),
@@ -136,6 +147,64 @@ public class FileUploadedDomainEventHandlerTests
         Assert.Single(publishedCalls);
         Assert.True(publishedCalls[0].IsAzureFileShare);
         Assert.StartsWith("https://", publishedCalls[0].FileUri, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("Development")]
+    [InlineData("Local")]
+    public async Task Handle_ShouldUseFileUri_WhenHybridOnDeveloperHost(string environmentName)
+    {
+        var environment = Substitute.For<IHostEnvironment>();
+        environment.EnvironmentName.Returns(environmentName);
+        var handler = CreateHandler([_azureOps], environment);
+
+        var tenantConfig = CreateTenantWithFileStorage("Hybrid", baseDirectory: Path.Combine(Path.GetTempPath(), "flexforms-uploads"));
+        _tenantContextAccessor.CurrentTenant.Returns(tenantConfig);
+        _tenantAzureFactory.GetAzureOperationsOrNull(tenantConfig).Returns(_azureOps);
+
+        var @event = new FileUploadedDomainEvent(CreateFileWithApplication(), "hash-abc", DateTime.UtcNow);
+
+        await handler.Handle(@event, CancellationToken.None);
+
+        await _azureOps.DidNotReceive()
+            .GenerateSasTokenAsync(Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        var publishedCalls = _eventPublisher.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IEventPublisher.PublishAsync))
+            .Select(c => c.GetArguments()[0])
+            .OfType<ScanRequestedEvent>()
+            .ToList();
+        Assert.Single(publishedCalls);
+        Assert.False(publishedCalls[0].IsAzureFileShare);
+        Assert.StartsWith("file://", publishedCalls[0].FileUri, StringComparison.Ordinal);
+        Assert.Contains("flexforms-uploads", publishedCalls[0].FileUri, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldUseSas_WhenHybridOnProduction()
+    {
+        var tenantConfig = CreateTenantWithFileStorage("Hybrid", baseDirectory: "/uploads");
+        _tenantContextAccessor.CurrentTenant.Returns(tenantConfig);
+        _tenantAzureFactory.GetAzureOperationsOrNull(tenantConfig).Returns(_azureOps);
+
+        _azureOps.GenerateSasTokenAsync(
+                Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns("https://account.file.core.windows.net/share/file?sv=sas");
+
+        var @event = new FileUploadedDomainEvent(CreateFileWithApplication(), "hash-abc", DateTime.UtcNow);
+
+        await _handler.Handle(@event, CancellationToken.None);
+
+        await _azureOps.Received(1).GenerateSasTokenAsync(
+            Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        var publishedCalls = _eventPublisher.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IEventPublisher.PublishAsync))
+            .Select(c => c.GetArguments()[0])
+            .OfType<ScanRequestedEvent>()
+            .ToList();
+        Assert.Single(publishedCalls);
+        Assert.True(publishedCalls[0].IsAzureFileShare);
     }
 
     [Fact]
@@ -173,15 +242,7 @@ public class FileUploadedDomainEventHandlerTests
     [Fact]
     public async Task Handle_ShouldUseFileUri_WhenAzureOpsNotRegistered()
     {
-        var localOnlyHandler = new FileUploadedDomainEventHandler(
-            _logger,
-            _eventPublisher,
-            _tenantContextAccessor,
-            _tenantAzureFactory,
-            Array.Empty<IAzureSpecificOperations>(),
-            _applicationRepository,
-            _userRepository,
-            _eventTriggerDispatcher);
+        var localOnlyHandler = CreateHandler(Array.Empty<IAzureSpecificOperations>(), _hostEnvironment);
 
         var tenantConfig = new TenantConfiguration(
             Guid.NewGuid(), "TestTenant",
@@ -203,7 +264,30 @@ public class FileUploadedDomainEventHandlerTests
             .ToList();
         Assert.Single(publishedCalls);
         Assert.False(publishedCalls[0].IsAzureFileShare);
-        Assert.StartsWith("file:///", publishedCalls[0].FileUri, StringComparison.Ordinal);
+        Assert.StartsWith("file://", publishedCalls[0].FileUri, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Handle_ShouldUseFileUri_WhenProviderIsLocal_EvenIfAzureOpsExist()
+    {
+        var tenantConfig = CreateTenantWithFileStorage("Local", baseDirectory: Path.Combine(Path.GetTempPath(), "local-only"));
+        _tenantContextAccessor.CurrentTenant.Returns(tenantConfig);
+
+        var @event = new FileUploadedDomainEvent(CreateFileWithApplication(), "hash-abc", DateTime.UtcNow);
+
+        await _handler.Handle(@event, CancellationToken.None);
+
+        await _azureOps.DidNotReceive()
+            .GenerateSasTokenAsync(Arg.Any<string>(), Arg.Any<DateTimeOffset>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+
+        var publishedCalls = _eventPublisher.ReceivedCalls()
+            .Where(c => c.GetMethodInfo().Name == nameof(IEventPublisher.PublishAsync))
+            .Select(c => c.GetArguments()[0])
+            .OfType<ScanRequestedEvent>()
+            .ToList();
+        Assert.Single(publishedCalls);
+        Assert.False(publishedCalls[0].IsAzureFileShare);
+        Assert.Contains("local-only", publishedCalls[0].FileUri, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -276,6 +360,22 @@ public class FileUploadedDomainEventHandlerTests
                 && (string?)metadata[PlatformEventMetadataKeys.UploaderEmail] == "bob@example.com"
                 && (string?)metadata[PlatformEventMetadataKeys.LeadApplicantName] == "Ada Lead"),
             Arg.Any<CancellationToken>());
+    }
+
+    private static TenantConfiguration CreateTenantWithFileStorage(string provider, string baseDirectory)
+    {
+        var settings = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["FileStorage:Provider"] = provider,
+                ["FileStorage:Local:BaseDirectory"] = baseDirectory,
+                ["FileStorage:Azure:ConnectionString"] = "UseDevelopmentStorage=true",
+                ["FileStorage:Azure:ShareName"] = "uploads",
+                ["ApplicationName"] = "TestApp"
+            })
+            .Build();
+
+        return new TenantConfiguration(Guid.NewGuid(), "TestTenant", settings, Array.Empty<string>());
     }
 
     private static User CreateUser(UserId id, string name, string email) =>

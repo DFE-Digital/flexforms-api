@@ -38,6 +38,7 @@ Code-verified unless marked **Historical** / **Unverified**. Background: [`histo
 17. **`RequirePassed` depends on the tenant validation function.** Pending files block submit, so choose it only when that function runs with availability matching FlexForms; otherwise use `FailOnInvalid`.
 18. **Both API and Web consume `file-scanner-results`.** Removing one breaks cleanup or UX.
 19. **Do not log SAS URLs.**
+42. **Hybrid FileStorage still mints Azure SAS after a disk upload.** Provider `Hybrid` writes to `Local.BaseDirectory` then `FileUploadedDomainEventHandler` generates a SAS for ClamAV. On a laptop against shared TenantConfig that mirrors Container Apps, that means a local disk write followed by an Azure auth call — and a bad/rotated storage key surfaces as `Failed to generate SAS token` / `AuthenticationFailed` on `POST .../files`. On Development/Local the handler now uses a `file://` URI under the tenant `BaseDirectory` instead (same as Provider `Local`). Production/Staging Hybrid still uses SAS. Remote scanners cannot read `file://`; use a local ClamAV stack or Provider `Azure` when you need the shared scanner from a laptop. See `features/file-scan-pipeline.md`.
 
 ## Cache / Redis
 

@@ -32,7 +32,7 @@ Runtime overlays: `TenantAwareFileStorageService`. Host DI uses `GlobalConfigura
 API does **not** call ClamAV. Flow:
 
 1. `UploadFileCommandHandler` stores the file.
-2. `FileUploadedDomainEventHandler` builds a SAS URI (`IAzureSpecificOperations`) and publishes `ScanRequestedEvent`.
+2. `FileUploadedDomainEventHandler` builds a scan URI and publishes `ScanRequestedEvent`: Azure SAS via `IAzureSpecificOperations` for Provider Azure/Hybrid in deployed environments; `file://` under tenant `Local.BaseDirectory` for Provider Local, and for Hybrid on Development/Local hosts (no Azure Files mount on a laptop).
 3. Scanner POSTs `/scan/async/url` to ClamAV API (Base64 URL).
 4. `ScanResultConsumer` (API) updates file metadata, deletes infected files, notifies via Redis + SignalR.
 
