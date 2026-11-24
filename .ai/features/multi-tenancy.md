@@ -42,6 +42,8 @@ See [`../business-rules.md`](../business-rules.md). SuperAdmin-only categories. 
 
 `TenantResolutionMiddlewareTests`, TenantAdmin/TenantConfig handler tests, `TenantSettingTargetOverlapGateTests`.
 
+Tenant boundaries pinned in `Application.Tests` (**Verified**): `TenantTemplateCatalogueTests` and `TenantTemplateCatalogueMappingRulesTests` (every mapping key; a mapping to a missing or another tenant's template is ignored; owned templates are always listed), `UserAccessibleTemplateServiceTests` and `UserAccessibleTemplateServiceTenantLimitTests` (grants outside the catalogue never widen access), `TenantHostnameResolverTests` (only active tenants resolve), `TenantMembershipServiceTests`, and `TenantConfigQueryHandlerTests` (a platform principal gets only its registered tenant's configuration).
+
 ## 9. Limits
 
 Changes made through the admin endpoints reach every API replica straight away (`ReplicatedTenantConfigurationProvider` broadcasts the refresh over Redis); SQL edits and missed broadcasts converge on the ~60s timer. Web keeps its own per-replica cache; changes made through the Web admin pages are broadcast there too, but writes made straight to the API wait for Web's cache to expire (`PlatformBootstrap:TenantConfigurationCacheMinutes`). See `.ai/known-pitfalls.md` item 34. Operator docs: `docs/multi-tenancy-config.md`.

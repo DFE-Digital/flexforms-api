@@ -126,3 +126,11 @@ Security headers are configured in `Program.cs`.
 ## Expected security tests
 
 Golden file: `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Security/ExpectedSecurity.json`. CI fails if a controller action’s policy drifts.
+
+Pipeline unit tests in `Api.Tests` (**Verified**):
+
+- `TenantClaimsTransformationTests`: the matched provider supplies the tenant, `is_service` and roles; claims already on the token are kept; without a provider the token's own tenant and email claims are used.
+- `TemplateManagePermissionHandlerTests`: on a `{templateId}` route, an exact `Template:{id}:Manage`, `Template:Any:Manage`, Admin or SuperAdmin succeeds, and only for a template in the current tenant; Read, Write or other Manage grants fail. Without a usable route value only Admin or a template manager succeeds.
+- `ServicePrincipalHandlerTests` (matched provider first, then the `is_service` claim) and `UserManagePermissionHandlerTests` (Admin or any `User:*:Manage`).
+- `AuthorizationFailureResponseHandlerTests`: a challenge throws `UnauthorizedException` except under `/hubs`, where SignalR gets the normal challenge; a forbid always throws `AuthorizationForbiddenException`.
+- `ResultToExceptionFilterTests` and `ApplicationExceptionHandlerTests`: a failed `Result<T>` becomes the mapped exception, and each application exception becomes its status code and message.
