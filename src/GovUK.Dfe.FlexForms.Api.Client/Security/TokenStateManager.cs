@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Diagnostics.CodeAnalysis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Threading.Tasks;
@@ -14,7 +13,6 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security;
 /// Central manager for all token states and transitions
 /// Single responsibility: Orchestrate token state management across all authentication schemes
 /// </summary>
-[ExcludeFromCodeCoverage]
 public class TokenStateManager(
     IHttpContextAccessor httpContextAccessor,
     IInternalUserTokenStore tokenStore,

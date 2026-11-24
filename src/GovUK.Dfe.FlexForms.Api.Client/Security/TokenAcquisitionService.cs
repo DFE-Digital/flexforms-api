@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Concurrent;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading.Tasks;
 using Azure.Core;
 using Azure.Identity;
@@ -10,7 +9,6 @@ using GovUK.Dfe.FlexForms.Api.Client.Settings;
 
 namespace GovUK.Dfe.FlexForms.Api.Client.Security
 {
-    [ExcludeFromCodeCoverage]
     public class TokenAcquisitionService(
         IApiClientSettingsProvider settingsProvider,
         ILogger<TokenAcquisitionService> logger) : ITokenAcquisitionService

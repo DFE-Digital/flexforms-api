@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -15,7 +14,6 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security
     /// This is used to forward authentication-related headers (like Cypress test headers) from the web app to the API.
     /// Also automatically appends the X-Tenant-ID header if configured.
     /// </summary>
-    [ExcludeFromCodeCoverage]
     public class HeaderForwardingHandler : DelegatingHandler
     {
         private readonly IHttpContextAccessor _httpContextAccessor;

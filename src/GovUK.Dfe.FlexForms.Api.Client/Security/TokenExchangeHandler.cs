@@ -4,7 +4,6 @@ using GovUK.Dfe.FlexForms.Api.Client.Contracts;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -14,7 +13,6 @@ using System.Threading.Tasks;
 
 namespace GovUK.Dfe.FlexForms.Api.Client.Security;
 
-[ExcludeFromCodeCoverage]
 public class TokenExchangeHandler(
     IHttpContextAccessor httpContextAccessor,
     IInternalUserTokenStore tokenStore,
