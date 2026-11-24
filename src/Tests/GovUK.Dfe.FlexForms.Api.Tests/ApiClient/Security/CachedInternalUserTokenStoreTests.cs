@@ -123,9 +123,14 @@ public class CachedInternalUserTokenStoreTests
         var store = Store(context);
 
         store.SetToken(token);
+
+        Assert.Equal(token, store.GetToken());
+        Assert.Null(Store(SignedOut()).GetToken());
+
         store.ClearToken();
 
-        Assert.Null(Store(SignedOut()).GetToken());
+        Assert.Null(store.GetToken());
+        Assert.False(context.Items.ContainsKey("__InternalUserToken"));
     }
 
     [Fact]
