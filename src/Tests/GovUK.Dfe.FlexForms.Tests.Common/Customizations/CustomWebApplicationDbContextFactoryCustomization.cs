@@ -94,6 +94,8 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                         // Use tenant config from customization (FileStorage:Local with AllowedExtensions) so tests don't depend on appsettings
                         services.RemoveAll<ITenantConfigurationProvider>();
                         services.AddSingleton<ITenantConfigurationProvider>(new TestTenantConfigurationProvider(TestTenantId));
+                        services.RemoveAll<ITenantConfigurationRefreshState>();
+                        services.AddSingleton<ITenantConfigurationRefreshState>(new TestTenantConfigurationRefreshState());
 
                         services.RemoveAll(typeof(IConfigureOptions<AuthenticationOptions>));
                         services.RemoveAll(typeof(IConfigureOptions<JwtBearerOptions>));
@@ -210,6 +212,7 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                 services.AddExternalApplicationsApiClient<INotificationsClient, NotificationsClient>(config, client);
                 services.AddExternalApplicationsApiClient<IUserFeedbackClient, UserFeedbackClient>(config, client);
                 services.AddExternalApplicationsApiClient<IRolesClient, RolesClient>(config, client);
+                services.AddExternalApplicationsApiClient<ITenantAdminClient, TenantAdminClient>(config, client);
 
                 services.RemoveAll<IExternalIdentityValidator>();
                 services.RemoveAll<IUserTokenService>();
@@ -229,6 +232,7 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                 fixture.Inject(serviceProvider.GetRequiredService<INotificationsClient>());
                 fixture.Inject(serviceProvider.GetRequiredService<IUserFeedbackClient>());
                 fixture.Inject(serviceProvider.GetRequiredService<IRolesClient>());
+                fixture.Inject(serviceProvider.GetRequiredService<ITenantAdminClient>());
                 fixture.Inject(serviceProvider.GetRequiredService<IExternalIdentityValidator>());
                 fixture.Inject(new List<Claim>());
 

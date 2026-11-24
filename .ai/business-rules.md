@@ -73,4 +73,4 @@ Do **not** let tenant functions publish onto FlexForms Service Bus.
 
 ## SuperAdmin-only setting categories
 
-Cannot be edited by Tenant Admins: `ConnectionStrings`, `ApplicationTemplates`, `Template`, `FileStorage`, `Email` (see README + `SuperAdminOnlyTenantSettingCategories`).
+Cannot be upserted, deleted or validated by Tenant Admins: `ConnectionStrings`, `ApplicationTemplates`, `Template`, `FileStorage`, `Email`, `ApplicationInsights` (see README + `SuperAdminOnlyTenantSettingCategories`; pinned by `TenantAdminControllerSettingsTests`).
