@@ -145,13 +145,6 @@ _NCrunch*
 # Add migrations (Will come back and look at how to handle migrations)
 */Migrations/LegacyTramsDb
 
-# node_modules
-CypressTests/node_modules
-
-# screenshots and videos
-CypressTests/cypress/screenshots
-CypressTests/cypress/videos
-
 # ZAP
 .ZAP
 .java
