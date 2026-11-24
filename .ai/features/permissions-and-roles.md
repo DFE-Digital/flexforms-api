@@ -64,6 +64,8 @@ Listing applications by many template GUIDs historically broke EF `Contains` on 
 
 Handler tests, `ExpectedSecurity.json`, `TemplatePermissionHandlerTests` (policy handler name is historical).
 
+Permission administration over HTTP, one tenant: `UsersControllerPermissionsTests` (GET/PUT `/users/{id}/permissions`, DELETE `/users/{id}/tenant`) and `RolesControllerTests` (presets, rename, delete, role permissions, system roles). `SetUserPermissionsCommandHandlerTests` covers the guards the controller policy reaches first and the cache clear. Cross-tenant cases are with the tenant-specific grants work (chunk 1.9). Decision 7: a user manager (`User:Any:Manage`, no Admin role) can remove an admin and grant tenant-wide read; the tests pin both as intended.
+
 ## 9. Limits
 
 Claims on the JWT can be stale until refresh. Web permission cache adds another layer.

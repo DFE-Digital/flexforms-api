@@ -209,6 +209,7 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                 services.AddExternalApplicationsApiClient<IApplicationsClient, ApplicationsClient>(config, client);
                 services.AddExternalApplicationsApiClient<INotificationsClient, NotificationsClient>(config, client);
                 services.AddExternalApplicationsApiClient<IUserFeedbackClient, UserFeedbackClient>(config, client);
+                services.AddExternalApplicationsApiClient<IRolesClient, RolesClient>(config, client);
 
                 services.RemoveAll<IExternalIdentityValidator>();
                 services.RemoveAll<IUserTokenService>();
@@ -227,6 +228,7 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.Customizations
                 fixture.Inject(serviceProvider.GetRequiredService<IApplicationsClient>());
                 fixture.Inject(serviceProvider.GetRequiredService<INotificationsClient>());
                 fixture.Inject(serviceProvider.GetRequiredService<IUserFeedbackClient>());
+                fixture.Inject(serviceProvider.GetRequiredService<IRolesClient>());
                 fixture.Inject(serviceProvider.GetRequiredService<IExternalIdentityValidator>());
                 fixture.Inject(new List<Claim>());
 
