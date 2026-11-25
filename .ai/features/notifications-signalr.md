@@ -39,7 +39,7 @@ In-process SignalR + multiple replicas (startup now refuses this outside Develop
 
 ## 8. Tests
 
-Notification handler tests, hub integration tests.
+Notification handler tests, hub integration tests. **Verified** on the two-tenant host (`TwoTenant/CrossTenantAccessTests`): a hub ticket minted in tenant A is refused (401) when redeemed in tenant B and stays usable in A; a connection carrying tenant A's `hubauth` cookie joins tenant A's group even when it sends another tenant's `X-Tenant-ID`, so it gets only tenant A's messages. `NotificationHubTests` checks that two users connected at once each get only their own messages.
 
 ## 9. Limits
 

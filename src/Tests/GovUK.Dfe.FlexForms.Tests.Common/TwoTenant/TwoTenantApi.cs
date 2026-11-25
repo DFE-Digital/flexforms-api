@@ -10,6 +10,7 @@ using GovUK.Dfe.FlexForms.Domain.Tenancy;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
 using GovUK.Dfe.FlexForms.Infrastructure.Security;
 using GovUK.Dfe.FlexForms.Tests.Common.Helpers;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -69,6 +70,9 @@ public class TwoTenantApi : IDisposable
     public TenantSigning Signing { get; }
 
     public IServiceProvider Services => _factory.Services;
+
+    /// <summary>The in-process server, for clients that need its handler (the SignalR client).</summary>
+    public TestServer Server => _factory.Server;
 
     /// <summary>
     /// A client for <paramref name="tenant"/> (<c>X-Tenant-ID</c>), with an optional bearer token or API key.
