@@ -44,6 +44,8 @@ Single submit. Delete blocked if already deleted. Owner change preserves `LastMo
 
 Domain `Application` tests, command handler tests, `PrismOutboxAcceptanceTests`.
 
+Over HTTP with real tokens (**Verified**, `TwoTenant/ApplicationAccessWorkflowTests`): an admin can save a response on another user's application; a member gets 403 opening an application not shared with them and doesn't see it on their dashboard; only the lead applicant can submit (an admin gets 403 and the status is unchanged); a contributor added by the owner sees and can edit the application, and gets 403 again once removed; an admin sees an application's contributors and, by the lead applicant's email, the applications they created with their invitees; a role can't be deleted while someone holds it (400) and can once they're moved off it; a user removed from the tenant can no longer exchange a token (403).
+
 ## 9. Limits
 
 A true patch-save with `BaseRevision`/409 was recommended after the data-loss incident and is **not shipped**. Do not assume the API merges.
