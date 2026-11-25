@@ -61,7 +61,7 @@ Browser ──HTTPS(cookie)──► flexforms-web ──HTTPS(user JWT + X-Tena
 | `Prism.Admin` / `Prism.Delegate` | Prism app registration | API (proxy) / operators | Prism control endpoints; Delegate + `X-Prism-Acting-User` records the acting user |
 | `API.Read` | ClamAV API app | Scanner Function | ClamAV `/scan*`, `/version` (policy `CanRead`) |
 
-### API authentication schemes (flexforms-api `Api/Security/AuthorizationExtensions.cs`)
+### API authentication schemes (flexforms-api `Api/Security/AuthorizationExtensions.cs`, rules in `TenantAuthenticationRules.cs`)
 
 `CompositeScheme` dispatches to: `TenantBearer` (exchanged user JWT signed with the tenant's `Authorization:TokenSettings`, or a tenant Entra service token), `ApiKey` (`X-Api-Key`, SHA-256 hex stored in TenantConfig `AuthProviders`), `Mtls` (thumbprint), `PlatformBearer` (platform Entra app), `HubCookie` (all `/hubs/*`). The JWT `tenant_id` must equal the resolved tenant.
 

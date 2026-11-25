@@ -1,6 +1,6 @@
 # Security
 
-**Verified** in `Api/Security/AuthorizationExtensions.cs`, `Application/Users/Queries/ExchangeTokenQueryHandler.cs`, and [`README.md`](../README.md).
+**Verified** in `Api/Security/AuthorizationExtensions.cs`, `Api/Security/TenantAuthenticationRules.cs`, `Application/Users/Queries/ExchangeTokenQueryHandler.cs`, and [`README.md`](../README.md).
 
 ## Authentication schemes
 
@@ -112,6 +112,15 @@ An administrator can lock a tenant user out of **every** Test Authentication sig
 ## Tenant consistency
 
 Bearer `tenant_id` must match the resolved tenant. Never weaken this check.
+
+The request-time rules live in `Api/Security/TenantAuthenticationRules.cs`; `AuthorizationExtensions` only wires them in (**Verified**). `TenantAuthenticationRulesTests` covers:
+
+- Scheme selection order: `/hubs/*` → `HubCookie`, then `X-Api-Key` → `ApiKey`, then a client certificate → `Mtls`, then platform bootstrap paths → `PlatformBearer`, otherwise `TenantBearer`.
+- Audience: with a resolved tenant the token must fit that tenant's provider (issuer, `aud`, and `azp` then `appid`); with no tenant, any tenant's provider for the issuer will do.
+- `tenant_id`: compared case-insensitively; a mismatch fails. Without the claim, the token passes only if exactly one provider matches (that provider is stashed for `ServicePrincipalRequirement`). If none matches and the issuer is known, it fails; if the issuer is unknown, it passes with a warning (the legacy grace path). No resolved tenant means no check.
+- mTLS: an unknown thumbprint fails; a certificate for another tenant fails; otherwise the principal is rebuilt as the provider's tenant principal and keeps the certificate's claims.
+
+`TenantAuthenticationWiringTests` checks that each handler is still wired to these rules.
 
 ## Secrets and Data Protection
 
