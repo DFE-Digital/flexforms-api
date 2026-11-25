@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Threading;
 
 namespace GovUK.Dfe.FlexForms.Api.Client.Security;
@@ -8,7 +7,6 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security;
 /// Provides context about the current authentication mode.
 /// Uses AsyncLocal to flow across async operations without requiring method parameters.
 /// </summary>
-[ExcludeFromCodeCoverage]
 public static class AuthenticationContext
 {
     private static readonly AsyncLocal<bool> _useServiceToServiceAuth = new();

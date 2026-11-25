@@ -26,6 +26,15 @@ Internal Prism endpoints (`InternalPrismController`) require **platform** app ro
 
 Web’s Api.Client uses this on every user session (`RequestTokenExchange`).
 
+Api.Client `Security/` is counted in coverage (no `[ExcludeFromCodeCoverage]`) and tested in `Api.Tests/ApiClient/Security` (**Verified**):
+
+- `TokenExchangeHandler`: a valid OBO token is sent as is; otherwise the IdP token is exchanged and stored. A 403 "not a member of tenant" or 404 "user not found" exchange becomes a 403 `Exchange-403-NoTenantMembership` without forcing a logout; any other failure forces a logout and answers 401 `Exchange-401`. A client abort is rethrown as a cancellation. Inside `AuthenticationContext.UseServiceToServiceAuthScope()` the Azure token is used instead.
+- `CachedInternalUserTokenStore` and `DistributedCacheManager`: OBO tokens, logout flags and last-activity times are keyed by tenant and user (never `appid`/`azp`), so the same user in another tenant gets nothing. A token within 5 minutes of expiry is dropped. No `TenantId` setting means no shared cache.
+- `TokenStateManager` and `TokenManagementMiddleware`: forced logout (401 JSON for API calls, sign-out and redirect for pages), refresh after 5 minutes' inactivity, and the scheme-to-strategy fallbacks.
+- `UserAutoRegistrationHandler`: a token exchange failing for a missing user or membership registers once (education or Entra issuer only, Azure token, tenant header) and retries; everything else passes through.
+- `HeaderForwardingHandler`: `X-Tenant-ID` is always the configured tenant, replacing any incoming value; a correlation id is always sent.
+- `TokenAcquisitionService` is covered only for its settings checks; the managed identity and MSAL calls need Azure.
+
 Changes to who may exchange (memberships, SuperAdmin elevation, Test Auth) must be tested against every IdP path, including Test Auth, before merging.
 
 Issuer mismatches: CoreLibs may try multiple OIDC providers; wrong-provider attempts log IDX errors even when auth later succeeds. Treat log volume as noise unless the request actually fails.
@@ -126,3 +135,11 @@ Security headers are configured in `Program.cs`.
 ## Expected security tests
 
 Golden file: `src/Tests/GovUK.Dfe.FlexForms.Api.Tests/Security/ExpectedSecurity.json`. CI fails if a controller action’s policy drifts.
+
+Pipeline unit tests in `Api.Tests` (**Verified**):
+
+- `TenantClaimsTransformationTests`: the matched provider supplies the tenant, `is_service` and roles; claims already on the token are kept; without a provider the token's own tenant and email claims are used.
+- `TemplateManagePermissionHandlerTests`: on a `{templateId}` route, an exact `Template:{id}:Manage`, `Template:Any:Manage`, Admin or SuperAdmin succeeds, and only for a template in the current tenant; Read, Write or other Manage grants fail. Without a usable route value only Admin or a template manager succeeds.
+- `ServicePrincipalHandlerTests` (matched provider first, then the `is_service` claim) and `UserManagePermissionHandlerTests` (Admin or any `User:*:Manage`).
+- `AuthorizationFailureResponseHandlerTests`: a challenge throws `UnauthorizedException` except under `/hubs`, where SignalR gets the normal challenge; a forbid always throws `AuthorizationForbiddenException`.
+- `ResultToExceptionFilterTests` and `ApplicationExceptionHandlerTests`: a failed `Result<T>` becomes the mapped exception, and each application exception becomes its status code and message.

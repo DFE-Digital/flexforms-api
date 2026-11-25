@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Json;
@@ -14,7 +13,6 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security;
 /// Caches internal user tokens using the distributed cache with tenant prefix
 /// based on the configured TenantId in ApiClientSettings.
 /// </summary>
-[ExcludeFromCodeCoverage]
 public class CachedInternalUserTokenStore(
     IHttpContextAccessor httpContextAccessor,
     IDistributedCache distributedCache,

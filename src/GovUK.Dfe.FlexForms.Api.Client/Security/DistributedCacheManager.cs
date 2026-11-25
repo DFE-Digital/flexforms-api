@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using GovUK.Dfe.FlexForms.Api.Client.Settings;
@@ -14,7 +13,6 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security;
 /// Ensures atomic cache operations and consistency.
 /// Uses tenant prefix from ApiClientSettings.TenantId for cache key isolation.
 /// </summary>
-[ExcludeFromCodeCoverage]
 public class DistributedCacheManager(
     IDistributedCache distributedCache,
     IHttpContextAccessor httpContextAccessor,

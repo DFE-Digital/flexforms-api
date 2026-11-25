@@ -5,7 +5,7 @@ namespace GovUK.Dfe.FlexForms.Application.Users;
 
 /// <summary>
 /// Distinguishes Test Authentication JWTs from DSI/Entra OIDC ID tokens when both
-/// may be enabled on the same tenant (interactive scheme vs Cypress/test path).
+/// may be enabled on the same tenant (interactive scheme vs Test Auth path).
 /// </summary>
 internal static class TestSubjectTokenDetector
 {

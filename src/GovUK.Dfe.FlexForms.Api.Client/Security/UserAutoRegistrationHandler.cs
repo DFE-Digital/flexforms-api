@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.IdentityModel.Tokens.Jwt;
 using System.Linq;
 using System.Net;
@@ -22,7 +21,6 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security;
 /// Automatically registers users when they authenticate with an external IDP for the first time.
 /// Intercepts "User not found" errors from token exchange and creates the user account seamlessly.
 /// </summary>
-[ExcludeFromCodeCoverage]
 public class UserAutoRegistrationHandler : DelegatingHandler
 {
     private readonly IHttpClientFactory _httpClientFactory;

@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authentication;
@@ -14,7 +13,6 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security;
 /// Simplified middleware that orchestrates token management
 /// Single responsibility: Request interception and token state orchestration
 /// </summary>
-[ExcludeFromCodeCoverage]
 public class TokenManagementMiddleware(RequestDelegate next, ILogger<TokenManagementMiddleware> logger)
 {
     private readonly RequestDelegate _next = next;

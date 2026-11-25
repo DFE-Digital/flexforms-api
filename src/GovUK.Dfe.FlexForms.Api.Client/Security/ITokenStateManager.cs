@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
@@ -41,7 +40,6 @@ public interface ITokenStateManager
 /// <summary>
 /// Comprehensive token state containing all token information and computed properties
 /// </summary>
-[ExcludeFromCodeCoverage]
 public class TokenState
 {
     public bool IsAuthenticated { get; set; }
@@ -65,7 +63,6 @@ public class TokenState
 /// <summary>
 /// Information about an individual token
 /// </summary>
-[ExcludeFromCodeCoverage]
 public class TokenInfo
 {
     public string? Value { get; set; }

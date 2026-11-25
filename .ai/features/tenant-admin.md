@@ -58,6 +58,13 @@ Refresh fail-closed. Reveal is break-glass, not a substitute for RBAC. New tenan
 
 `TenantSettingSecretPlaintextGateTests`, `TenantSettingTargetOverlapGateTests`, `CreateTenantCommandHandlerTests`, `NewTenantSettingsRequirementsTests`, `TenantCreatorServiceTests`, TenantAdmin handler tests.
 
+Who may do what (**Verified**, `Application.Tests` TenantAdmin handler tests and `TenantAdminControllerSettingsTests` over HTTP):
+
+- Safe settings (`TenantSafeSettingCategoriesTests`: 12 categories, 5 stored under Shared, 7 under Web; no SuperAdmin-only or encrypted category is safe): interactive Admin or SuperAdmin of the route tenant only. Service principals, another tenant, an unsafe category, bad Base64, empty or invalid JSON are refused. The read hides secret rows and every non-delegated category.
+- Upsert, delete and validate of full settings: the six SuperAdmin-only categories are refused for a tenant admin. Validate redacts stored and proposed secrets unless the caller is a SuperAdmin in a plaintext environment (Development, Local, Dev, Test, Testing).
+- Export and import: interactive SuperAdmin of the route tenant only; an empty bundle is refused; with `SkipSecretPlaceholders` the exported `{"__SECRET__":true}` placeholders leave stored secrets unchanged.
+- Effective config: Admin or SuperAdmin of the route tenant; refresh state, tenant and provider counts and frontend origins are SuperAdmin only. Platform tenants: SuperAdmin only. Setting audit log: interactive tenant admin of the route tenant.
+
 ## 9. Limits
 
 Settings changes reach running instances on the next refresh, not immediately.

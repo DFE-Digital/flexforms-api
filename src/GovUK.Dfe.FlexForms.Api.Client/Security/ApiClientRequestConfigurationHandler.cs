@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using GovUK.Dfe.FlexForms.Api.Client.Settings;
 
 namespace GovUK.Dfe.FlexForms.Api.Client.Security;
@@ -7,7 +6,6 @@ namespace GovUK.Dfe.FlexForms.Api.Client.Security;
 /// Applies per-request API client settings (base URL) before other handlers run.
 /// Required for multi-tenant Web hosts where each tenant may target a different API base address.
 /// </summary>
-[ExcludeFromCodeCoverage]
 public sealed class ApiClientRequestConfigurationHandler(IApiClientSettingsProvider settingsProvider)
     : DelegatingHandler
 {

@@ -930,7 +930,10 @@ public class ApplicationsControllerTests
                  && p.AccessType == AccessType.Write);
 
         var dbContext = factory.GetDbContext<ExternalApplicationsContext>();
-        factory.TestClaims = BuildPermissionClaimsForUser(dbContext, uniqueEmail);
+        // Change the same list: CoreLibs reads TestClaims once, so assigning a new list keeps the owner's claims.
+        var contributorClaims = BuildPermissionClaimsForUser(dbContext, uniqueEmail);
+        factory.TestClaims!.Clear();
+        factory.TestClaims.AddRange(contributorClaims);
         httpClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", "user-token");
 

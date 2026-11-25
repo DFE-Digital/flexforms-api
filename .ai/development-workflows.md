@@ -41,6 +41,14 @@ Do not swap Testcontainers SQL for an in-memory provider when testing outbox/tem
 
 The CoreLibs `CustomWebApplicationDbContextFactory` strips every `DbContextOptions` registration and only re-adds contexts listed in `SeedData` (EA). `CustomWebApplicationDbContextFactoryCustomization` registers `TenantConfigDbContext` on the EF InMemory provider so handlers that depend on it (Test Authentication authenticators) resolve in integration tests. The "with rate limiting" customization does not.
 
+Integration-test gotchas (**Verified**):
+
+- `factory.TestClaims` is read **once**, when the mock bearer handler is first built (CoreLibs registers it as a singleton). Assigning a new list later in a test is silently ignored and the next request still runs as the first caller. To switch callers, change the same list: `factory.TestClaims.Clear(); factory.TestClaims.AddRange(...)` (see `CallAs` in `UsersControllerPermissionsTests`).
+- Only the clients registered in `CustomWebApplicationDbContextFactoryCustomization` are real. Any other client interface a test asks for is an AutoFixture mock that returns nulls and never throws. Register a new client there before testing its controller (`IRolesClient` was missing until chunk 1.6).
+- The test host does not cache `/me/permissions`, so an HTTP test can't show a cache clear; check `IUserCacheInvalidator` calls in a handler unit test.
+- The in-memory TenantConfig store starts empty for each factory. Add a `TenantEntity` for the test tenant before writing settings, or the writer throws `KeyNotFoundException` and the API answers 404 (see `SeedTenantAsync` in `TenantAdminControllerSettingsTests`).
+- The API registers `ITenantConfigurationRefreshState` only when `TenantConfigSource` is `Database`. The test host loads tenants from `TestTenantConfigurationProvider`, so the customization registers `TestTenantConfigurationRefreshState`; without it `effective-config` and `platform` fail to resolve their handlers.
+
 ## NSwag / Api.Client
 
 Local build regenerates the client. Use `SkipMassTransit` / CodeGeneration appsettings if the host must start without bus. After contract changes, bump the NuGet consumed by Web and Prism.
