@@ -63,11 +63,20 @@ public class TwoTenantApi : IDisposable
                 services.AddTransient<IExternalIdentityValidator, TestExternalIdentityValidator>();
 
                 IntegrationTestServices.ReplaceExternalServices(services, tenantConfigDatabaseName);
+                ConfigureTestServices(services);
             },
         };
     }
 
     public TenantSigning Signing { get; }
+
+    /// <summary>
+    /// Extra test-only services for a derived fixture. Runs when the host is built, after the shared
+    /// replacements, so it can wrap or add registrations.
+    /// </summary>
+    protected virtual void ConfigureTestServices(IServiceCollection services)
+    {
+    }
 
     public IServiceProvider Services => _factory.Services;
 

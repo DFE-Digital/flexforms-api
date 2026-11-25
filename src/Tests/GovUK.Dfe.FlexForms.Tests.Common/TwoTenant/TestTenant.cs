@@ -48,6 +48,12 @@ public sealed class TestTenant
     /// <summary>The raw service API key (a service principal provider) Web would send to token exchange.</summary>
     public string ServiceApiKey => $"{Key}-web-service-api-key";
 
+    /// <summary>A service principal API key whose provider also carries the Admin role.</summary>
+    public string ServiceAdminApiKey => $"{Key}-admin-service-api-key";
+
+    /// <summary>The file-validation service's API key (a service principal with the FileValidation role).</summary>
+    public string FileValidationApiKey => $"{Key}-file-validation-api-key";
+
     public Guid AdminRoleId => Ids(10);
     public Guid UserRoleId => Ids(11);
     public Guid CaseworkerRoleId => Ids(12);
@@ -59,6 +65,13 @@ public sealed class TestTenant
     public Guid CaseworkerId => Ids(22);
     public Guid TemplateManagerId => Ids(23);
     public Guid UserManagerId => Ids(24);
+    public Guid ScopedTemplateManagerId => Ids(25);
+    public Guid MemberId => Ids(26);
+
+    /// <summary>Plain members that only exist to be the target of user-management writes.</summary>
+    public Guid SpareMemberId(int n) => Ids(26 + n);
+
+    public string SpareMemberEmail(int n) => $"spare{n}@{Key}.example";
 
     public Guid TemplateId => Ids(30);
     public Guid TemplateVersionId => Ids(31);
@@ -73,6 +86,12 @@ public sealed class TestTenant
     public string CaseworkerEmail => $"caseworker@{Key}.example";
     public string TemplateManagerEmail => $"template.manager@{Key}.example";
     public string UserManagerEmail => $"user.manager@{Key}.example";
+
+    /// <summary>A User-role member with exactly what self-registration on the tenant's form grants.</summary>
+    public string MemberEmail => $"member@{Key}.example";
+
+    /// <summary>A User-role member whose only template grant is <c>Template:{TemplateId}:Manage</c>.</summary>
+    public string ScopedTemplateManagerEmail => $"form.manager@{Key}.example";
 
     public IEnumerable<string> MemberEmails =>
         [OwnerEmail, AdminEmail, CaseworkerEmail, TemplateManagerEmail, UserManagerEmail];
@@ -94,6 +113,16 @@ public sealed class TestTenant
         settings["AuthProviders:Providers:0:Name"] = "web-service";
         settings["AuthProviders:Providers:0:IsServicePrincipal"] = "true";
         settings["AuthProviders:Providers:0:KeyHash"] = TenantApiKeyHasher.Hash(ServiceApiKey);
+        settings["AuthProviders:Providers:1:Kind"] = nameof(TenantAuthProviderKind.ApiKey);
+        settings["AuthProviders:Providers:1:Name"] = "admin-service";
+        settings["AuthProviders:Providers:1:IsServicePrincipal"] = "true";
+        settings["AuthProviders:Providers:1:KeyHash"] = TenantApiKeyHasher.Hash(ServiceAdminApiKey);
+        settings["AuthProviders:Providers:1:Roles:0"] = "Admin";
+        settings["AuthProviders:Providers:2:Kind"] = nameof(TenantAuthProviderKind.ApiKey);
+        settings["AuthProviders:Providers:2:Name"] = "file-validation";
+        settings["AuthProviders:Providers:2:IsServicePrincipal"] = "true";
+        settings["AuthProviders:Providers:2:KeyHash"] = TenantApiKeyHasher.Hash(FileValidationApiKey);
+        settings["AuthProviders:Providers:2:Roles:0"] = "FileValidation";
 
         return new TenantConfiguration(
             Id,

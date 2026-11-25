@@ -1,6 +1,7 @@
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Domain.Common;
 using GovUK.Dfe.FlexForms.Domain.Entities;
+using GovUK.Dfe.FlexForms.Domain.Factories;
 using GovUK.Dfe.FlexForms.Domain.Services;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
@@ -12,7 +13,8 @@ namespace GovUK.Dfe.FlexForms.Tests.Common.TwoTenant;
 
 /// <summary>
 /// Seeds one shared EA database with the same shape of data for <see cref="TestTenant.A"/> and
-/// <see cref="TestTenant.B"/>, plus <see cref="BothTenantsEmail"/> (Admin in A, User in B) and a platform
+/// <see cref="TestTenant.B"/> (one member per role, a self-registered member, a member whose only template
+/// grant is Manage on the tenant's form, and three spare members to target with user-management writes), and <see cref="BothTenantsEmail"/> (Admin in A, User in B) and a platform
 /// <see cref="SuperAdminEmail"/> with no membership. Users are global rows; roles, memberships, templates
 /// and applications belong to one tenant, as in production.
 /// </summary>
@@ -69,17 +71,26 @@ public static class TwoTenantSeeder
             (tenant.CaseworkerId, tenant.CaseworkerEmail, $"{tenant.Name} Caseworker", caseworker),
             (tenant.TemplateManagerId, tenant.TemplateManagerEmail, $"{tenant.Name} Template Manager", templateManager),
             (tenant.UserManagerId, tenant.UserManagerEmail, $"{tenant.Name} User Manager", userManager),
+            (tenant.ScopedTemplateManagerId, tenant.ScopedTemplateManagerEmail, $"{tenant.Name} Form Manager", user),
+            (tenant.SpareMemberId(1), tenant.SpareMemberEmail(1), $"{tenant.Name} Spare 1", user),
+            (tenant.SpareMemberId(2), tenant.SpareMemberEmail(2), $"{tenant.Name} Spare 2", user),
+            (tenant.SpareMemberId(3), tenant.SpareMemberEmail(3), $"{tenant.Name} Spare 3", user),
         };
+        // Everyone starts as production users do: created by the self-registration factory call, which grants
+        // reading their own user record and their notifications in this tenant. The owner registered on the
+        // tenant's form, so also holds Read and Write on it. Roles and other grants come on top.
+        var templateId = new TemplateId(tenant.TemplateId);
+        var factory = new UserFactory();
         foreach (var member in members)
         {
-            ctx.Users.Add(new User(new UserId(member.Id), globalUserRoleId, member.Name, member.Email, now, null, null, null));
+            var formId = member.Id == tenant.OwnerId ? templateId : null;
+            ctx.Users.Add(factory.CreateUser(new UserId(member.Id), globalUserRoleId, member.Name, member.Email, formId, now, tenant.Id));
             ctx.TenantMemberships.Add(Membership(tenant.Id, new UserId(member.Id), member.Role.Id!.Value, now));
         }
         ctx.SaveChanges();
 
         var ownerId = new UserId(tenant.OwnerId);
         var adminId = new UserId(tenant.AdminId);
-        var templateId = new TemplateId(tenant.TemplateId);
         var versionId = new TemplateVersionId(tenant.TemplateVersionId);
         ctx.Templates.Add(new Template(templateId, $"{tenant.Name} form", now, adminId, isLive: true, tenantId: tenant.Id));
         ctx.TemplateVersions.Add(new TemplateVersion(
@@ -91,6 +102,13 @@ public static class TwoTenantSeeder
             createdBy: adminId,
             lastModifiedOn: null,
             lastModifiedBy: null));
+        ctx.SaveChanges();
+
+        // A member who self-registered on the form and holds nothing else.
+        var selfRegistered = factory.CreateUser(
+            new UserId(tenant.MemberId), globalUserRoleId, $"{tenant.Name} Member", tenant.MemberEmail, templateId, now, tenant.Id);
+        ctx.Users.Add(selfRegistered);
+        ctx.TenantMemberships.Add(Membership(tenant.Id, selfRegistered.Id!, tenant.UserRoleId, now));
         ctx.SaveChanges();
 
         var applicationId = new ApplicationId(tenant.ApplicationId);
@@ -125,6 +143,7 @@ public static class TwoTenantSeeder
             lastModifiedOn: null,
             lastModifiedBy: null));
 
+        // What creating the application grants its owner.
         var key = applicationId.Value.ToString();
         ctx.Permissions.AddRange(
             Grant(ownerId, applicationId, key, ResourceType.Application, AccessType.Read, adminId, now),
@@ -132,7 +151,7 @@ public static class TwoTenantSeeder
             Grant(ownerId, applicationId, key, ResourceType.ApplicationFiles, AccessType.Read, adminId, now),
             Grant(ownerId, applicationId, key, ResourceType.ApplicationFiles, AccessType.Write, adminId, now),
             Grant(ownerId, applicationId, key, ResourceType.ApplicationFiles, AccessType.Delete, adminId, now),
-            Grant(ownerId, null, templateId.Value.ToString(), ResourceType.Template, AccessType.Write, adminId, now));
+            Grant(new UserId(tenant.ScopedTemplateManagerId), null, templateId.Value.ToString(), ResourceType.Template, AccessType.Manage, adminId, now));
         ctx.SaveChanges();
     }
 

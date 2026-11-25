@@ -22,6 +22,8 @@ public sealed class TwoTenantSeedTests(TwoTenantApi api) : IClassFixture<TwoTena
             data.Add(tenant.Key, tenant.CaseworkerEmail, "Caseworker");
             data.Add(tenant.Key, tenant.TemplateManagerEmail, "TemplateManager");
             data.Add(tenant.Key, tenant.UserManagerEmail, "UserManager");
+            data.Add(tenant.Key, tenant.MemberEmail, RoleNames.User);
+            data.Add(tenant.Key, tenant.ScopedTemplateManagerEmail, RoleNames.User);
             data.Add(tenant.Key, TwoTenantSeeder.SuperAdminEmail, RoleNames.SuperAdmin);
         }
 
@@ -45,6 +47,9 @@ public sealed class TwoTenantSeedTests(TwoTenantApi api) : IClassFixture<TwoTena
     }
 
     [Theory]
+    [InlineData("form.manager", "Template:{template}:Manage")]
+    [InlineData("member", "Template:{template}:Write")]
+    [InlineData("member", "User:{email}:Read")]
     [InlineData("caseworker", "Application:Any:Read")]
     [InlineData("caseworker", "ApplicationFiles:Any:Read")]
     [InlineData("template.manager", "Template:Any:Manage")]
@@ -53,11 +58,14 @@ public sealed class TwoTenantSeedTests(TwoTenantApi api) : IClassFixture<TwoTena
     {
         foreach (var tenant in new[] { TestTenant.A, TestTenant.B })
         {
-            var token = await api.SignInAsync(tenant, $"{person}@{tenant.Key}.example");
+            var email = $"{person}@{tenant.Key}.example";
+            var token = await api.SignInAsync(tenant, email);
             using var response = await api.Client(tenant, token).GetAsync("v1/me/permissions");
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            Assert.Contains(permission, await PermissionsAsync(response));
+            Assert.Contains(
+                permission.Replace("{template}", tenant.TemplateId.ToString()).Replace("{email}", email),
+                await PermissionsAsync(response));
         }
     }
 

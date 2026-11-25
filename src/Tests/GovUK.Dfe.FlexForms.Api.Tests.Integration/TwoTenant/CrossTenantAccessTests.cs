@@ -144,6 +144,7 @@ public sealed class CrossTenantAccessTests(TwoTenantApi api) : IClassFixture<Two
     [Fact]
     public async Task RefusedWritesLeaveTenantBsDataAsSeeded()
     {
+        var templateGrantsBefore = await TemplateGrantCountAsync(B);
         foreach (var email in new[] { A.AdminEmail, A.OwnerEmail })
         {
             var token = await api.SignInAsync(A, email);
@@ -169,8 +170,15 @@ public sealed class CrossTenantAccessTests(TwoTenantApi api) : IClassFixture<Two
         Assert.True((await db.Templates.AsNoTracking().SingleAsync(t => t.Id == templateId)).IsLive);
         Assert.Equal(1, await db.TemplateVersions.CountAsync(v => v.TemplateId == templateId));
         Assert.Equal(0, await db.CustomApplicationStatuses.CountAsync(s => s.TemplateId == templateId));
-        Assert.Equal(1, await db.Permissions.CountAsync(p => p.ResourceType == ResourceType.Template
-                                                            && p.ResourceKey == B.TemplateId.ToString()));
+        Assert.Equal(templateGrantsBefore, await TemplateGrantCountAsync(B));
+    }
+
+    private async Task<int> TemplateGrantCountAsync(TestTenant tenant)
+    {
+        using var scope = api.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ExternalApplicationsContext>();
+        return await db.Permissions.CountAsync(p => p.ResourceType == ResourceType.Template
+                                                    && p.ResourceKey == tenant.TemplateId.ToString());
     }
 
     [Theory]
