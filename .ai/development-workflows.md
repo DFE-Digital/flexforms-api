@@ -41,8 +41,20 @@ Do not swap Testcontainers SQL for an in-memory provider when testing outbox/tem
 
 The CoreLibs `CustomWebApplicationDbContextFactory` strips every `DbContextOptions` registration and only re-adds contexts listed in `SeedData` (EA). `CustomWebApplicationDbContextFactoryCustomization` registers `TenantConfigDbContext` on the EF InMemory provider so handlers that depend on it (Test Authentication authenticators) resolve in integration tests. The "with rate limiting" customization does not.
 
+### Two-tenant host with real authentication
+
+`Tests.Common/TwoTenant/TwoTenantApi` (**Verified**) runs the API with two tenants, `TestTenant.A` and `TestTenant.B`, and the real authentication pipeline: no mock bearer handler. Use it as an xUnit class fixture.
+
+- `SignInAsync(tenant, email)` calls the real `POST /v1/tokens/exchange` the way Web does (the tenant's service API key in `X-Api-Key`, a subject token in the body) and returns the user JWT the API signed. Only the identity provider is a stand-in (`TestExternalIdentityValidator`).
+- `Client(tenant, bearerToken?, apiKey?)` sets `X-Tenant-ID` and nothing else, so a client with neither credential really sends none.
+- `TwoTenantApi` gives each tenant its own signing key, issuer and audience; `TwoTenantApiWithSharedSigning` gives both the same, so `tenant_id` is the only barrier.
+- `TwoTenantSeeder` fills one shared EA database with the same shape for each tenant: system Admin and User roles, Caseworker, TemplateManager and UserManager roles with their grants, a live template, and an owner's application with a response and a file. `BothTenantsEmail` is Admin in A and User in B; `SuperAdminEmail` is a platform SuperAdmin with no membership. Ids and emails are on `TestTenant`.
+- Process environment and the in-memory stand-ins (Redis, email, storage, bus) come from `IntegrationTestServices`, shared with the default host.
+- A file upload endpoint only accepts `multipart/form-data`; routing answers 415 for any other body before authentication runs.
+
 Integration-test gotchas (**Verified**):
 
+- The default host (`CustomWebApplicationDbContextFactoryCustomization`) replaces authentication with a mock bearer handler, and its client always sends a bearer token. A caller with no claims there gets 403 (or 401 from a handler that needs an email), never an authentication 401. Tests named `…_WhenCallerHasNoClaims` check exactly that. For real 401s, real tokens or anything crossing tenants, use `TwoTenantApi` (above).
 - `factory.TestClaims` is read **once**, when the mock bearer handler is first built (CoreLibs registers it as a singleton). Assigning a new list later in a test is silently ignored and the next request still runs as the first caller. To switch callers, change the same list: `factory.TestClaims.Clear(); factory.TestClaims.AddRange(...)` (see `CallAs` in `UsersControllerPermissionsTests`).
 - Only the clients registered in `CustomWebApplicationDbContextFactoryCustomization` are real. Any other client interface a test asks for is an AutoFixture mock that returns nulls and never throws. Register a new client there before testing its controller (`IRolesClient` was missing until chunk 1.6).
 - The test host does not cache `/me/permissions`, so an HTTP test can't show a cache clear; check `IUserCacheInvalidator` calls in a handler unit test.

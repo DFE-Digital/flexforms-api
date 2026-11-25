@@ -223,7 +223,7 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
 
         [Theory]
         [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-        public async Task GetMyPermissionsAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+        public async Task GetMyPermissionsAsync_ShouldReturnUnauthorized_WhenCallerHasNoClaims(
      CustomWebApplicationDbContextFactory<Program> factory,
      IUsersClient usersClient)
         {
@@ -235,7 +235,7 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
 
         [Theory]
         [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-        public async Task GetMyTestAuthAuthenticatorStatusAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+        public async Task GetMyTestAuthAuthenticatorStatusAsync_ShouldReturnUnauthorized_WhenCallerHasNoClaims(
             CustomWebApplicationDbContextFactory<Program> factory,
             IUsersClient usersClient)
         {
@@ -360,7 +360,7 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers
 
         [Theory]
         [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-        public async Task GetMyApplicationsAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+        public async Task GetMyApplicationsAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
             CustomWebApplicationDbContextFactory<Program> factory,
             IApplicationsClient appsClient
             )

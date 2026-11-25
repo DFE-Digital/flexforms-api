@@ -152,3 +152,10 @@ Pipeline unit tests in `Api.Tests` (**Verified**):
 - `ServicePrincipalHandlerTests` (matched provider first, then the `is_service` claim) and `UserManagePermissionHandlerTests` (Admin or any `User:*:Manage`).
 - `AuthorizationFailureResponseHandlerTests`: a challenge throws `UnauthorizedException` except under `/hubs`, where SignalR gets the normal challenge; a forbid always throws `AuthorizationForbiddenException`.
 - `ResultToExceptionFilterTests` and `ApplicationExceptionHandlerTests`: a failed `Result<T>` becomes the mapped exception, and each application exception becomes its status code and message.
+
+Tenant boundary with real tokens (**Verified**, `Api.Tests.Integration/TwoTenant/TenantBoundaryBaselineTests`, on the `TwoTenantApi` host):
+
+- A user token issued for tenant A gets 401 from tenant B, including for a user who is a member of both and for a platform SuperAdmin; each tenant needs its own exchange. A service API key for A gets 401 from B, including on token exchange.
+- With distinct signing settings two checks refuse a tenant A token on B: the audience check (A's issuer and audience fit no provider of B) and the `tenant_id` check. Either alone still refuses it. With one shared key, issuer and audience, the `tenant_id` check is the only barrier, so both variants run.
+- Exchange refuses a user with no membership in the tenant (403), and an unknown or missing service key (401).
+- Requests without credentials get 401 on every endpoint listed in `EndpointsNeedingAuthentication`.

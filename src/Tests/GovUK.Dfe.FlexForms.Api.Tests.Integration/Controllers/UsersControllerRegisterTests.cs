@@ -169,7 +169,7 @@ public class UsersControllerRegisterTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task RegisterUserAsync_ShouldReturnUnauthorized_WhenNotAuthenticated(
+    public async Task RegisterUserAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         IUsersClient usersClient,
         HttpClient httpClient)
@@ -177,7 +177,7 @@ public class UsersControllerRegisterTests
         // Arrange
         var externalToken = TestExternalIdentityValidator.CreateToken("test@example.com");
 
-        // No authentication header set
+        // The default client sends a bearer token with no claims; real missing-token 401s are in TenantBoundaryBaselineTests.
 
         var request = new RegisterUserRequest 
         { 

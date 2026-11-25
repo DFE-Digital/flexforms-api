@@ -14,50 +14,58 @@ public sealed class TestTenantConfigurationProvider : ITenantConfigurationProvid
 
     public TestTenantConfigurationProvider(string testTenantId, string tenantName = "Transfers")
     {
-        var tenantId = Guid.Parse(testTenantId);
         var settings = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                { "ApplicationReference:Prefix", "TRF" },
-                { "ApplicationTemplates:HostMappings:Transfers", EaContextSeeder.TemplateId },
-                { "EmailTemplates:Transfers:BugReportInternal", "11111111-1111-1111-1111-111111111101" },
-                { "EmailTemplates:Transfers:BugReportUser", "11111111-1111-1111-1111-111111111102" },
-                { "EmailTemplates:Transfers:SupportRequestInternal", "11111111-1111-1111-1111-111111111103" },
-                { "EmailTemplates:Transfers:SupportRequestUser", "11111111-1111-1111-1111-111111111104" },
-                { "EmailTemplates:Transfers:FeedbackOrSuggestionInternal", "11111111-1111-1111-1111-111111111105" },
-                { "EmailTemplates:Transfers:ApplicationSubmitted", "11111111-1111-1111-1111-111111111106" },
-                { "EmailTemplates:Transfers:TestAuthPasswordEmail", "a94eca1d-0a88-4144-b895-ecc66aee6e56" },
-                { "FileStorage:Provider", "Local" },
-                { "FileStorage:Local:BaseDirectory", "/uploads" },
-                { "FileStorage:Local:AllowedExtensions:0", "jpg" },
-                { "FileStorage:Local:AllowedExtensions:1", "png" },
-                { "FileStorage:Local:AllowedExtensions:2", "pdf" },
-                { "FileStorage:Local:AllowedExtensions:3", "docx" },
-                { "FileStorage:Local:AllowedExtensions:4", "xlsx" },
-                { "FrontendSettings:BaseUrl", "https://test.apply.example.gov.uk" },
-                { "FrontendSettings:PreviewContentSelector", ".govuk-grid-column-full" },
-                { "InternalServiceAuth:Services:0:Email", "test-service@service.com" },
-                { "InternalServiceAuth:Services:0:ApiKey", "secret" },
-                { "Email:Provider", "GovUkNotify" },
-                { "Email:GovUkNotify:ApiKey", "test-notify-key" },
-                { "Email:ServiceSupportEmailAddress", "some.email@education.gov.uk" },
-                // Authorization:TokenSettings here so the per-tenant named TokenSettings registered by
-                // AddCustomAuthorization matches the integration test signing config.
-                { "Authorization:TokenSettings:SecretKey", "iw5/ivfUWaCpj+n3TihlGUzRVna+KKu8IfLP52GdgNXlDcqt3+N2MM45rwQ=" },
-                { "Authorization:TokenSettings:Issuer", "21f3ed37-8443-4755-9ed2-c68ca86b4398" },
-                { "Authorization:TokenSettings:Audience", "20dafd6d-79e5-4caf-8b72-d070dcc9716f" },
-                { "Authorization:TokenSettings:TokenLifetimeMinutes", "60" },
-                { "ConnectionStrings:Redis", "localhost:6379" },
-                { "NotificationService:RedisConnectionString", "localhost:6379" },
-            })
+            .AddInMemoryCollection(DefaultSettings())
             .Build();
         var tenant = new TenantConfiguration(
-            tenantId,
+            Guid.Parse(testTenantId),
             tenantName,
             settings,
             new[] { "https://localhost:7020" });
         _tenants = new[] { tenant };
     }
+
+    /// <summary>Several tenants at once, for the two-tenant host.</summary>
+    public TestTenantConfigurationProvider(IEnumerable<TenantConfiguration> tenants)
+    {
+        _tenants = tenants.ToArray();
+    }
+
+    /// <summary>The settings every test tenant starts from. Callers copy and override them.</summary>
+    public static Dictionary<string, string?> DefaultSettings() => new()
+    {
+        { "ApplicationReference:Prefix", "TRF" },
+        { "ApplicationTemplates:HostMappings:Transfers", EaContextSeeder.TemplateId },
+        { "EmailTemplates:Transfers:BugReportInternal", "11111111-1111-1111-1111-111111111101" },
+        { "EmailTemplates:Transfers:BugReportUser", "11111111-1111-1111-1111-111111111102" },
+        { "EmailTemplates:Transfers:SupportRequestInternal", "11111111-1111-1111-1111-111111111103" },
+        { "EmailTemplates:Transfers:SupportRequestUser", "11111111-1111-1111-1111-111111111104" },
+        { "EmailTemplates:Transfers:FeedbackOrSuggestionInternal", "11111111-1111-1111-1111-111111111105" },
+        { "EmailTemplates:Transfers:ApplicationSubmitted", "11111111-1111-1111-1111-111111111106" },
+        { "EmailTemplates:Transfers:TestAuthPasswordEmail", "a94eca1d-0a88-4144-b895-ecc66aee6e56" },
+        { "FileStorage:Provider", "Local" },
+        { "FileStorage:Local:BaseDirectory", "/uploads" },
+        { "FileStorage:Local:AllowedExtensions:0", "jpg" },
+        { "FileStorage:Local:AllowedExtensions:1", "png" },
+        { "FileStorage:Local:AllowedExtensions:2", "pdf" },
+        { "FileStorage:Local:AllowedExtensions:3", "docx" },
+        { "FileStorage:Local:AllowedExtensions:4", "xlsx" },
+        { "FrontendSettings:BaseUrl", "https://test.apply.example.gov.uk" },
+        { "FrontendSettings:PreviewContentSelector", ".govuk-grid-column-full" },
+        { "InternalServiceAuth:Services:0:Email", "test-service@service.com" },
+        { "InternalServiceAuth:Services:0:ApiKey", "secret" },
+        { "Email:Provider", "GovUkNotify" },
+        { "Email:GovUkNotify:ApiKey", "test-notify-key" },
+        { "Email:ServiceSupportEmailAddress", "some.email@education.gov.uk" },
+        // Authorization:TokenSettings here so the per-tenant named TokenSettings registered by
+        // AddCustomAuthorization matches the integration test signing config.
+        { "Authorization:TokenSettings:SecretKey", "iw5/ivfUWaCpj+n3TihlGUzRVna+KKu8IfLP52GdgNXlDcqt3+N2MM45rwQ=" },
+        { "Authorization:TokenSettings:Issuer", "21f3ed37-8443-4755-9ed2-c68ca86b4398" },
+        { "Authorization:TokenSettings:Audience", "20dafd6d-79e5-4caf-8b72-d070dcc9716f" },
+        { "Authorization:TokenSettings:TokenLifetimeMinutes", "60" },
+        { "ConnectionStrings:Redis", "localhost:6379" },
+        { "NotificationService:RedisConnectionString", "localhost:6379" },
+    };
 
     public string Source => "Test";
 
