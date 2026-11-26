@@ -31,6 +31,93 @@ public class AssignUserRoleCommandHandlerTests
         return accessor;
     }
 
+    [Fact]
+    public async Task Handle_ShouldGiveANewUserReadAndWriteOnEachForm_WhenAssigningACustomRoleWithForms()
+    {
+        var (handler, userRepo, _) = CustomRoleHandlerWithRealUserFactory();
+        var given = new[] { Guid.NewGuid(), Guid.NewGuid() };
+        User? added = null;
+        await userRepo.AddAsync(Arg.Do<User>(user => added = user), Arg.Any<CancellationToken>());
+
+        var result = await handler.Handle(
+            new AssignUserRoleCommand("new.manager@example.com", "New Manager", RoleTemplates.TemplateManagerKey, given),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.NotNull(added);
+        Assert.Equal(ExpectedFormGrants(given), FormGrants(added));
+    }
+
+    [Fact]
+    public async Task Handle_ShouldGiveAnExistingUserReadAndWriteOnEachForm_WhenAssigningACustomRoleWithForms()
+    {
+        var existing = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.UserRoleId),
+            "Existing Member",
+            "existing.member@example.com",
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+        var (handler, userRepo, _) = CustomRoleHandlerWithRealUserFactory(existing);
+        var given = new[] { Guid.NewGuid() };
+
+        var result = await handler.Handle(
+            new AssignUserRoleCommand(existing.Email, existing.Name, RoleTemplates.TemplateManagerKey, given),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(ExpectedFormGrants(given), FormGrants(existing));
+        await userRepo.DidNotReceive().AddAsync(Arg.Any<User>(), Arg.Any<CancellationToken>());
+    }
+
+    /// <summary>A handler assigning the tenant's custom TemplateManager role, with the real <see cref="UserFactory"/>.</summary>
+    private static (AssignUserRoleCommandHandler Handler, IEaRepository<User> UserRepo, User Admin) CustomRoleHandlerWithRealUserFactory(
+        params User[] existingUsers)
+    {
+        var admin = new User(
+            new UserId(Guid.NewGuid()),
+            new RoleId(RoleConstants.AdminRoleId),
+            "Admin",
+            "admin@education.gov.uk",
+            DateTime.UtcNow,
+            null,
+            null,
+            null);
+        var userRepo = Substitute.For<IEaRepository<User>>();
+        var users = new List<User>([admin, .. existingUsers]).AsQueryable().BuildMockDbSet();
+        userRepo.Query().Returns(users);
+        var permissionChecker = Substitute.For<IPermissionCheckerService>();
+        permissionChecker.CanManageUsers().Returns(true);
+        var httpContextAccessor = Substitute.For<IHttpContextAccessor>();
+        SetupHttpContext(httpContextAccessor, admin.Email);
+        var customRole = Role.CreateForTenant(Guid.NewGuid(), RoleTemplates.TemplateManagerKey, isSystem: false);
+
+        var handler = CreateHandler(
+            userRepo,
+            Substitute.For<IUnitOfWork>(),
+            permissionChecker,
+            Substitute.For<IUserRoleProvisionerRegistry>(),
+            httpContextAccessor,
+            CreateTenantRoleService(customRole),
+            new UserFactory());
+        return (handler, userRepo, admin);
+    }
+
+    private static string[] ExpectedFormGrants(IEnumerable<Guid> templateIds)
+        => templateIds
+            .SelectMany(id => new[] { $"{id}:{AccessType.Read}", $"{id}:{AccessType.Write}" })
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+    private static string[] FormGrants(User user)
+        => user.Permissions
+            .Where(p => p.ResourceType == ResourceType.Template)
+            .Select(p => $"{p.ResourceKey}:{p.AccessType}")
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
     private static ITenantMembershipService CreateMembershipService()
     {
         var service = Substitute.For<ITenantMembershipService>();

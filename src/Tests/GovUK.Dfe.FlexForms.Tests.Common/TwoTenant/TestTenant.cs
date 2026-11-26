@@ -84,6 +84,7 @@ public sealed class TestTenant
     public string OwnerEmail => $"owner@{Key}.example";
     public string AdminEmail => $"admin@{Key}.example";
     public string CaseworkerEmail => $"caseworker@{Key}.example";
+    /// <summary>Holds the TemplateManager role and was given the tenant's form (Read and Write on it), as an admin assigns one.</summary>
     public string TemplateManagerEmail => $"template.manager@{Key}.example";
     public string UserManagerEmail => $"user.manager@{Key}.example";
 

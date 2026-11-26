@@ -30,7 +30,7 @@ public static class HandlerCases
     public static readonly Principal[] Order =
     [
         Principal.User, Principal.Contributor, Principal.Owner, Principal.Caseworker, Principal.FormManager,
-        Principal.UserManager, Principal.Service, Principal.FileValidation, Principal.ServiceAdmin,
+        Principal.TemplateManager, Principal.UserManager, Principal.Service, Principal.FileValidation, Principal.ServiceAdmin,
         Principal.Admin, Principal.SuperAdmin,
     ];
 
@@ -53,14 +53,14 @@ public static class HandlerCases
     public static IReadOnlyList<HandlerCase> All { get; } =
     [
         // ---- Templates ----
-        new("list accessible templates", "TemplatesController.GetAccessibleTemplatesAsync", Send("GET", "v1/templates"), Codes((Principal.User, 200), (Principal.Contributor, 200), (Principal.Owner, 200), (Principal.Caseworker, 200), (Principal.FormManager, 200), (Principal.UserManager, 200), (Principal.Service, 401), (Principal.FileValidation, 401), (Principal.ServiceAdmin, 200), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
-        new("read the latest schema", "TemplatesController.GetLatestTemplateSchemaAsync", Send("GET", $"v1/templates/{A.TemplateId}/schema"), Codes((Principal.User, 200), (Principal.Contributor, 200), (Principal.Owner, 200), (Principal.Caseworker, 403), (Principal.FormManager, 403), (Principal.ServiceAdmin, 401), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
-        new("list versions", "TemplatesController.GetTemplateVersionsAsync", Send("GET", $"v1/templates/{A.TemplateId}/versions"), Codes((Principal.User, 200), (Principal.Contributor, 200), (Principal.Owner, 200), (Principal.Caseworker, 403), (Principal.FormManager, 403), (Principal.ServiceAdmin, 401), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
-        new("read a version", "TemplatesController.GetTemplateSchemaByVersionAsync", Send("GET", $"v1/templates/{A.TemplateId}/versions/1.0.0"), Codes((Principal.User, 200), (Principal.Contributor, 200), (Principal.Owner, 200), (Principal.Caseworker, 403), (Principal.FormManager, 403), (Principal.ServiceAdmin, 401), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
-        new("list custom statuses", "TemplatesController.GetCustomApplicationStatusesAsync", Send("GET", $"v1/templates/{A.TemplateId}/custom-statuses"), Codes((Principal.User, 200), (Principal.Contributor, 200), (Principal.Owner, 200), (Principal.Caseworker, 200), (Principal.FormManager, 200), (Principal.ServiceAdmin, 200), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
+        new("list accessible templates", "TemplatesController.GetAccessibleTemplatesAsync", Send("GET", "v1/templates"), Codes((Principal.User, 200), (Principal.Contributor, 200), (Principal.Owner, 200), (Principal.Caseworker, 200), (Principal.FormManager, 200), (Principal.TemplateManager, 200), (Principal.UserManager, 200), (Principal.Service, 401), (Principal.FileValidation, 401), (Principal.ServiceAdmin, 200), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
+        new("read the latest schema", "TemplatesController.GetLatestTemplateSchemaAsync", Send("GET", $"v1/templates/{A.TemplateId}/schema"), Codes((Principal.User, 200), (Principal.Contributor, 200), (Principal.Owner, 200), (Principal.Caseworker, 403), (Principal.FormManager, 403), (Principal.TemplateManager, 200), (Principal.ServiceAdmin, 401), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
+        new("list versions", "TemplatesController.GetTemplateVersionsAsync", Send("GET", $"v1/templates/{A.TemplateId}/versions"), Codes((Principal.User, 200), (Principal.Contributor, 200), (Principal.Owner, 200), (Principal.Caseworker, 403), (Principal.FormManager, 403), (Principal.TemplateManager, 200), (Principal.ServiceAdmin, 401), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
+        new("read a version", "TemplatesController.GetTemplateSchemaByVersionAsync", Send("GET", $"v1/templates/{A.TemplateId}/versions/1.0.0"), Codes((Principal.User, 200), (Principal.Contributor, 200), (Principal.Owner, 200), (Principal.Caseworker, 403), (Principal.FormManager, 403), (Principal.TemplateManager, 200), (Principal.ServiceAdmin, 401), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
+        new("list custom statuses", "TemplatesController.GetCustomApplicationStatusesAsync", Send("GET", $"v1/templates/{A.TemplateId}/custom-statuses"), Codes((Principal.User, 200), (Principal.Contributor, 200), (Principal.Owner, 200), (Principal.Caseworker, 200), (Principal.FormManager, 200), (Principal.TemplateManager, 200), (Principal.ServiceAdmin, 200), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
         new("create a custom status", "TemplatesController.CreateCustomApplicationStatusAsync",
-            Send("POST", $"v1/templates/{A.TemplateId}/custom-statuses", p => new { ApplicationStatus = "Submitted", Label = $"Received ({p})" }), Codes((Principal.FormManager, 403), (Principal.ServiceAdmin, 401), (Principal.Admin, 201), (Principal.SuperAdmin, 201))),
-        new("set the form live", "TemplatesController.SetTemplateLiveAsync", Send("PUT", $"v1/templates/{A.TemplateId}/live", _ => new { IsLive = true }), Codes((Principal.FormManager, 403), (Principal.ServiceAdmin, 200), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
+            Send("POST", $"v1/templates/{A.TemplateId}/custom-statuses", p => new { ApplicationStatus = "Submitted", Label = $"Received ({p})" }), Codes((Principal.FormManager, 403), (Principal.TemplateManager, 201), (Principal.ServiceAdmin, 401), (Principal.Admin, 201), (Principal.SuperAdmin, 201))),
+        new("set the form live", "TemplatesController.SetTemplateLiveAsync", Send("PUT", $"v1/templates/{A.TemplateId}/live", _ => new { IsLive = true }), Codes((Principal.FormManager, 403), (Principal.TemplateManager, 200), (Principal.ServiceAdmin, 200), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
         new("grant a form to all users", "TemplatesController.GrantTemplateAccessToAllUsersAsync", async (api, principal) =>
         {
             using var admin = api.For(Principal.Admin);
@@ -68,11 +68,22 @@ public static class HandlerCases
                 new { Name = $"Granted form ({principal})", InitialVersionNumber = "1.0.0", JsonSchema = Schema });
             var form = await created.Content.ReadFromJsonAsync<TemplateIdOnly>();
             return new HttpRequestMessage(HttpMethod.Post, $"v1/templates/{form!.TemplateId}/grant-all-users");
-        }, Codes((Principal.FormManager, 403), (Principal.ServiceAdmin, 400), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
+        }, Codes((Principal.FormManager, 403), (Principal.TemplateManager, 403), (Principal.ServiceAdmin, 400), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),
         new("create a form", "TemplatesController.CreateTemplateAsync",
-            Send("POST", "v1/templates", p => new { Name = $"Matrix form ({p})", InitialVersionNumber = "1.0.0", JsonSchema = Schema }), Codes((Principal.FormManager, 201), (Principal.ServiceAdmin, 401), (Principal.Admin, 201), (Principal.SuperAdmin, 201))),
+            Send("POST", "v1/templates", p => new { Name = $"Matrix form ({p})", InitialVersionNumber = "1.0.0", JsonSchema = Schema }), Codes((Principal.FormManager, 201), (Principal.TemplateManager, 201), (Principal.ServiceAdmin, 401), (Principal.Admin, 201), (Principal.SuperAdmin, 201))),
+        new("create a version of a form the caller was not given", "TemplatesController.CreateTemplateVersionAsync", async (api, principal) =>
+        {
+            using var admin = api.For(Principal.Admin);
+            using var created = await admin.PostAsJsonAsync("v1/templates",
+                new { Name = $"Form not given ({principal})", InitialVersionNumber = "1.0.0", JsonSchema = Schema });
+            var form = await created.Content.ReadFromJsonAsync<TemplateIdOnly>();
+            return new HttpRequestMessage(HttpMethod.Post, $"v1/templates/{form!.TemplateId}/versions")
+            {
+                Content = JsonContent.Create(new { VersionNumber = "1.1.0", JsonSchema = Schema }),
+            };
+        }, Codes((Principal.FormManager, 403), (Principal.TemplateManager, 403), (Principal.ServiceAdmin, 401), (Principal.Admin, 201), (Principal.SuperAdmin, 201))),
         new("create a version (Q10: needs Template:{id}:Write)", "TemplatesController.CreateTemplateVersionAsync",
-            Send("POST", $"v1/templates/{A.TemplateId}/versions", p => new { VersionNumber = $"2.{(int)p}.0", JsonSchema = Schema }), Codes((Principal.FormManager, 403), (Principal.ServiceAdmin, 401), (Principal.Admin, 201), (Principal.SuperAdmin, 201))),
+            Send("POST", $"v1/templates/{A.TemplateId}/versions", p => new { VersionNumber = $"2.{(int)p}.0", JsonSchema = Schema }), Codes((Principal.FormManager, 403), (Principal.TemplateManager, 201), (Principal.ServiceAdmin, 401), (Principal.Admin, 201), (Principal.SuperAdmin, 201))),
 
         // ---- Users ----
         new("list tenant users", "UsersController.GetTenantUsersAsync", Send("GET", "v1/users/tenant"), Codes((Principal.UserManager, 200), (Principal.ServiceAdmin, 200), (Principal.Admin, 200), (Principal.SuperAdmin, 200))),

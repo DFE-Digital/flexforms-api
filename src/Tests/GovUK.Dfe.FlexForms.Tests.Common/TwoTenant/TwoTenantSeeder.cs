@@ -78,12 +78,13 @@ public static class TwoTenantSeeder
         };
         // Everyone starts as production users do: created by the self-registration factory call, which grants
         // reading their own user record and their notifications in this tenant. The owner registered on the
-        // tenant's form, so also holds Read and Write on it. Roles and other grants come on top.
+        // tenant's form, and the template manager was given it when assigned the role, so both also hold Read
+        // and Write on it. Roles and other grants come on top.
         var templateId = new TemplateId(tenant.TemplateId);
         var factory = new UserFactory();
         foreach (var member in members)
         {
-            var formId = member.Id == tenant.OwnerId ? templateId : null;
+            var formId = member.Id == tenant.OwnerId || member.Id == tenant.TemplateManagerId ? templateId : null;
             ctx.Users.Add(factory.CreateUser(new UserId(member.Id), globalUserRoleId, member.Name, member.Email, formId, now, tenant.Id));
             ctx.TenantMemberships.Add(Membership(tenant.Id, new UserId(member.Id), member.Role.Id!.Value, now));
         }

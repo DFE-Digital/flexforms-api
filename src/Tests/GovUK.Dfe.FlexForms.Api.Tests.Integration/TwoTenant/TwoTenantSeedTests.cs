@@ -53,6 +53,7 @@ public sealed class TwoTenantSeedTests(TwoTenantApi api) : IClassFixture<TwoTena
     [InlineData("caseworker", "Application:Any:Read")]
     [InlineData("caseworker", "ApplicationFiles:Any:Read")]
     [InlineData("template.manager", "Template:Any:Manage")]
+    [InlineData("template.manager", "Template:{template}:Write")]
     [InlineData("user.manager", "User:Any:Manage")]
     public async Task CustomRoleGrantsReachThePermissionClaims(string person, string permission)
     {

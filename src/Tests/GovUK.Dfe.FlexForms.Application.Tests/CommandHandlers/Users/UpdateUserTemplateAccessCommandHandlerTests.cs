@@ -1,3 +1,4 @@
+using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Application.Services;
 using GovUK.Dfe.FlexForms.Application.Users.Commands;
 using GovUK.Dfe.FlexForms.Domain.Common;
@@ -103,6 +104,64 @@ public class UpdateUserTemplateAccessCommandHandlerTests
             Arg.Any<string>(),
             Arg.Any<string>(),
             Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_ShouldReplaceTheUsersFormsInThisTenant_AndKeepFormsFromOtherTenants()
+    {
+        var kept = new TemplateId(Guid.NewGuid());
+        var removed = new TemplateId(Guid.NewGuid());
+        var added = new TemplateId(Guid.NewGuid());
+        var otherTenantsForm = new TemplateId(Guid.NewGuid());
+        var admin = CreateUser("Admin", "admin@education.gov.uk", new RoleId(RoleConstants.AdminRoleId));
+        var subject = CreateUser("Ada", "ada@example.com", new RoleId(RoleConstants.UserRoleId));
+        var factory = new UserFactory();
+        foreach (var form in new[] { kept, removed, otherTenantsForm })
+            factory.EnsureUserHasTemplatePermission(subject, form, admin.Id!);
+        var handler = HandlerWithRealUserFactory(factory, admin, subject, catalogue: [kept, removed, added]);
+
+        var result = await handler.Handle(
+            new UpdateUserTemplateAccessCommand(subject.Id!.Value, [kept.Value, added.Value]),
+            CancellationToken.None);
+
+        Assert.True(result.IsSuccess, result.Error);
+        Assert.Equal(
+            new[] { kept, added, otherTenantsForm }
+                .SelectMany(id => new[] { $"{id.Value}:{AccessType.Read}", $"{id.Value}:{AccessType.Write}" })
+                .Order(StringComparer.Ordinal),
+            subject.Permissions
+                .Where(p => p.ResourceType == ResourceType.Template)
+                .Select(p => $"{p.ResourceKey}:{p.AccessType}")
+                .Order(StringComparer.Ordinal));
+        await _unitOfWork.Received(1).CommitAsync(Arg.Any<CancellationToken>());
+    }
+
+    private UpdateUserTemplateAccessCommandHandler HandlerWithRealUserFactory(
+        UserFactory factory, User admin, User subject, TemplateId[] catalogue)
+    {
+        _permissionChecker.CanManageUsers().Returns(true);
+        _catalogue.GetTemplateIdsAsync(Arg.Any<CancellationToken>()).Returns(catalogue);
+        var httpContext = Substitute.For<HttpContext>();
+        httpContext.User.Returns(new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim(ClaimTypes.Email, admin.Email)],
+            authenticationType: "Bearer")));
+        _httpContextAccessor.HttpContext.Returns(httpContext);
+        var users = new[] { admin, subject }.AsQueryable().BuildMockDbSet();
+        _userRepo.Query().Returns(users);
+        var templates = Array.Empty<Template>().AsQueryable().BuildMockDbSet();
+        _templateRepo.Query().Returns(templates);
+
+        return new UpdateUserTemplateAccessCommandHandler(
+            _userRepo,
+            _templateRepo,
+            _unitOfWork,
+            factory,
+            _catalogue,
+            _permissionChecker,
+            _httpContextAccessor,
+            _tenantContextAccessor,
+            _auditWriter,
+            _cacheInvalidator);
     }
 
     private static User CreateUser(string name, string email, RoleId roleId)

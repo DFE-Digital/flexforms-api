@@ -30,6 +30,7 @@ public enum Principal
 
     /// <summary>A member whose only template grant is Manage on tenant A's form.</summary>
     FormManager = 1 << 5,
+    TemplateManager = 1 << 12,
     UserManager = 1 << 6,
     Admin = 1 << 7,
     SuperAdmin = 1 << 8,
@@ -43,7 +44,7 @@ public enum Principal
     /// <summary>The file-validation service (a service principal with the FileValidation role).</summary>
     FileValidation = 1 << 11,
 
-    Users = User | Contributor | Owner | Caseworker | FormManager | UserManager | Admin | SuperAdmin,
+    Users = User | Contributor | Owner | Caseworker | FormManager | TemplateManager | UserManager | Admin | SuperAdmin,
     Services = Service | ServiceAdmin | FileValidation,
     Authenticated = Users | Services,
     Everyone = Anonymous | Authenticated,
@@ -94,6 +95,7 @@ public sealed class MatrixApi : TwoTenantApi, IAsyncLifetime
         _tokens[Principal.Contributor] = await SignInAsync(a, ContributorEmail);
         _tokens[Principal.Caseworker] = await SignInAsync(a, a.CaseworkerEmail);
         _tokens[Principal.FormManager] = await SignInAsync(a, a.ScopedTemplateManagerEmail);
+        _tokens[Principal.TemplateManager] = await SignInAsync(a, a.TemplateManagerEmail);
         _tokens[Principal.UserManager] = await SignInAsync(a, a.UserManagerEmail);
         _tokens[Principal.Admin] = await SignInAsync(a, a.AdminEmail);
         _tokens[Principal.SuperAdmin] = await SignInAsync(a, TwoTenantSeeder.SuperAdminEmail);
