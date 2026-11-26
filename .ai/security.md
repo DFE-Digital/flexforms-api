@@ -1,6 +1,6 @@
 # Security
 
-**Verified** in `Api/Security/AuthorizationExtensions.cs`, `Application/Users/Queries/ExchangeTokenQueryHandler.cs`, and [`README.md`](../README.md).
+**Verified** in `Api/Security/AuthorizationExtensions.cs`, `Api/Security/TenantAuthenticationRules.cs`, `Application/Users/Queries/ExchangeTokenQueryHandler.cs`, and [`README.md`](../README.md).
 
 ## Authentication schemes
 
@@ -113,6 +113,15 @@ An administrator can lock a tenant user out of **every** Test Authentication sig
 
 Bearer `tenant_id` must match the resolved tenant. Never weaken this check.
 
+The request-time rules live in `Api/Security/TenantAuthenticationRules.cs`; `AuthorizationExtensions` only wires them in (**Verified**). `TenantAuthenticationRulesTests` covers:
+
+- Scheme selection order: `/hubs/*` → `HubCookie`, then `X-Api-Key` → `ApiKey`, then a client certificate → `Mtls`, then platform bootstrap paths → `PlatformBearer`, otherwise `TenantBearer`.
+- Audience: with a resolved tenant the token must fit that tenant's provider (issuer, `aud`, and `azp` then `appid`); with no tenant, any tenant's provider for the issuer will do.
+- `tenant_id`: compared case-insensitively; a mismatch fails. Without the claim, the token passes only if exactly one provider matches (that provider is stashed for `ServicePrincipalRequirement`). If none matches and the issuer is known, it fails; if the issuer is unknown, it passes with a warning (the legacy grace path). No resolved tenant means no check.
+- mTLS: an unknown thumbprint fails; a certificate for another tenant fails; otherwise the principal is rebuilt as the provider's tenant principal and keeps the certificate's claims.
+
+`TenantAuthenticationWiringTests` checks that each handler is still wired to these rules.
+
 ## Secrets and Data Protection
 
 - Encryptor: `DataProtectionTenantSettingsEncryptor`, purpose `TenantSettings.v1` (`Infrastructure/Services/DataProtectionTenantSettingsEncryptor.cs`).
@@ -143,3 +152,14 @@ Pipeline unit tests in `Api.Tests` (**Verified**):
 - `ServicePrincipalHandlerTests` (matched provider first, then the `is_service` claim) and `UserManagePermissionHandlerTests` (Admin or any `User:*:Manage`).
 - `AuthorizationFailureResponseHandlerTests`: a challenge throws `UnauthorizedException` except under `/hubs`, where SignalR gets the normal challenge; a forbid always throws `AuthorizationForbiddenException`.
 - `ResultToExceptionFilterTests` and `ApplicationExceptionHandlerTests`: a failed `Result<T>` becomes the mapped exception, and each application exception becomes its status code and message.
+
+Tenant boundary with real tokens (**Verified**, `Api.Tests.Integration/TwoTenant/TenantBoundaryBaselineTests`, on the `TwoTenantApi` host):
+
+- A user token issued for tenant A gets 401 from tenant B, including for a user who is a member of both and for a platform SuperAdmin; each tenant needs its own exchange. A service API key for A gets 401 from B, including on token exchange.
+- With distinct signing settings two checks refuse a tenant A token on B: the audience check (A's issuer and audience fit no provider of B) and the `tenant_id` check. Either alone still refuses it. With one shared key, issuer and audience, the `tenant_id` check is the only barrier, so both variants run.
+- Exchange refuses a user with no membership in the tenant (403), and an unknown or missing service key (401).
+- Requests without credentials get 401 on every endpoint listed in `EndpointsNeedingAuthentication`.
+
+Cross-tenant access by id (**Verified**, `TwoTenant/CrossTenantAccessTests`): a tenant A admin or owner with a real tenant A token, aiming at tenant B's application, files or template, gets 403 or 404 (asserted per handler; Q9 keeps each handler's code), while the same caller reads tenant A's equivalent with 200. The refused writes leave tenant B's rows as seeded. For admins the per-handler tenant checks (`TenantPermissionFilter.ApplicationBelongsToCurrentTenantAsync`, `ITenantTemplateResolver.IsTemplateInCurrentTenantAsync`) are what refuse; for owners the permission policy refuses first. Removing a tenant B-only user from tenant A leaves their tenant B membership and access in place.
+
+Permission matrix (**Verified**, `TwoTenant/PermissionMatrix`): every controller action (112, cross-checked against `ExpectedSecurity.json`, routing and reflection) with the principals its policy lets through, plus handler outcomes for TenantAdmin, Users, Roles and Templates. Notable rows: `TenantAdminUser` endpoints admit only an interactive Admin or SuperAdmin (not a service key with the Admin role); platform endpoints admit no tenant credential; `ServiceCallers` admits only service principals; `CreateTemplateVersion` needs `Template:{id}:Write`, so Manage alone gets 403 (Q10); export, import, reveal, platform tenants, clone and duplicate are SuperAdmin only.

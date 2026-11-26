@@ -43,7 +43,7 @@ public class TemplatesControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task GetLatestTemplateSchemaAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task GetLatestTemplateSchemaAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         ITemplatesClient templatesClient)
     {
@@ -140,7 +140,7 @@ public class TemplatesControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task CreateTemplateVersionAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task CreateTemplateVersionAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         ITemplatesClient templatesClient,
         CreateTemplateVersionRequest request)
@@ -295,7 +295,7 @@ public class TemplatesControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task GetCustomApplicationStatusesAsync_ShouldReturnForbidden_WhenNotAuthenticated(
+    public async Task GetCustomApplicationStatusesAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         ITemplatesClient templatesClient)
     {
@@ -532,7 +532,7 @@ public class TemplatesControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task CreateCustomApplicationStatusAsync_ShouldReturnForbidden_WhenNotAuthenticated(
+    public async Task CreateCustomApplicationStatusAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         ITemplatesClient templatesClient,
         CustomApplicationStatusRequest request)

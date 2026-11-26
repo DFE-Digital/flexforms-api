@@ -96,7 +96,7 @@ public class TokensControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task Exchange_ShouldReturnUnauthorized_WhenAzureTokenMissing(
+    public async Task Exchange_ShouldReturnForbidden_WhenCallerIsNotAServicePrincipal(
         CustomWebApplicationDbContextFactory<Program> factory,
         ITokensClient tokensClient)
     {

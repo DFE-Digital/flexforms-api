@@ -90,7 +90,7 @@ public class ApplicationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task AddApplicationResponseAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task AddApplicationResponseAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         IApplicationsClient applicationsClient,
 
@@ -198,7 +198,7 @@ public class ApplicationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task CreateApplicationAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task CreateApplicationAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         IApplicationsClient applicationsClient,
         CreateApplicationRequest request)
@@ -265,7 +265,7 @@ public class ApplicationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task GetMyApplicationsAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task GetMyApplicationsAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         IApplicationsClient applicationsClient)
     {
@@ -329,7 +329,7 @@ public class ApplicationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task GetApplicationByReferenceAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task GetApplicationByReferenceAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         IApplicationsClient applicationsClient,
         HttpClient httpClient)
@@ -417,7 +417,7 @@ public class ApplicationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task DeleteApplicationAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task DeleteApplicationAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         IApplicationsClient applicationsClient,
         HttpClient httpClient)
@@ -512,7 +512,7 @@ public class ApplicationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task SubmitApplicationAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task SubmitApplicationAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         IApplicationsClient applicationsClient,
         HttpClient httpClient)
@@ -810,7 +810,7 @@ public class ApplicationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task GetContributorsAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task GetContributorsAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         IApplicationsClient applicationsClient)
     {
@@ -976,7 +976,7 @@ public class ApplicationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task AddContributorAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task AddContributorAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         IApplicationsClient applicationsClient)
     {
@@ -1099,7 +1099,7 @@ public class ApplicationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task RemoveContributorAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task RemoveContributorAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         IApplicationsClient applicationsClient)
     {
@@ -1183,7 +1183,7 @@ public class ApplicationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task UploadFileAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task UploadFileAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         IApplicationsClient applicationsClient,
         HttpClient httpClient,
@@ -1776,11 +1776,11 @@ public class ApplicationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task DownloadApplicationPreviewHtmlAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task DownloadApplicationPreviewHtmlAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         HttpClient httpClient)
     {
-        // Arrange - No authorization header set
+        // The default client sends a bearer token with no claims; real missing-token 401s are in TenantBoundaryBaselineTests.
 
         // Act
         var response = await httpClient.GetAsync($"/v1/applications/reference/{EaContextSeeder.ApplicationReference}/preview/download");

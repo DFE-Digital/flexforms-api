@@ -110,7 +110,7 @@ public class UsersControllerAssignRoleTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task AssignUserRoleAsync_ShouldReturnForbidden_WhenTokenMissing(
+    public async Task AssignUserRoleAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         IUsersClient usersClient)
     {

@@ -29,7 +29,7 @@ Notification failure must not fail the file-validation callback (README). Tenant
 
 **Grants are per tenant** (**Verified**). `/v1/Notifications/*` needs the claim `Notifications:{email}:{Read|Write|Delete}`, built from a `Permissions` row keyed `{tenantId}:{email}` (`TenantScopedIdentityKey`, `TenantPermissionFilter`). Every path that gives an **existing** user a new or reactivated tenant membership must call `IUserFactory.EnsureNotificationPermissions(user, tenantId, …)`: self-registration (`RegisterUserCommandHandler`), role assignment (`AssignUserRoleCommandHandler`) and contributor invites (`AddContributorCommandHandler`, inline). Do **not** call it for users who are already active members: admins can narrow notification grants in User Manager (`SetUserPermissionsCommandHandler`) and re-seeding would undo that. Missing it makes every Web page load return 403 from `/notifications/unread`. Migration `20261106100000_BackfillTenantNotificationPermissions` repairs only active memberships created on or after 2026-08-14 that have **no** notification grant for their tenant, so partially restricted grant sets are left alone.
 
-**Hub auth is cookie-only** (**Verified**). `ForwardDefaultSelector` in `Security/AuthorizationExtensions.cs` sends `/hubs/*` to the `HubCookie` scheme. On reconnect the SignalR JS client re-sends the Azure SignalR access token (issuer `azure-signalr`) as a bearer; letting `TenantBearer` validate it only produced `SecurityTokenInvalidIssuerException` / `SecurityTokenExpiredException` noise. Hub tickets (`auth/hub-ticket`) are single use and live 60 seconds; redemption reads and deletes the ticket in one Redis step (`IAtomicCacheStore.GetAndDeleteAsync`), so a ticket cannot be redeemed twice even by simultaneous requests. The cookie lives 10 minutes with no sliding.
+**Hub auth is cookie-only** (**Verified**). `ForwardDefaultSelector` (`TenantAuthenticationRules.SelectScheme`) sends `/hubs/*` to the `HubCookie` scheme. On reconnect the SignalR JS client re-sends the Azure SignalR access token (issuer `azure-signalr`) as a bearer; letting `TenantBearer` validate it only produced `SecurityTokenInvalidIssuerException` / `SecurityTokenExpiredException` noise. Hub tickets (`auth/hub-ticket`) are single use and live 60 seconds; redemption reads and deletes the ticket in one Redis step (`IAtomicCacheStore.GetAndDeleteAsync`), so a ticket cannot be redeemed twice even by simultaneous requests. The cookie lives 10 minutes with no sliding.
 
 ## 7. Edge cases
 
@@ -39,7 +39,9 @@ In-process SignalR + multiple replicas (startup now refuses this outside Develop
 
 ## 8. Tests
 
-Notification handler tests, hub integration tests.
+Notification handler tests, hub integration tests. **Verified** on the two-tenant host (`TwoTenant/CrossTenantAccessTests`): a hub ticket minted in tenant A is refused (401) when redeemed in tenant B and stays usable in A; a connection carrying tenant A's `hubauth` cookie joins tenant A's group even when it sends another tenant's `X-Tenant-ID`, so it gets only tenant A's messages. `NotificationHubTests` checks that two users connected at once each get only their own messages.
+
+`HubConnection.StartAsync` can return before `NotificationHub.OnConnectedAsync` has added the connection to its group, so a message sent straight away can be lost. Hub tests call `SignalR/HubGroupReadiness.WaitUntilInGroupAsync` (it sends probes to the group until one arrives) before sending the message under test.
 
 ## 9. Limits
 

@@ -69,7 +69,7 @@ public class NotificationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task CreateNotificationAsync_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task CreateNotificationAsync_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         INotificationsClient notificationsClient)
     {
@@ -407,11 +407,11 @@ public class NotificationsControllerTests
 
     [Theory]
     [CustomAutoData(typeof(CustomWebApplicationDbContextFactoryCustomization))]
-    public async Task NotificationEndpoints_ShouldReturnUnauthorized_WhenTokenMissing(
+    public async Task NotificationEndpoints_ShouldReturnForbidden_WhenCallerHasNoClaims(
         CustomWebApplicationDbContextFactory<Program> factory,
         INotificationsClient notificationsClient)
     {
-        // Test all endpoints without authorization
+        // The default client sends a bearer token with no claims; real missing-token 401s are in TenantBoundaryBaselineTests.
         var ex1 = await Assert.ThrowsAsync<ExternalApplicationsException<ExceptionResponse>>(
             () => notificationsClient.GetAllNotificationsAsync());
         Assert.Equal(403, ex1.StatusCode);

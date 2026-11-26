@@ -228,10 +228,12 @@ public class NotificationHubTests
         connection.On<string>("test.message", message => received.TrySetResult(message));
 
         await connection.StartAsync();
+        var hubContext = factory.Services.GetRequiredService<IHubContext<NotificationHub>>();
+        var group = $"tenant:{TestTenantId}:user:{userEmail}";
+        await HubGroupReadiness.WaitUntilInGroupAsync(connection, hubContext, group);
 
         // Act
-        var hubContext = factory.Services.GetRequiredService<IHubContext<NotificationHub>>();
-        await hubContext.Clients.Group($"tenant:{TestTenantId}:user:{userEmail}").SendAsync("test.message", "hello");
+        await hubContext.Clients.Group(group).SendAsync("test.message", "hello");
 
         // Assert
         var completed = await Task.WhenAny(received.Task, Task.Delay(TimeSpan.FromSeconds(10)));
@@ -248,50 +250,67 @@ public class NotificationHubTests
         CustomWebApplicationDbContextFactory<Program> factory,
         HttpClient httpClient)
     {
-        // Arrange
+        // Arrange: each user gets their own hub cookie. TestClaims is read once, so switch callers in place.
         var user1Email = "user1@example.com";
         var user2Email = "user2@example.com";
-
-        factory.TestClaims = new List<Claim>
-        {
-            new(ClaimTypes.Email, user1Email)
-        };
-
+        factory.TestClaims ??= [];
         httpClient.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", "user-token");
 
-        // Obtain hub auth cookie via HubAuthController flow
+        var user1Cookies = await HubCookiesAsync(factory, httpClient, user1Email);
+        var user2Cookies = await HubCookiesAsync(factory, httpClient, user2Email);
+
+        var connection1 = new HubConnectionBuilder()
+            .WithUrl("http://localhost/hubs/notifications", options => AddTenantAndCookiesToHubOptions(options, factory, user1Cookies))
+            .Build();
+        var connection2 = new HubConnectionBuilder()
+            .WithUrl("http://localhost/hubs/notifications", options => AddTenantAndCookiesToHubOptions(options, factory, user2Cookies))
+            .Build();
+        var received1 = new List<string>();
+        var received2 = new List<string>();
+        connection1.On<string>("test.message", m => { lock (received1) received1.Add(m); });
+        connection2.On<string>("test.message", m => { lock (received2) received2.Add(m); });
+
+        // Act
+        await connection1.StartAsync();
+        await connection2.StartAsync();
+        var hubContext = factory.Services.GetRequiredService<IHubContext<NotificationHub>>();
+        var user1Group = $"tenant:{TestTenantId}:user:{user1Email}";
+        var user2Group = $"tenant:{TestTenantId}:user:{user2Email}";
+        await HubGroupReadiness.WaitUntilInGroupAsync(connection1, hubContext, user1Group);
+        await HubGroupReadiness.WaitUntilInGroupAsync(connection2, hubContext, user2Group);
+        await hubContext.Clients.Group(user1Group).SendAsync("test.message", "for user 1");
+        await hubContext.Clients.Group(user2Group).SendAsync("test.message", "for user 2");
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while ((received1.Count == 0 || received2.Count == 0) && DateTime.UtcNow < deadline)
+            await Task.Delay(50);
+        await Task.Delay(300);
+
+        // Assert: both connected, and each received only its own user's message.
+        Assert.Equal(HubConnectionState.Connected, connection1.State);
+        Assert.Equal(HubConnectionState.Connected, connection2.State);
+        lock (received1) Assert.Equal(["for user 1"], received1);
+        lock (received2) Assert.Equal(["for user 2"], received2);
+
+        // Cleanup
+        await connection1.DisposeAsync();
+        await connection2.DisposeAsync();
+    }
+
+    private static async Task<List<string>> HubCookiesAsync(
+        CustomWebApplicationDbContextFactory<Program> factory, HttpClient httpClient, string email)
+    {
+        factory.TestClaims!.Clear();
+        factory.TestClaims.Add(new Claim(ClaimTypes.Email, email));
+
         var ticketReq = await httpClient.PostAsync("/auth/hub-ticket", content: null);
         ticketReq.EnsureSuccessStatusCode();
         var payload = JsonDocument.Parse(await ticketReq.Content.ReadAsStringAsync());
         var redeemUrl = payload.RootElement.GetProperty("url").GetString();
         var redeemResp = await httpClient.GetAsync(redeemUrl!);
         Assert.Equal(System.Net.HttpStatusCode.NoContent, redeemResp.StatusCode);
-        var rawCookies = redeemResp.Headers.TryGetValues("Set-Cookie", out var cookieValues)
-            ? cookieValues.ToList()
-            : new List<string>();
-        var authCookies = rawCookies
+        return (redeemResp.Headers.TryGetValues("Set-Cookie", out var cookieValues) ? cookieValues.ToList() : [])
             .Select(c => c.Split(';')[0])
             .ToList();
-
-        var connection1 = new HubConnectionBuilder()
-            .WithUrl("http://localhost/hubs/notifications", options => AddTenantAndCookiesToHubOptions(options, factory, authCookies))
-            .Build();
-
-        var connection2 = new HubConnectionBuilder()
-            .WithUrl("http://localhost/hubs/notifications", options => AddTenantAndCookiesToHubOptions(options, factory, authCookies))
-            .Build();
-
-        // Act
-        await connection1.StartAsync();
-        await connection2.StartAsync();
-
-        // Assert
-        Assert.Equal(HubConnectionState.Connected, connection1.State);
-        Assert.Equal(HubConnectionState.Connected, connection2.State);
-
-        // Cleanup
-        await connection1.DisposeAsync();
-        await connection2.DisposeAsync();
     }
 }
