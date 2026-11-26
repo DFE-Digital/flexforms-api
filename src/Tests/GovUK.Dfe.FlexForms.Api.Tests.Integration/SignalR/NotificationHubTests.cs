@@ -228,10 +228,12 @@ public class NotificationHubTests
         connection.On<string>("test.message", message => received.TrySetResult(message));
 
         await connection.StartAsync();
+        var hubContext = factory.Services.GetRequiredService<IHubContext<NotificationHub>>();
+        var group = $"tenant:{TestTenantId}:user:{userEmail}";
+        await HubGroupReadiness.WaitUntilInGroupAsync(connection, hubContext, group);
 
         // Act
-        var hubContext = factory.Services.GetRequiredService<IHubContext<NotificationHub>>();
-        await hubContext.Clients.Group($"tenant:{TestTenantId}:user:{userEmail}").SendAsync("test.message", "hello");
+        await hubContext.Clients.Group(group).SendAsync("test.message", "hello");
 
         // Assert
         var completed = await Task.WhenAny(received.Task, Task.Delay(TimeSpan.FromSeconds(10)));
@@ -273,8 +275,12 @@ public class NotificationHubTests
         await connection1.StartAsync();
         await connection2.StartAsync();
         var hubContext = factory.Services.GetRequiredService<IHubContext<NotificationHub>>();
-        await hubContext.Clients.Group($"tenant:{TestTenantId}:user:{user1Email}").SendAsync("test.message", "for user 1");
-        await hubContext.Clients.Group($"tenant:{TestTenantId}:user:{user2Email}").SendAsync("test.message", "for user 2");
+        var user1Group = $"tenant:{TestTenantId}:user:{user1Email}";
+        var user2Group = $"tenant:{TestTenantId}:user:{user2Email}";
+        await HubGroupReadiness.WaitUntilInGroupAsync(connection1, hubContext, user1Group);
+        await HubGroupReadiness.WaitUntilInGroupAsync(connection2, hubContext, user2Group);
+        await hubContext.Clients.Group(user1Group).SendAsync("test.message", "for user 1");
+        await hubContext.Clients.Group(user2Group).SendAsync("test.message", "for user 2");
         var deadline = DateTime.UtcNow.AddSeconds(10);
         while ((received1.Count == 0 || received2.Count == 0) && DateTime.UtcNow < deadline)
             await Task.Delay(50);

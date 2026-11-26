@@ -5,6 +5,7 @@ using System.Text.Json;
 using GovUK.Dfe.CoreLibs.Contracts.ExternalApplications.Enums;
 using GovUK.Dfe.FlexForms.Api.Hubs;
 using GovUK.Dfe.FlexForms.Api.Middleware;
+using GovUK.Dfe.FlexForms.Api.Tests.Integration.SignalR;
 using GovUK.Dfe.FlexForms.Domain.ValueObjects;
 using GovUK.Dfe.FlexForms.Infrastructure.Database;
 using GovUK.Dfe.FlexForms.Tests.Common.TwoTenant;
@@ -230,6 +231,9 @@ public sealed class CrossTenantAccessTests(TwoTenantApi api) : IClassFixture<Two
         var received = new List<string>();
         connection.On<string>("test.message", message => { lock (received) received.Add(message); });
         await connection.StartAsync();
+        // Once the connection is in tenant A's group, OnConnectedAsync has run, so a tenant B group it was
+        // wrongly added to would be there too.
+        await HubGroupReadiness.WaitUntilInGroupAsync(connection, hub, $"tenant:{A.Id}:user:{email}");
 
         await hub.Clients.Group($"tenant:{B.Id}:user:{email}").SendAsync("test.message", "for tenant B");
         await hub.Clients.Group($"tenant:{A.Id}:user:{email}").SendAsync("test.message", "for tenant A");

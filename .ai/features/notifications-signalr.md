@@ -41,6 +41,8 @@ In-process SignalR + multiple replicas (startup now refuses this outside Develop
 
 Notification handler tests, hub integration tests. **Verified** on the two-tenant host (`TwoTenant/CrossTenantAccessTests`): a hub ticket minted in tenant A is refused (401) when redeemed in tenant B and stays usable in A; a connection carrying tenant A's `hubauth` cookie joins tenant A's group even when it sends another tenant's `X-Tenant-ID`, so it gets only tenant A's messages. `NotificationHubTests` checks that two users connected at once each get only their own messages.
 
+`HubConnection.StartAsync` can return before `NotificationHub.OnConnectedAsync` has added the connection to its group, so a message sent straight away can be lost. Hub tests call `SignalR/HubGroupReadiness.WaitUntilInGroupAsync` (it sends probes to the group until one arrives) before sending the message under test.
+
 ## 9. Limits
 
 Not a general pub/sub for tenant integrations. Those use EventMappings / Service Bus topics.
