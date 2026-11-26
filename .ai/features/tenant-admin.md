@@ -58,12 +58,18 @@ Refresh fail-closed. Reveal is break-glass, not a substitute for RBAC. New tenan
 
 `TenantSettingSecretPlaintextGateTests`, `TenantSettingTargetOverlapGateTests`, `CreateTenantCommandHandlerTests`, `NewTenantSettingsRequirementsTests`, `TenantCreatorServiceTests`, TenantAdmin handler tests.
 
-Who may do what (**Verified**, `Application.Tests` TenantAdmin handler tests and `TenantAdminControllerSettingsTests` over HTTP):
+Who may do what (**Verified**, `Application.Tests` TenantAdmin handler tests, and `TenantAdminControllerSettingsTests` and `TenantAdminControllerTenantTests` over HTTP):
 
 - Safe settings (`TenantSafeSettingCategoriesTests`: 12 categories, 5 stored under Shared, 7 under Web; no SuperAdmin-only or encrypted category is safe): interactive Admin or SuperAdmin of the route tenant only. Service principals, another tenant, an unsafe category, bad Base64, empty or invalid JSON are refused. The read hides secret rows and every non-delegated category.
 - Upsert, delete and validate of full settings: the six SuperAdmin-only categories are refused for a tenant admin. Validate redacts stored and proposed secrets unless the caller is a SuperAdmin in a plaintext environment (Development, Local, Dev, Test, Testing).
 - Export and import: interactive SuperAdmin of the route tenant only; an empty bundle is refused; with `SkipSecretPlaceholders` the exported `{"__SECRET__":true}` placeholders leave stored secrets unchanged.
 - Effective config: Admin or SuperAdmin of the route tenant; refresh state, tenant and provider counts and frontend origins are SuperAdmin only. Platform tenants: SuperAdmin only. Setting audit log: interactive tenant admin of the route tenant.
+- Tenant list and refresh: interactive Admin or SuperAdmin; service principals and users without an admin role are refused. A tenant admin only ever sees their own tenant.
+- Full settings read: Admin or SuperAdmin of the route tenant; secret rows are redacted except for a SuperAdmin in a plaintext environment.
+- Reveal: interactive SuperAdmin of the route tenant only; needs a reason of at least 10 characters and a secret row with a string at the path; every reveal is written to the audit log with the path and reason.
+- Clone (and the legacy `duplicate` route): interactive SuperAdmin of the route tenant only; refused for the same id, a hostname already in use, missing required settings or bad Base64. Only the submitted settings are stored.
+- Health: Admin or SuperAdmin of the route tenant; frontend origins and platform counts are SuperAdmin only. Cookbook: SuperAdmin-only categories are left out for a tenant admin. Cookbook and event catalogue: service principals refused.
+- Not covered over HTTP: `seed` (its policy needs `PlatformBearer`, which the test host does not register).
 
 ## 9. Limits
 

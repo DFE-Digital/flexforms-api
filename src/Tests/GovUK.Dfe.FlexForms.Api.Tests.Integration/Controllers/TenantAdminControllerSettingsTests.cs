@@ -15,6 +15,8 @@ using GovUK.Dfe.FlexForms.Tests.Common.Seeders;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
+using static GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers.TenantAdminHttpTestKit;
+
 namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers;
 
 /// <summary>
@@ -23,10 +25,7 @@ namespace GovUK.Dfe.FlexForms.Api.Tests.Integration.Controllers;
 /// </summary>
 public class TenantAdminControllerSettingsTests
 {
-    private const string AdminEmail = "alice@example.com";
     private const string StoredSecret = "stored-client-secret";
-    private static readonly Guid TenantId = Guid.Parse(EaContextSeeder.TestTenantId);
-    private static readonly Guid OtherTenantId = Guid.Parse("22222222-2222-4222-8222-222222222222");
 
     // ---- delegated (safe) organisation settings ----
 
@@ -309,46 +308,5 @@ public class TenantAdminControllerSettingsTests
 
         Assert.Equal(403, otherTenant.Status);
         Assert.Equal(403, service.Status);
-    }
-
-    private static UpsertTenantSettingRequest Setting(string category, string json, string target = "Web", bool isSecret = false) =>
-        new(category, target, ToBase64(json), isSecret);
-
-    private static string ToBase64(string json) => Convert.ToBase64String(Encoding.UTF8.GetBytes(json));
-
-    private static async Task SeedTenantAsync(CustomWebApplicationDbContextFactory<Program> factory) =>
-        await WithTenantConfigAsync(factory, async db =>
-        {
-            db.Tenants.Add(new TenantEntity { Id = TenantId, Name = "Transfers" });
-            return await db.SaveChangesAsync();
-        });
-
-    private static async Task<T> WithTenantConfigAsync<T>(
-        CustomWebApplicationDbContextFactory<Program> factory, Func<TenantConfigDbContext, Task<T>> action)
-    {
-        using var scope = factory.Services.CreateScope();
-        return await action(scope.ServiceProvider.GetRequiredService<TenantConfigDbContext>());
-    }
-
-    private static async Task<(int Status, string Message)> ApiErrorAsync(Func<Task> call)
-    {
-        var ex = await Assert.ThrowsAnyAsync<ExternalApplicationsException>(call);
-        var message = ex is ExternalApplicationsException<ExceptionResponse> typed
-            ? typed.Result?.Message ?? ""
-            : ex.Response ?? "";
-        return (ex.StatusCode, message);
-    }
-
-    private static List<Claim> Admin() => [new(ClaimTypes.Email, AdminEmail), new(ClaimTypes.Role, RoleNames.Admin)];
-
-    private static List<Claim> SuperAdmin() => [new(ClaimTypes.Email, "root@example.com"), new(ClaimTypes.Role, RoleNames.SuperAdmin)];
-
-    private static void CallAs(CustomWebApplicationDbContextFactory<Program> factory, HttpClient httpClient, List<Claim> claims)
-    {
-        // CoreLibs reads TestClaims once, when the mock handler is first built; change the same list.
-        factory.TestClaims ??= [];
-        factory.TestClaims.Clear();
-        factory.TestClaims.AddRange(claims);
-        httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", "user-token");
     }
 }
